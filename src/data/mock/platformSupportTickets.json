@@ -1,0 +1,20 @@
+[
+  {
+    "id": "SUP-001",
+    "tenant_id": "TENANT-001",
+    "subject": "Invoice print alignment help",
+    "priority": "Medium",
+    "status": "OPEN",
+    "created_at": "2026-07-17T13:20:00.000Z",
+    "assigned_to": "Platform Super Admin"
+  },
+  {
+    "id": "SUP-002",
+    "tenant_id": "TENANT-003",
+    "subject": "Subscription payment verification",
+    "priority": "High",
+    "status": "PENDING",
+    "created_at": "2026-07-18T10:05:00.000Z",
+    "assigned_to": "Platform Super Admin"
+  }
+]

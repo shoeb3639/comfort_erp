@@ -1,0 +1,9 @@
+[
+  { "id": "DRV-001", "vendorId": "VEN-001", "ownershipType": "own", "name": "Kakku", "license": "", "status": "Available", "phone": "+91 9677586758", "city": "Prayagraj" },
+  { "id": "DRV-002", "vendorId": "VEN-001", "ownershipType": "own", "name": "Kamlesh", "license": "", "status": "Available", "phone": "+91 9867465575", "city": "Prayagraj" },
+  { "id": "DRV-003", "vendorId": "VEN-001", "ownershipType": "own", "name": "Naushad", "license": "", "status": "Available", "phone": "+91 8776655343", "city": "Prayagraj" },
+  { "id": "DRV-004", "vendorId": "VEN-001", "ownershipType": "own", "name": "Parvez", "license": "", "status": "Available", "phone": "+91 9877665454", "city": "Prayagraj" },
+  { "id": "DRV-005", "vendorId": "VEN-001", "ownershipType": "own", "name": "Guddu", "license": "", "status": "Available", "phone": "+91 9864454657", "city": "Prayagraj" },
+  { "id": "DRV-006", "vendorId": "VEN-001", "ownershipType": "own", "name": "Rajesh", "license": "", "status": "Available", "phone": "+91 8766767676", "city": "Prayagraj" },
+  { "id": "DRV-007", "vendorId": "VEN-001", "ownershipType": "own", "name": "Dinesh", "license": "", "status": "Available", "phone": "+91 8787878787", "city": "Prayagraj" }
+]

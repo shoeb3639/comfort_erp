@@ -1,0 +1,50 @@
+[
+  {
+    "id": "PLAN-STARTER",
+    "plan_code": "STARTER",
+    "plan_name": "Starter",
+    "description": "For small operators starting with digital booking and billing.",
+    "billing_cycle": "Monthly",
+    "base_price": 1499,
+    "user_limit": 3,
+    "vehicle_limit": 10,
+    "booking_limit": 300,
+    "storage_limit_mb": 1024,
+    "trial_days": 14,
+    "is_active": true,
+    "created_at": "2026-07-01T10:00:00.000Z",
+    "updated_at": "2026-07-01T10:00:00.000Z"
+  },
+  {
+    "id": "PLAN-GROWTH",
+    "plan_code": "GROWTH",
+    "plan_name": "Growth",
+    "description": "For active fleet operators with accounting and manager ledger workflows.",
+    "billing_cycle": "Monthly",
+    "base_price": 4999,
+    "user_limit": 10,
+    "vehicle_limit": 50,
+    "booking_limit": 2000,
+    "storage_limit_mb": 5120,
+    "trial_days": 14,
+    "is_active": true,
+    "created_at": "2026-07-01T10:00:00.000Z",
+    "updated_at": "2026-07-01T10:00:00.000Z"
+  },
+  {
+    "id": "PLAN-ENTERPRISE",
+    "plan_code": "ENTERPRISE",
+    "plan_name": "Enterprise",
+    "description": "Custom limits, priority support, and advanced reporting.",
+    "billing_cycle": "Custom",
+    "base_price": 0,
+    "user_limit": "Custom",
+    "vehicle_limit": "Custom",
+    "booking_limit": "Custom",
+    "storage_limit_mb": "Custom",
+    "trial_days": 0,
+    "is_active": true,
+    "created_at": "2026-07-01T10:00:00.000Z",
+    "updated_at": "2026-07-01T10:00:00.000Z"
+  }
+]

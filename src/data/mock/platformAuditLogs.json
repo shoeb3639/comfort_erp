@@ -1,0 +1,29 @@
+[
+  {
+    "id": "AUD-001",
+    "date": "2026-07-18T10:05:00.000Z",
+    "user": "Platform Super Admin",
+    "action": "Tenant Suspended",
+    "module": "Tenants",
+    "reference": "TENANT-003",
+    "remarks": "Payment overdue"
+  },
+  {
+    "id": "AUD-002",
+    "date": "2026-07-10T09:30:00.000Z",
+    "user": "Platform Super Admin",
+    "action": "Tenant Created",
+    "module": "Tenants",
+    "reference": "TENANT-002",
+    "remarks": "Trial account created"
+  },
+  {
+    "id": "AUD-003",
+    "date": "2026-07-01T10:00:00.000Z",
+    "user": "Platform Super Admin",
+    "action": "Subscription Activated",
+    "module": "Subscriptions",
+    "reference": "SUB-001",
+    "remarks": "Growth plan activated"
+  }
+]
