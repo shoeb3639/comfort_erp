@@ -1,0 +1,12 @@
+[
+  {"id":"INV-001","booking":"BK-1001","dueDate":"2026-07-02","total":"₹180","status":"Paid"},
+  {"id":"INV-002","booking":"BK-1002","dueDate":"2026-07-05","total":"₹260","status":"Draft"},
+  {"id":"INV-003","booking":"BK-1003","dueDate":"2026-07-06","total":"₹340","status":"Sent"},
+  {"id":"INV-004","booking":"BK-1004","dueDate":"2026-07-07","total":"₹140","status":"Paid"},
+  {"id":"INV-005","booking":"BK-1005","dueDate":"2026-07-08","total":"₹220","status":"Cancelled"},
+  {"id":"INV-006","booking":"BK-1006","dueDate":"2026-07-09","total":"₹160","status":"Sent"},
+  {"id":"INV-007","booking":"BK-1007","dueDate":"2026-07-10","total":"₹280","status":"Draft"},
+  {"id":"INV-008","booking":"BK-1008","dueDate":"2026-07-11","total":"₹150","status":"Paid"},
+  {"id":"INV-009","booking":"BK-1009","dueDate":"2026-07-12","total":"₹420","status":"Sent"},
+  {"id":"INV-010","booking":"BK-1010","dueDate":"2026-07-13","total":"₹130","status":"Paid"}
+]

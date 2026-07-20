@@ -1,0 +1,12 @@
+[
+  {
+    "id": "PU-001",
+    "name": "Platform Super Admin",
+    "email": "admin@cablix.example",
+    "mobile": "+91 9000000001",
+    "role": "Super Admin",
+    "status": "ACTIVE",
+    "last_login": "2026-07-18T09:15:00.000Z",
+    "created_at": "2026-07-01T10:00:00.000Z"
+  }
+]

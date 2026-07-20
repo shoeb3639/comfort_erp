@@ -1,0 +1,6 @@
+[
+  { "id": "USR-001", "name": "Syed Shoeb", "email": "admin@comfortcars.test", "mobile": "+91 98765 00001", "role_id": "ROLE-001", "branch_ids": ["LOC-001"], "status": "Active", "last_login": "2026-07-11T09:15:00.000Z", "created_at": "2026-07-01T10:00:00.000Z" },
+  { "id": "USR-002", "name": "Syed Tarique", "email": "tarique@comfortcars.test", "mobile": "+91 98765 43210", "role_id": "ROLE-003", "branch_ids": ["LOC-001"], "status": "Active", "last_login": "2026-07-10T18:25:00.000Z", "created_at": "2026-07-01T10:20:00.000Z" },
+  { "id": "USR-003", "name": "Pooja Mishra", "email": "accounts@comfortcars.test", "mobile": "+91 98765 00003", "role_id": "ROLE-005", "branch_ids": ["LOC-001"], "status": "Active", "last_login": "2026-07-10T16:10:00.000Z", "created_at": "2026-07-02T11:00:00.000Z" },
+  { "id": "USR-004", "name": "Kakku", "email": "kakku.driver@comfortcars.test", "mobile": "+91 9677586758", "role_id": "ROLE-007", "branch_ids": ["LOC-001"], "status": "Active", "last_login": "", "created_at": "2026-07-03T12:00:00.000Z" }
+]

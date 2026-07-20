@@ -1,0 +1,6 @@
+{
+  "name": "@cablix/shared",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Shared Cablix ERP TypeScript contracts and constants"
+}

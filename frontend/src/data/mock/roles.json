@@ -1,0 +1,10 @@
+[
+  { "id": "ROLE-001", "name": "Super Admin", "code": "super_admin", "description": "Full system access across operations, accounts, fleet, reports, and settings.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-002", "name": "Admin", "code": "admin", "description": "Administrative access for daily business operations and configuration.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-003", "name": "Operations Manager", "code": "operations_manager", "description": "Manage bookings, assignments, trip closure, and operational follow-up.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-004", "name": "Booking Executive", "code": "booking_executive", "description": "Create and manage booking records and booking collections.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-005", "name": "Accountant", "code": "accountant", "description": "Manage invoices, manager ledger, expenses, deposits, daily closing, and audit verification.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-006", "name": "Fleet Manager", "code": "fleet_manager", "description": "Manage vehicles, drivers, fuel logs, maintenance, and service schedules.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-007", "name": "Driver", "code": "driver", "description": "Limited access for assigned duties and driver-specific records.", "is_system_role": true, "status": "Active" },
+  { "id": "ROLE-008", "name": "Partner", "code": "partner", "description": "Future placeholder for partner / owner access.", "is_system_role": true, "status": "Future Placeholder" }
+]

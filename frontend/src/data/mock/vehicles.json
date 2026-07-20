@@ -1,0 +1,11 @@
+[
+  { "id": "VEH-001", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70HP1089", "type": "SUV", "status": "Ready", "make": "Tata Nexon", "seatingCapacity": 5 },
+  { "id": "VEH-002", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70HV8977", "type": "SUV", "status": "Ready", "make": "Tata Nexon", "seatingCapacity": 5 },
+  { "id": "VEH-003", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70HQ2666", "type": "MUV", "status": "Ready", "make": "Kia Carens", "seatingCapacity": 6 },
+  { "id": "VEH-004", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP14DD7275", "type": "MUV", "status": "Ready", "make": "Innova Crysta", "seatingCapacity": 7 },
+  { "id": "VEH-005", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70HQ7867", "type": "MUV", "status": "Ready", "make": "Innova Crysta", "seatingCapacity": 7 },
+  { "id": "VEH-006", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70QT6573", "type": "Sedan", "status": "Ready", "make": "Swift Dzire", "seatingCapacity": 4 },
+  { "id": "VEH-007", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70FT8624", "type": "Sedan", "status": "Ready", "make": "Tata Zest", "seatingCapacity": 4 },
+  { "id": "VEH-008", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70PT6573", "type": "MUV", "status": "Ready", "make": "Ertiga", "seatingCapacity": 7 },
+  { "id": "VEH-009", "vendorId": "VEN-001", "ownershipType": "own", "plate": "UP70IJ3455", "type": "MUV", "status": "Ready", "make": "Kia Carens", "seatingCapacity": 6 }
+]
