@@ -2,7 +2,9 @@
 
 Version: 1.0
 
-Status: Approved Living Document
+Status: Approved Requirements Baseline (Frozen)
+
+Baseline Date: 20 July 2026
 
 Project Name: Cablix ERP
 

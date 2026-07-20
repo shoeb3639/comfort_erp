@@ -2,7 +2,9 @@
 
 Version: 1.0
 
-Status: Approved Living Document
+Status: Approved Requirements Baseline (Frozen)
+
+Baseline Date: 20 July 2026
 
 ## Purpose
 
@@ -305,64 +307,67 @@ backend/
 |-- tsconfig.json
 ```
 
-Each module should follow a consistent internal structure:
+Every business module should follow the same internal structure. The bookings
+module is the reference pattern:
 
 ```text
-bookings/
-|-- booking.routes.ts
-|-- booking.controller.ts
-|-- booking.service.ts
-|-- booking.repository.ts
-|-- booking.validation.ts
-|-- booking.types.ts
-|-- booking.constants.ts
-|-- booking.test.ts
+modules/bookings/
+|-- booking.routes.ts       # Defines endpoints and attaches middleware.
+|-- booking.controller.ts   # Reads request data and returns HTTP responses.
+|-- booking.service.ts      # Contains booking business rules and workflows.
+|-- booking.repository.ts   # Contains Prisma queries and database access.
+|-- booking.schema.ts       # Contains request validation schemas.
+|-- booking.types.ts        # Contains TypeScript types and interfaces.
+|-- booking.mapper.ts       # Transforms database records into API responses.
+|-- booking.constants.ts    # Contains module-specific constants.
+|-- booking.test.ts         # Contains module unit and integration tests.
 ```
 
-## Platform And Tenant Separation
+Other modules should use the same naming and responsibility pattern, replacing
+`booking` with the singular module name. Files that are not required for a
+module may be omitted, but responsibilities must not be moved into unrelated
+layers.
 
-The backend must separate:
+## Platform and Tenant Separation
 
-- Platform Admin APIs
-- Tenant ERP APIs
+The backend must clearly separate:
 
-Recommended route prefixes:
+- Platform APIs
+- Tenant APIs
+- Public APIs
+- Authentication APIs
+
+Recommended versioned URL structure:
 
 ```text
-/api/platform/*
-/api/tenant/*
-/api/auth/*
+/api/v1/auth/*
+/api/v1/platform/*
+/api/v1/tenant/*
+/api/v1/public/*
 ```
 
-Platform examples:
+Examples:
 
 ```text
-/api/platform/tenants
-/api/platform/subscription-plans
-/api/platform/subscriptions
-/api/platform/payments
+POST /api/v1/auth/login
+GET  /api/v1/platform/tenants
+POST /api/v1/platform/tenants
+GET  /api/v1/tenant/bookings
+POST /api/v1/tenant/bookings
 ```
 
-Tenant examples:
+Access-isolation requirements:
 
-```text
-/api/tenant/bookings
-/api/tenant/invoices
-/api/tenant/customers
-/api/tenant/accounts
-```
+- Platform users must not automatically access tenant operational data.
+- Tenant users must never access platform administration APIs.
+- A tenant must never access another tenant's data.
+- Users must not access endpoints for which they lack permission.
+- Platform users must not accidentally enter tenant operations.
+- Suspended tenants must not create transactions.
 
-Auth examples:
-
-```text
-/api/auth/login
-/api/auth/refresh-token
-/api/auth/logout
-```
-
-Platform users must not access tenant APIs as normal tenant users.
-
-Tenant users must never access platform APIs.
+These boundaries must be enforced by authentication, tenant resolution,
+tenant-status checks, and permission middleware. URL separation alone is not a
+security boundary.
 
 ## Authentication
 
@@ -632,3 +637,41 @@ Recommended first backend sequence:
 9. Connect existing Tenant ERP modules gradually.
 
 Existing React mock screens should remain working while backend APIs are introduced.
+
+# Immutable Backend Rules
+
+1. Controllers must not contain business logic.
+
+2. Routes must not directly access the database.
+
+3. Tenant ID must come only from authenticated backend context.
+
+4. Every tenant-owned database query must include tenant isolation.
+
+5. Financial posting operations must use database transactions.
+
+6. Posted financial records must not be directly edited or deleted.
+
+7. Invoice numbers must be generated only during finalization.
+
+8. Draft invoices must not consume invoice numbers.
+
+9. Customer collection and manager operational funds must remain separate.
+
+10. Authorization must be permission-based.
+
+11. External input must always be validated.
+
+12. Errors must use standardized application error codes.
+
+13. Sensitive data must never appear in logs or API errors.
+
+14. Business rules must remain in the service layer.
+
+15. Reports should derive data from approved transactional records.
+
+16. All important business actions must be auditable.
+
+17. No module may bypass the approved booking, invoice, or accounting workflow.
+
+18. Any architectural change must first be reflected in the documentation.

@@ -4,7 +4,9 @@
 **Product Type:** Multi-Tenant SaaS ERP for Car Rental & Fleet Management Companies  
 **Owner:** Cablix  
 **Version:** 1.0  
-**Status:** Active Development
+**Status:** Approved Requirements Baseline (Frozen)
+
+**Baseline Date:** 20 July 2026
 
 ---
 
@@ -25,6 +27,24 @@ The documents inside this folder are the **official source of truth** for the pr
 If the source code conflicts with these documents, **the documentation takes precedence** until officially updated.
 
 Architecture decisions should never be inferred from existing code alone.
+
+## Baseline and Change Control
+
+Version 1.0 of these documents is the approved requirements baseline. Product,
+business, security, data, workflow, and architecture requirements in this
+baseline are frozen for implementation.
+
+Any proposed change must:
+
+1. Be documented before implementation.
+2. Identify the affected requirements, workflows, APIs, data, and tests.
+3. Be reviewed and approved by the project owner.
+4. Update the relevant document version and change history.
+5. Be implemented only after documentation approval.
+
+Implementation details may evolve without changing the baseline only when they
+do not alter an approved business rule, security boundary, data rule, workflow,
+or external contract.
 
 ---
 
