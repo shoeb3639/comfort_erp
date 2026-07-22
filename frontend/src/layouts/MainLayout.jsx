@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 
 const navItems = [
   { id: 'dashboard', to: '/dashboard', label: 'Dashboard', shortLabel: 'Home', icon: LayoutDashboard },
@@ -627,6 +628,7 @@ function MainLayout() {
   const [pageTopbarAction, setPageTopbarAction] = useState(null)
   const location = useLocation()
   const navigate = useNavigate()
+  const { signOut } = useAuth()
   const basePath = `/${location.pathname.split('/')[1] || 'dashboard'}`
   const meta = getPageMeta(location.pathname) || pageMeta[location.pathname] || pageMeta[basePath] || pageMeta['/dashboard']
   const topbarActions = pageTopbarAction
@@ -640,8 +642,9 @@ function MainLayout() {
     setPageTopbarAction(null)
   }, [location.pathname])
 
-  function handleLogout() {
+  async function handleLogout() {
     setIsProfileOpen(false)
+    await signOut()
     navigate('/login')
   }
 

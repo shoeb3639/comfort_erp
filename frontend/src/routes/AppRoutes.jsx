@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import ProtectedRoute from '../auth/ProtectedRoute'
 import MainLayout from '../layouts/MainLayout'
 import PlatformLayout from '../layouts/PlatformLayout'
 import AccessDeniedPage from '../pages/Access/AccessDenied'
@@ -48,23 +49,26 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route element={<PlatformLayout />}>
-        <Route path="/platform" element={<Navigate to="/platform/dashboard" replace />} />
-        <Route path="/platform/dashboard" element={<PlatformDashboardPage />} />
-        <Route path="/platform/tenants" element={<PlatformTenantsPage />} />
-        <Route path="/platform/tenants/new" element={<PlatformTenantsPage />} />
-        <Route path="/platform/subscription-plans" element={<PlatformPlansPage />} />
-        <Route path="/platform/plans" element={<Navigate to="/platform/subscription-plans" replace />} />
-        <Route path="/platform/subscriptions" element={<PlatformSubscriptionsPage />} />
-        <Route path="/platform/payments" element={<PlatformPaymentsPage />} />
-        <Route path="/platform/billing" element={<Navigate to="/platform/payments" replace />} />
-        <Route path="/platform/users" element={<PlatformUsersPage />} />
-        <Route path="/platform/support" element={<PlatformSupportPage />} />
-        <Route path="/platform/audit-logs" element={<PlatformAuditLogsPage />} />
-        <Route path="/platform/settings" element={<PlatformSettingsPage />} />
+      <Route element={<ProtectedRoute userType="PLATFORM" />}>
+        <Route element={<PlatformLayout />}>
+          <Route path="/platform" element={<Navigate to="/platform/dashboard" replace />} />
+          <Route path="/platform/dashboard" element={<PlatformDashboardPage />} />
+          <Route path="/platform/tenants" element={<PlatformTenantsPage />} />
+          <Route path="/platform/tenants/new" element={<PlatformTenantsPage />} />
+          <Route path="/platform/subscription-plans" element={<PlatformPlansPage />} />
+          <Route path="/platform/plans" element={<Navigate to="/platform/subscription-plans" replace />} />
+          <Route path="/platform/subscriptions" element={<PlatformSubscriptionsPage />} />
+          <Route path="/platform/payments" element={<PlatformPaymentsPage />} />
+          <Route path="/platform/billing" element={<Navigate to="/platform/payments" replace />} />
+          <Route path="/platform/users" element={<PlatformUsersPage />} />
+          <Route path="/platform/support" element={<PlatformSupportPage />} />
+          <Route path="/platform/audit-logs" element={<PlatformAuditLogsPage />} />
+          <Route path="/platform/settings" element={<PlatformSettingsPage />} />
+        </Route>
       </Route>
-      <Route element={<MainLayout />}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route element={<ProtectedRoute userType="TENANT" />}>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/bookings/new" element={<BookingFormPage />} />
@@ -108,9 +112,10 @@ function AppRoutes() {
         <Route path="/settings/roles" element={<RolesPage />} />
         <Route path="/settings/permissions" element={<PermissionsPage />} />
         <Route path="/settings/users-roles" element={<Navigate to="/settings/users" replace />} />
-        <Route path="/access-denied" element={<AccessDeniedPage />} />
+          <Route path="/access-denied" element={<AccessDeniedPage />} />
+        </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 
 const navItems = [
   { to: '/platform/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -121,6 +122,7 @@ function Sidebar({ onNavigate }) {
 function PlatformLayout() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const meta = pageMeta[location.pathname] || pageMeta['/platform/dashboard']
 
@@ -183,7 +185,10 @@ function PlatformLayout() {
                 type="button"
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600"
                 aria-label="Sign out"
-                onClick={() => navigate('/login')}
+                onClick={async () => {
+                  await signOut()
+                  navigate('/login')
+                }}
               >
                 <LogOut size={18} />
               </button>

@@ -105,7 +105,11 @@ docs/
 ├── 05_BOOKING_ENGINE.md
 ├── 06_INVOICE_ENGINE.md
 ├── 07_ACCOUNTS_ENGINE.md
-└── 08_BACKEND_ARCHITECTURE.md
+├── 08_BACKEND_ARCHITECTURE.md
+└── postman/
+    ├── Cablix_ERP_API.postman_collection.json
+    ├── Cablix_Local.postman_environment.json
+    └── README.md
 ```
 
 ---
