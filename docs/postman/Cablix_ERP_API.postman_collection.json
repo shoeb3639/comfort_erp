@@ -1,0 +1,152 @@
+{
+  "info": {
+    "_postman_id": "cf747f0f-6354-4d92-a131-3f425b801b29",
+    "name": "Cablix ERP API",
+    "description": "Current Cablix ERP APIs. Login and refresh automatically save the issued session variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Public APIs",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/public/health",
+            "description": "Checks backend availability. No authentication required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication APIs",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Login succeeded', () => pm.response.to.have.status(200));",
+                "if (pm.response.code === 200) {",
+                "  const data = pm.response.json().data;",
+                "  pm.collectionVariables.set('access_token', data.accessToken);",
+                "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
+                "  pm.collectionVariables.set('user_type', data.user.userType);",
+                "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
+                "}"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{login_email}}\",\n  \"password\": \"{{login_password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/auth/login",
+            "description": "Logs in a platform or tenant user. The backend determines the account type."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Refresh succeeded', () => pm.response.to.have.status(200));",
+                "if (pm.response.code === 200) {",
+                "  const data = pm.response.json().data;",
+                "  pm.collectionVariables.set('access_token', data.accessToken);",
+                "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
+                "  pm.collectionVariables.set('user_type', data.user.userType);",
+                "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
+                "}"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/auth/refresh-token",
+            "description": "Rotates the refresh token and automatically saves the new token pair."
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Logout succeeded', () => pm.response.to.have.status(200));",
+                "if (pm.response.code === 200) {",
+                "  ['access_token', 'refresh_token', 'user_type', 'tenant_id'].forEach(key => pm.collectionVariables.unset(key));",
+                "}"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/auth/logout",
+            "description": "Revokes the current refresh token and clears Postman session variables."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Platform APIs",
+      "item": [
+        {
+          "name": "Get Platform Context",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/platform/me",
+            "description": "Requires a platform user with platform.dashboard.view permission."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenant APIs",
+      "item": [
+        {
+          "name": "Get Tenant Context",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tenant/me",
+            "description": "Requires an active tenant user with user.profile.view permission. Tenant ID comes only from the token."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080/api/v1" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "user_type", "value": "" },
+    { "key": "tenant_id", "value": "" }
+  ]
+}
