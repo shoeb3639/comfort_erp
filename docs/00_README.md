@@ -422,3 +422,10 @@ Cablix ERP is intended to become a professional SaaS ERP platform for the transp
 This documentation is designed to ensure consistency, maintainability, scalability, and long-term success of the product.
 
 Every contributor is expected to understand these documents before making any architectural or implementation decisions.
+
+# Your current database connection is:
+Host:     127.0.0.1
+Port:     5433
+Database: cablix_erp
+Username: postgres
+Password: none — local development only

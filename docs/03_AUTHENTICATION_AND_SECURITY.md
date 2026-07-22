@@ -273,3 +273,30 @@ When a tenant is suspended:
 - Allow Platform Admin to reactivate.
 
 Data should not be deleted due to expiry or suspension.
+
+## Initial Authentication Implementation
+
+The first backend authentication implementation uses the following approved rules:
+
+- Passwords are hashed with Argon2id and are never stored or logged in plain text.
+- Access tokens are signed JWTs with a short lifetime of 15 minutes.
+- Refresh tokens are signed JWTs with a lifetime of 7 days. Only a SHA-256 hash of each refresh token is stored in the database.
+- Refresh tokens are single-use and are rotated atomically. Reuse of a revoked token is rejected.
+- Access and refresh tokens use separate secrets and explicitly validate the issuer, audience, signing algorithm, and token type.
+- Authentication context contains the user type, user ID, role ID, permissions, and tenant ID for tenant users.
+- Tenant ID is accepted only from the verified authentication context. Headers, query parameters, and request bodies cannot override it.
+- Platform and tenant routes use separate middleware chains. Platform users cannot enter tenant operations, and tenant users cannot enter platform APIs.
+- Every protected request rechecks the current user, role, tenant status, and subscription state instead of trusting token claims alone.
+- Suspended or closed tenants cannot use operational APIs. Expired subscriptions cannot perform write operations.
+- Login endpoints are rate limited, and all authentication input is validated before it reaches the service layer.
+- Authentication and tenant-isolation integration tests run against a dedicated test database.
+
+Initial endpoints:
+
+```text
+POST /api/v1/auth/login
+POST /api/v1/auth/refresh-token
+POST /api/v1/auth/logout
+GET  /api/v1/platform/me
+GET  /api/v1/tenant/me
+```

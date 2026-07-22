@@ -1,0 +1,90 @@
+export const PLATFORM_PERMISSIONS = [
+  ['platform.dashboard', 'view'],
+  ['tenant', 'view'],
+  ['tenant', 'create'],
+  ['tenant', 'update'],
+  ['tenant', 'suspend'],
+  ['subscription', 'manage'],
+  ['platform_user', 'manage'],
+] as const
+
+export const TENANT_PERMISSIONS = [
+  ['user.profile', 'view'],
+  ['user', 'manage'],
+  ['booking', 'view'],
+  ['booking', 'create'],
+  ['booking', 'assign'],
+  ['booking', 'close'],
+  ['invoice', 'view'],
+  ['invoice', 'create'],
+  ['invoice', 'generate'],
+  ['collection', 'create'],
+  ['deposit', 'verify'],
+  ['expense', 'create'],
+  ['manager_ledger', 'view'],
+] as const
+
+export const TENANT_SYSTEM_ROLES = [
+  {
+    name: 'Super Admin',
+    code: 'SUPER_ADMIN',
+    permissions: TENANT_PERMISSIONS.map(
+      ([module, action]) => `${module}.${action}`,
+    ),
+  },
+  {
+    name: 'Admin',
+    code: 'ADMIN',
+    permissions: TENANT_PERMISSIONS.map(
+      ([module, action]) => `${module}.${action}`,
+    ),
+  },
+  {
+    name: 'Operations Manager',
+    code: 'OPERATIONS_MANAGER',
+    permissions: [
+      'user.profile.view',
+      'booking.view',
+      'booking.create',
+      'booking.assign',
+      'booking.close',
+      'collection.create',
+    ],
+  },
+  {
+    name: 'Booking Executive',
+    code: 'BOOKING_EXECUTIVE',
+    permissions: [
+      'user.profile.view',
+      'booking.view',
+      'booking.create',
+      'booking.assign',
+      'booking.close',
+    ],
+  },
+  {
+    name: 'Accountant',
+    code: 'ACCOUNTANT',
+    permissions: [
+      'user.profile.view',
+      'booking.view',
+      'invoice.view',
+      'invoice.create',
+      'invoice.generate',
+      'collection.create',
+      'deposit.verify',
+      'expense.create',
+      'manager_ledger.view',
+    ],
+  },
+  {
+    name: 'Fleet Manager',
+    code: 'FLEET_MANAGER',
+    permissions: ['user.profile.view', 'booking.view', 'booking.assign'],
+  },
+  {
+    name: 'Driver',
+    code: 'DRIVER',
+    permissions: ['user.profile.view', 'booking.view'],
+  },
+] as const

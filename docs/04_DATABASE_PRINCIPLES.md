@@ -314,3 +314,27 @@ Examples:
 (tenant_id, invoice_number)
 (tenant_id, vehicle_id, booking_date)
 ```
+
+## Initial Platform and Authentication Schema Decisions
+
+Implementation decision date: 21 July 2026
+
+The initial Prisma/PostgreSQL foundation uses:
+
+- UUID primary keys consistently for platform and tenant records.
+- Separate platform-user and tenant-user tables and authorization scopes.
+- Separate platform and tenant role, permission-assignment, refresh-token, and
+  audit-log tables.
+- A shared tenant permission catalog with tenant-owned role assignments.
+- Composite tenant foreign keys for tenant users, roles, refresh tokens,
+  onboarding records, and audit actors. These prevent a relationship from
+  referencing a record owned by another tenant.
+- PostgreSQL `numeric(12,2)` columns for subscription and payment amounts.
+- PostgreSQL `timestamp with time zone` columns for event timestamps.
+- Prisma ORM 7 with an explicit PostgreSQL driver adapter and generated-client
+  output.
+
+The initial migration defines the platform, tenancy, subscription,
+authentication, authorization, onboarding, payment, and audit foundations. ERP
+operational models such as customers, vendors, bookings, invoices, and accounts
+will be added in their respective implementation phases.
