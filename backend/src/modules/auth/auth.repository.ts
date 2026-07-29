@@ -35,14 +35,35 @@ export function findTenantUsersByEmail(email: string) {
 export function findPlatformUserStatus(userId: string) {
   return prisma.platformUser.findUnique({
     where: { id: userId },
-    select: { status: true, roleId: true },
+    select: {
+      status: true,
+      roleId: true,
+      role: {
+        select: {
+          permissions: {
+            select: { permission: { select: { permissionKey: true } } },
+          },
+        },
+      },
+    },
   })
 }
 
 export function findTenantUserStatus(tenantId: string, userId: string) {
   return prisma.tenantUser.findUnique({
     where: { tenantId_id: { tenantId, id: userId } },
-    select: { status: true, roleId: true, deletedAt: true },
+    select: {
+      status: true,
+      roleId: true,
+      deletedAt: true,
+      role: {
+        select: {
+          permissions: {
+            select: { permission: { select: { permissionKey: true } } },
+          },
+        },
+      },
+    },
   })
 }
 

@@ -1,5 +1,5 @@
 [
-  {"id":"TRV-001","customer_id":"CUST-001","traveller_type":"Retail","name":"Amit Sharma","phone":"+91 98765 43210","email":"amit.sharma@example.com","department":"","employee_id":"","notes":"Retail customer travels as self.","status":"Active"},
+  {"id":"TRV-001","customer_id":"CUST-001","traveller_type":"Individuals","name":"Amit Sharma","phone":"+91 98765 43210","email":"amit.sharma@example.com","department":"","employee_id":"","notes":"Individuals customer travels as self.","status":"Active"},
   {"id":"TRV-002","customer_id":"CUST-002","traveller_type":"Employee","name":"Rohit Menon","phone":"+91 99887 77665","email":"rohit.menon@infosys.example","department":"Travel Desk","employee_id":"INF-2041","notes":"Primary travel coordinator.","status":"Active"},
   {"id":"TRV-003","customer_id":"CUST-002","traveller_type":"Employee","name":"Neha Rao","phone":"+91 98770 11223","email":"neha.rao@infosys.example","department":"Finance","employee_id":"INF-8842","notes":"Requires monthly invoice copy.","status":"Active"},
   {"id":"TRV-004","customer_id":"CUST-003","traveller_type":"Employee","name":"Ananya Shah","phone":"+91 91234 56789","email":"ananya.shah@tcs.example","department":"Administration","employee_id":"TCS-7781","notes":"","status":"Active"},
@@ -8,5 +8,5 @@
   {"id":"TRV-007","customer_id":"CUST-006","traveller_type":"Guest","name":"Package Guest 1","phone":"+91 87770 44557","email":"guest@abctravels.example","department":"","employee_id":"","notes":"","status":"Active"},
   {"id":"TRV-008","customer_id":"CUST-008","traveller_type":"Employee","name":"Kavita Reddy","phone":"+91 95555 33221","email":"kavita@wipro.example","department":"Travel","employee_id":"WIP-4421","notes":"","status":"Active"},
   {"id":"TRV-009","customer_id":"CUST-009","traveller_type":"Guest","name":"Skyline Guest 1","phone":"+91 94444 77880","email":"guest@skylinetours.example","department":"","employee_id":"","notes":"","status":"Active"},
-  {"id":"TRV-010","customer_id":"CUST-010","traveller_type":"Retail","name":"Farhan Khan","phone":"+91 93333 55667","email":"farhan.khan@example.com","department":"","employee_id":"","notes":"Retail customer travels as self.","status":"Active"}
+  {"id":"TRV-010","customer_id":"CUST-010","traveller_type":"Individuals","name":"Farhan Khan","phone":"+91 93333 55667","email":"farhan.khan@example.com","department":"","employee_id":"","notes":"Individuals customer travels as self.","status":"Active"}
 ]

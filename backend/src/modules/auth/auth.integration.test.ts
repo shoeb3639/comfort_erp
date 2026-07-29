@@ -28,6 +28,12 @@ interface Fixtures {
 let fixtures: Fixtures
 
 async function cleanDatabase(): Promise<void> {
+  await prisma.booking.deleteMany()
+  await prisma.vehicle.deleteMany()
+  await prisma.vehicleType.deleteMany()
+  await prisma.driver.deleteMany()
+  await prisma.vendor.deleteMany()
+  await prisma.customer.deleteMany()
   await prisma.tenantAuditLog.deleteMany()
   await prisma.tenantOnboardingItem.deleteMany()
   await prisma.tenantRefreshToken.deleteMany()
@@ -339,6 +345,17 @@ describe('authentication and authorization', () => {
 
     expect(response.status).toBe(403)
     expect(response.body.code).toBe('SUBSCRIPTION_EXPIRED')
+
+    const strictAccess = await request(app)
+      .get('/api/v1/tenant/access')
+      .set('Authorization', `Bearer ${token}`)
+    expect(strictAccess.status).toBe(403)
+    expect(strictAccess.body.code).toBe('SUBSCRIPTION_EXPIRED')
+
+    const restrictedRead = await request(app)
+      .get('/api/v1/tenant/me')
+      .set('Authorization', `Bearer ${token}`)
+    expect(restrictedRead.status).toBe(200)
   })
 
   it('rejects a cross-tenant user relationship at the database boundary', async () => {

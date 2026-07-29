@@ -25,29 +25,40 @@
       "item": [
         {
           "name": "Login",
-          "event": [{
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "pm.test('Login succeeded', () => pm.response.to.have.status(200));",
-                "if (pm.response.code === 200) {",
-                "  const data = pm.response.json().data;",
-                "  pm.collectionVariables.set('access_token', data.accessToken);",
-                "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
-                "  pm.collectionVariables.set('user_type', data.user.userType);",
-                "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
-                "}"
-              ]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('access_token', data.accessToken);",
+                  "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
+                  "  pm.collectionVariables.set('user_type', data.user.userType);",
+                  "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
+                  "}"
+                ]
+              }
             }
-          }],
+          ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{login_email}}\",\n  \"password\": \"{{login_password}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{base_url}}/auth/login",
             "description": "Logs in a platform or tenant user. The backend determines the account type."
@@ -55,29 +66,40 @@
         },
         {
           "name": "Refresh Token",
-          "event": [{
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "pm.test('Refresh succeeded', () => pm.response.to.have.status(200));",
-                "if (pm.response.code === 200) {",
-                "  const data = pm.response.json().data;",
-                "  pm.collectionVariables.set('access_token', data.accessToken);",
-                "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
-                "  pm.collectionVariables.set('user_type', data.user.userType);",
-                "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
-                "}"
-              ]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Refresh succeeded', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.collectionVariables.set('access_token', data.accessToken);",
+                  "  pm.collectionVariables.set('refresh_token', data.refreshToken);",
+                  "  pm.collectionVariables.set('user_type', data.user.userType);",
+                  "  pm.collectionVariables.set('tenant_id', data.user.tenantId || '');",
+                  "}"
+                ]
+              }
             }
-          }],
+          ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{base_url}}/auth/refresh-token",
             "description": "Rotates the refresh token and automatically saves the new token pair."
@@ -85,25 +107,36 @@
         },
         {
           "name": "Logout",
-          "event": [{
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "pm.test('Logout succeeded', () => pm.response.to.have.status(200));",
-                "if (pm.response.code === 200) {",
-                "  ['access_token', 'refresh_token', 'user_type', 'tenant_id'].forEach(key => pm.collectionVariables.unset(key));",
-                "}"
-              ]
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout succeeded', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  ['access_token', 'refresh_token', 'user_type', 'tenant_id'].forEach(key => pm.collectionVariables.unset(key));",
+                  "}"
+                ]
+              }
             }
-          }],
+          ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": "{{base_url}}/auth/logout",
             "description": "Revokes the current refresh token and clears Postman session variables."
@@ -117,12 +150,640 @@
         {
           "name": "Get Platform Context",
           "request": {
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/platform/me",
             "description": "Requires a platform user with platform.dashboard.view permission."
           }
+        },
+        {
+          "name": "Subscription Plans",
+          "item": [
+            {
+              "name": "List Subscription Plans",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/platform/subscription-plans",
+                "description": "Lists active and inactive subscription plans. Requires subscription.manage."
+              }
+            },
+            {
+              "name": "Create Subscription Plan",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Plan created', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('plan_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"POSTMAN_GROWTH\",\n  \"name\": \"Postman Growth\",\n  \"description\": \"Plan created from the Cablix Postman collection.\",\n  \"billingCycle\": \"MONTHLY\",\n  \"basePrice\": 4999,\n  \"validityDays\": 30,\n  \"userLimit\": 10,\n  \"vehicleLimit\": 50,\n  \"bookingLimit\": 2000,\n  \"storageLimitMb\": 5120,\n  \"trialDays\": 14,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/subscription-plans",
+                "description": "Creates a plan and stores its UUID in plan_id. Change the code before rerunning."
+              }
+            },
+            {
+              "name": "Update Subscription Plan",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Postman Growth Plus\",\n  \"basePrice\": 5499\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/subscription-plans/{{plan_id}}"
+              }
+            },
+            {
+              "name": "Deactivate Subscription Plan",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/platform/subscription-plans/{{plan_id}}",
+                "description": "Safely deactivates the plan; it does not delete historical subscription data."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenants",
+          "item": [
+            {
+              "name": "List Tenants",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/platform/tenants"
+              }
+            },
+            {
+              "name": "Get Tenant Detail",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/platform/tenants/{{tenant_id}}",
+                "description": "Returns the tenant with users, roles, subscriptions, plans, and onboarding checklist."
+              }
+            },
+            {
+              "name": "Register Tenant",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Tenant registered', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) {",
+                      "  const data = pm.response.json().data;",
+                      "  pm.collectionVariables.set('tenant_id', data.tenant.id);",
+                      "  pm.collectionVariables.set('subscription_id', data.subscription.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tenant\": {\n    \"code\": \"POSTMAN_CABS\",\n    \"legalName\": \"Postman Cabs Private Limited\",\n    \"tradeName\": \"Postman Cabs\",\n    \"email\": \"office@postmancabs.example.com\",\n    \"mobile\": \"9999999999\",\n    \"addressLine1\": \"Test Address\",\n    \"city\": \"Bengaluru\",\n    \"state\": \"Karnataka\",\n    \"pinCode\": \"560001\"\n  },\n  \"owner\": {\n    \"name\": \"Postman Owner\",\n    \"email\": \"{{tenant_owner_email}}\",\n    \"mobile\": \"9999999998\",\n    \"designation\": \"Owner\",\n    \"password\": \"{{tenant_owner_password}}\"\n  },\n  \"subscription\": {\n    \"planId\": \"{{plan_id}}\",\n    \"status\": \"ACTIVE\",\n    \"startsAt\": \"2026-07-23T00:00:00.000Z\",\n    \"expiresAt\": \"2027-07-23T23:59:59.999Z\",\n    \"currency\": \"INR\",\n    \"amount\": 5499,\n    \"discountAmount\": 0,\n    \"taxAmount\": 0,\n    \"finalAmount\": 5499,\n    \"paymentStatus\": \"PAID\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenants",
+                "description": "Atomically creates the tenant, subscription, owner, system roles, permissions, checklist, and audit record."
+              }
+            },
+            {
+              "name": "Create Missing Tenant Owner",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Replacement Owner\",\n  \"email\": \"replacement.owner@example.com\",\n  \"mobile\": \"9999999997\",\n  \"designation\": \"Owner\",\n  \"password\": \"Replacement-Owner!9Secure\",\n  \"status\": \"ACTIVE\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenants/{{tenant_id}}/owners",
+                "description": "Creates a primary owner only when the tenant does not already have one."
+              }
+            },
+            {
+              "name": "Activate Tenant",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"ACTIVE\",\n  \"reason\": \"Onboarding and subscription verified\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenants/{{tenant_id}}/status"
+              }
+            },
+            {
+              "name": "Suspend Tenant",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"SUSPENDED\",\n  \"reason\": \"Administrative review\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenants/{{tenant_id}}/status"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenant Subscriptions",
+          "item": [
+            {
+              "name": "List Tenant Subscriptions",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/platform/tenant-subscriptions"
+              }
+            },
+            {
+              "name": "List Subscriptions For Tenant",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/platform/tenant-subscriptions?tenantId={{tenant_id}}"
+              }
+            },
+            {
+              "name": "Create Tenant Subscription",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Subscription created', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('subscription_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tenantId\": \"{{tenant_id}}\",\n  \"planId\": \"{{plan_id}}\",\n  \"status\": \"ACTIVE\",\n  \"startsAt\": \"2027-07-24T00:00:00.000Z\",\n  \"expiresAt\": \"2028-07-23T23:59:59.999Z\",\n  \"amount\": 5499,\n  \"discountAmount\": 0,\n  \"taxAmount\": 0,\n  \"finalAmount\": 5499,\n  \"paymentStatus\": \"PAID\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenant-subscriptions",
+                "description": "Use after the tenant's current subscription is EXPIRED or CANCELLED."
+              }
+            },
+            {
+              "name": "Update Tenant Subscription",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"SUSPENDED\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{base_url}}/platform/tenant-subscriptions/{{subscription_id}}",
+                "description": "Enforces the approved subscription lifecycle transitions."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vehicles",
+          "item": [
+            {
+              "name": "List Vehicle Types",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.response.to.have.status(200));",
+                      "const rows = pm.response.json().data; if (rows.length) pm.collectionVariables.set(\"vehicle_type_id\", rows[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/vehicles/types"
+              }
+            },
+            {
+              "name": "List Vehicles",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/vehicles?ownershipType=OWN"
+              }
+            },
+            {
+              "name": "Create Own Vehicle",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"vehicle_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ownershipType\": \"OWN\",\n  \"vendorId\": null,\n  \"registrationNumber\": \"UP70AB1234\",\n  \"vehicleTypeId\": \"{{vehicle_type_id}}\",\n  \"make\": \"Tata\",\n  \"model\": \"Nexon\",\n  \"fuelType\": \"Diesel\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vehicles"
+              }
+            },
+            {
+              "name": "List Vendor Vehicles",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/vehicles?ownershipType=VENDOR&vendorId={{vendor_id}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Drivers",
+          "item": [
+            {
+              "name": "List Own Drivers",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/drivers?engagementType=OWN"
+              }
+            },
+            {
+              "name": "Create Own Driver",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"driver_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"engagementType\": \"OWN\",\n  \"vendorId\": null,\n  \"salutation\": \"MR\",\n  \"name\": \"Gaurav Chaddha\",\n  \"mobile\": \"8888888888\",\n  \"licenceNumber\": \"DL-OWN-12345\",\n  \"licenceType\": \"LMV\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/drivers"
+              }
+            },
+            {
+              "name": "List Vendor Drivers",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/drivers?engagementType=VENDOR&vendorId={{vendor_id}}"
+              }
+            }
+          ]
         }
       ]
     },
@@ -132,21 +793,1681 @@
         {
           "name": "Get Tenant Context",
           "request": {
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/tenant/me",
             "description": "Requires an active tenant user with user.profile.view permission. Tenant ID comes only from the token."
           }
+        },
+        {
+          "name": "Validate Tenant ERP Access",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/tenant/access",
+            "description": "Strict frontend ERP gate. Requires an active tenant, usable subscription, and user.profile.view permission."
+          }
+        },
+        {
+          "name": "Bookings and Duty Assignment",
+          "item": [
+            {
+              "name": "Set Booking Prefix",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingPrefix\": \"CMFP\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/settings"
+              }
+            },
+            {
+              "name": "Create Booking",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Booking created', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('booking_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"travellerId\": null,\n  \"bookingType\": \"LOCAL\",\n  \"bookingPackage\": \"local_8_80\",\n  \"tripType\": \"ONE_WAY\",\n  \"serviceCity\": \"New Delhi\",\n  \"startDate\": \"2026-08-01\",\n  \"endDate\": \"2026-08-01\",\n  \"pickupTime\": \"10:00\",\n  \"travellingFrom\": \"New Delhi\",\n  \"travellingTo\": \"Gurugram\",\n  \"pickupReportingAddress\": \"Airport Terminal 2, Arrival Gate\",\n  \"requestedVehicleType\": \"Sedan\",\n  \"assignmentSource\": \"OWN\",\n  \"pricingBasis\": \"FIXED\",\n  \"customerRate\": 2500\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings"
+              }
+            },
+            {
+              "name": "List Bookings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/bookings"
+              }
+            },
+            {
+              "name": "Get Booking",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}"
+              }
+            },
+            {
+              "name": "Assign Own Vehicle and Driver",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"assignmentSource\": \"OWN\",\n  \"vendorId\": null,\n  \"vehicleId\": \"{{vehicle_id}}\",\n  \"driverId\": \"{{driver_id}}\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/assignment"
+              }
+            },
+            {
+              "name": "Confirm Draft Booking",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/confirm"
+              }
+            },
+            {
+              "name": "Start Duty",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"openingOdometer\": 12500.5,\n  \"remarks\": \"Driver reported on time\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/duty/start"
+              }
+            },
+            {
+              "name": "Complete Duty",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"closingOdometer\": 12620.75,\n  \"remarks\": \"Guest dropped successfully\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/duty/complete"
+              }
+            },
+            {
+              "name": "Close Booking",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Booking closed', () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200) pm.collectionVariables.set('invoice_id', pm.response.json().data.invoice.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tripType\": \"PACKAGE_BASED\",\n  \"customerPackageAmount\": 2500,\n  \"tollParking\": 150,\n  \"interstateTax\": 0,\n  \"driverAllowance\": 300,\n  \"nightCharge\": 0,\n  \"extraHours\": 0,\n  \"otherCharges\": 100,\n  \"dieselCost\": 700,\n  \"directExpenses\": 100,\n  \"driverPayment\": 250,\n  \"allocatedOfficeExpenses\": 0,\n  \"remarks\": \"Duty checked and closed\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/close"
+              }
+            },
+            {
+              "name": "Get Booking Profit",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/profit"
+              }
+            },
+            {
+              "name": "Add Collection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Collection recorded', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('collection_id', pm.response.json().data.collections[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"collectionDate\": \"2026-08-01\",\n  \"amount\": 1000,\n  \"paymentMode\": \"CASH\",\n  \"status\": \"WITH_MANAGER\",\n  \"receiverName\": \"Accounts Manager\",\n  \"remarks\": \"Advance received\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/collections"
+              }
+            },
+            {
+              "name": "Verify Collection",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"VERIFIED\",\n  \"depositDate\": \"2026-08-02\",\n  \"depositReference\": \"BANK-DEP-001\",\n  \"remarks\": \"Deposit matched\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/collections/{{collection_id}}/verify"
+              }
+            },
+            {
+              "name": "Void Collection",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/collections/{{collection_id}}"
+              }
+            },
+            {
+              "name": "Cancel Booking",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Customer changed travel plan\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/bookings/{{booking_id}}/cancel"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invoices",
+          "item": [
+            {
+              "name": "List Invoices",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/invoices?search={{booking_id}}"
+              }
+            },
+            {
+              "name": "Get Invoice",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/invoices/{{invoice_id}}"
+              }
+            },
+            {
+              "name": "Generate Invoice",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"invoiceDate\": \"2026-08-02\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/invoices/{{invoice_id}}/generate"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Company Setup",
+          "item": [
+            {
+              "name": "Get Company Profile",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/company-profile"
+              }
+            },
+            {
+              "name": "Update Company Profile",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tradeName\": \"Postman Cabs\",\n  \"businessType\": \"Private Limited\",\n  \"city\": \"Bengaluru\",\n  \"state\": \"Karnataka\",\n  \"pinCode\": \"560001\",\n  \"defaultCurrency\": \"INR\",\n  \"timeZone\": \"Asia/Kolkata\",\n  \"financialYearStartMonth\": 4,\n  \"dateFormat\": \"DD/MM/YYYY\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/company-profile"
+              }
+            },
+            {
+              "name": "Get Tax Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/tax-settings"
+              }
+            },
+            {
+              "name": "Update Tax Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"gstin\": \"29ABCDE1234F1Z5\",\n  \"pan\": \"ABCDE1234F\",\n  \"stateCode\": \"29\",\n  \"taxRegistrationType\": \"Regular\",\n  \"taxSettings\": {\n    \"taxInclusive\": false\n  }\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/tax-settings"
+              }
+            },
+            {
+              "name": "Get Invoice Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/invoice-settings"
+              }
+            },
+            {
+              "name": "Update Invoice Settings",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"invoicePrefix\": \"INV\",\n  \"invoiceNumberLength\": 6,\n  \"invoiceSettings\": {\n    \"nextNumber\": 1,\n    \"terms\": \"Payment due in 15 days\"\n  }\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/invoice-settings"
+              }
+            },
+            {
+              "name": "Get Onboarding Status",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/onboarding"
+              }
+            },
+            {
+              "name": "List Locations",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/locations"
+              }
+            },
+            {
+              "name": "Create Location",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const body = pm.response.json();",
+                      "if (body.data?.id) pm.collectionVariables.set(\"location_id\", body.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Head Office\",\n  \"code\": \"HO\",\n  \"city\": \"Bengaluru\",\n  \"state\": \"Karnataka\",\n  \"isPrimary\": true\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/locations"
+              }
+            },
+            {
+              "name": "Update Location",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"9999999999\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/locations/{{location_id}}"
+              }
+            },
+            {
+              "name": "List Bank Accounts",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/bank-accounts"
+              }
+            },
+            {
+              "name": "Create Bank Account",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const body = pm.response.json();",
+                      "if (body.data?.id) pm.collectionVariables.set(\"bank_account_id\", body.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accountName\": \"Postman Cabs\",\n  \"bankName\": \"Test Bank\",\n  \"accountNumber\": \"123456789012\",\n  \"ifscCode\": \"TEST0000123\",\n  \"isDefault\": true\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/bank-accounts"
+              }
+            },
+            {
+              "name": "Update Bank Account",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"branchName\": \"Bengaluru\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/bank-accounts/{{bank_account_id}}"
+              }
+            },
+            {
+              "name": "List GST Registrations",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/gst-registrations"
+              }
+            },
+            {
+              "name": "Create GST Registration",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const body = pm.response.json();",
+                      "if (body.data?.id) pm.collectionVariables.set(\"gst_registration_id\", body.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"registrationName\": \"Karnataka Registration\",\n  \"legalName\": \"Postman Cabs Private Limited\",\n  \"registrationType\": \"Regular\",\n  \"gstin\": \"29ABCDE1234F1Z5\",\n  \"state\": \"Karnataka\",\n  \"stateCode\": \"29\",\n  \"isDefault\": true,\n  \"locationIds\": [\n    \"{{location_id}}\"\n  ]\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/gst-registrations"
+              }
+            },
+            {
+              "name": "Update GST Registration",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"notes\": \"Verified in Postman\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/gst-registrations/{{gst_registration_id}}"
+              }
+            },
+            {
+              "name": "List Permissions",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.response.to.have.status(200));",
+                      "const permissions = pm.response.json().data;",
+                      "const permission = permissions.find((item) => item.permissionKey === \"user.profile.view\");",
+                      "if (permission) pm.collectionVariables.set(\"permission_id\", permission.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/permissions"
+              }
+            },
+            {
+              "name": "List Roles",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/roles"
+              }
+            },
+            {
+              "name": "Create Role",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const body = pm.response.json();",
+                      "if (body.data?.id) pm.collectionVariables.set(\"tenant_role_id\", body.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Postman Branch User\",\n  \"code\": \"POSTMAN_BRANCH_USER\",\n  \"permissionIds\": [\n    \"{{permission_id}}\"\n  ],\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/roles"
+              }
+            },
+            {
+              "name": "Replace Role Permissions",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"permissionIds\": [\n    \"{{permission_id}}\"\n  ]\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/roles/{{tenant_role_id}}/permissions"
+              }
+            },
+            {
+              "name": "Update Role",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Role created by the Phase 3 Postman workflow\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/roles/{{tenant_role_id}}"
+              }
+            },
+            {
+              "name": "List Tenant Users",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/setup/users"
+              }
+            },
+            {
+              "name": "Create Tenant User",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "const body = pm.response.json();",
+                      "if (body.data?.id) pm.collectionVariables.set(\"tenant_user_id\", body.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Postman Branch User\",\n  \"email\": \"branch.user@postmancabs.example.com\",\n  \"password\": \"{{tenant_new_user_password}}\",\n  \"roleId\": \"{{tenant_role_id}}\",\n  \"locationIds\": [\n    \"{{location_id}}\"\n  ],\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/users"
+              }
+            },
+            {
+              "name": "Update Tenant User",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"designation\": \"Branch Executive\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/setup/users/{{tenant_user_id}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customers",
+          "item": [
+            {
+              "name": "List Customers",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/customers?search=&type=CORPORATE&status=ACTIVE"
+              }
+            },
+            {
+              "name": "Create Customer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"customer_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"CORPORATE\",\n  \"salutation\": null,\n  \"name\": \"Postman Customer\",\n  \"billingName\": \"Postman Customer Private Limited\",\n  \"email\": \"travel@postman-customer.example.com\",\n  \"phone\": \"9999999999\",\n  \"city\": \"Bengaluru\",\n  \"gstin\": \"29ABCDE1234F1Z5\",\n  \"billingAddress\": \"MG Road, Bengaluru\",\n  \"creditLimit\": 250000,\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/customers"
+              }
+            },
+            {
+              "name": "Get Customer",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/customers/{{customer_id}}"
+              }
+            },
+            {
+              "name": "Update Customer",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"city\": \"Mumbai\",\n  \"creditLimit\": 300000\n}"
+                },
+                "url": "{{base_url}}/tenant/customers/{{customer_id}}"
+              }
+            },
+            {
+              "name": "Add Customer Traveller",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"customer_traveller_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"travellerType\": \"Employee\",\n  \"salutation\": \"MS\",\n  \"name\": \"Priyanka Singh\",\n  \"phone\": \"8888888888\",\n  \"email\": \"employee@postman-customer.example.com\",\n  \"department\": \"Travel Desk\",\n  \"employeeId\": \"EMP-POSTMAN-1\",\n  \"notes\": \"Created through Postman\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/customers/{{customer_id}}/travellers"
+              }
+            },
+            {
+              "name": "Get Employee",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/customers/{{customer_id}}/travellers/{{customer_traveller_id}}"
+              }
+            },
+            {
+              "name": "Update Employee",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"salutation\": \"MS\",\n  \"name\": \"Priyanka Singh\",\n  \"phone\": \"8888888888\",\n  \"email\": \"employee@postman-customer.example.com\",\n  \"department\": \"Senior Travel Desk\",\n  \"employeeId\": \"EMP-POSTMAN-1\",\n  \"notes\": \"Updated through Postman\"\n}"
+                },
+                "url": "{{base_url}}/tenant/customers/{{customer_id}}/travellers/{{customer_traveller_id}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vendors",
+          "item": [
+            {
+              "name": "List Vendors",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/vendors?search=&recordType=external_vendor&status=ACTIVE"
+              }
+            },
+            {
+              "name": "Create Vendor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"vendor_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Prime Cabs\",\n  \"recordType\": \"external_vendor\",\n  \"category\": \"Fleet\",\n  \"rating\": 4.5,\n  \"phone\": \"9999999999\",\n  \"city\": \"New Delhi\",\n  \"status\": \"ACTIVE\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors"
+              }
+            },
+            {
+              "name": "Get Vendor",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}"
+              }
+            },
+            {
+              "name": "Update Vendor",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rating\": 4.8,\n  \"city\": \"Gurugram\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}"
+              }
+            },
+            {
+              "name": "Create Vendor Vehicle",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"vendor_vehicle_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plate\": \"DL01AB1234\",\n  \"type\": \"SUV\",\n  \"make\": \"Tata Nexon\",\n  \"seatingCapacity\": 5,\n  \"status\": \"Ready\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/vehicles"
+              }
+            },
+            {
+              "name": "Update Vendor Vehicle",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"Maintenance\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/vehicles/{{vendor_vehicle_id}}"
+              }
+            },
+            {
+              "name": "Delete Vendor Vehicle",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/vehicles/{{vendor_vehicle_id}}"
+              }
+            },
+            {
+              "name": "Create Vendor Driver",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Request succeeded\", () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                      "pm.collectionVariables.set(\"vendor_driver_id\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"salutation\": \"MR\",\n  \"name\": \"Gaurav Chaddha\",\n  \"license\": \"DL-12345\",\n  \"phone\": \"8888888888\",\n  \"city\": \"New Delhi\",\n  \"status\": \"Available\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/drivers"
+              }
+            },
+            {
+              "name": "Update Vendor Driver",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"On Route\"\n}"
+                },
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/drivers/{{vendor_driver_id}}"
+              }
+            },
+            {
+              "name": "Delete Vendor Driver",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}/drivers/{{vendor_driver_id}}"
+              }
+            },
+            {
+              "name": "Delete Vendor",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "url": "{{base_url}}/tenant/vendors/{{vendor_id}}"
+              }
+            }
+          ]
         }
       ]
     }
   ],
   "variable": [
-    { "key": "base_url", "value": "http://localhost:8080/api/v1" },
-    { "key": "access_token", "value": "" },
-    { "key": "refresh_token", "value": "" },
-    { "key": "user_type", "value": "" },
-    { "key": "tenant_id", "value": "" }
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "user_type",
+      "value": ""
+    },
+    {
+      "key": "tenant_id",
+      "value": ""
+    },
+    {
+      "key": "plan_id",
+      "value": ""
+    },
+    {
+      "key": "subscription_id",
+      "value": ""
+    },
+    {
+      "key": "booking_id",
+      "value": ""
+    },
+    {
+      "key": "collection_id",
+      "value": ""
+    },
+    {
+      "key": "invoice_id",
+      "value": ""
+    },
+    {
+      "key": "tenant_owner_email",
+      "value": "owner@postmancabs.example.com"
+    },
+    {
+      "key": "tenant_owner_password",
+      "value": ""
+    },
+    {
+      "key": "location_id",
+      "value": ""
+    },
+    {
+      "key": "bank_account_id",
+      "value": ""
+    },
+    {
+      "key": "gst_registration_id",
+      "value": ""
+    },
+    {
+      "key": "tenant_role_id",
+      "value": ""
+    },
+    {
+      "key": "tenant_user_id",
+      "value": ""
+    },
+    {
+      "key": "permission_id",
+      "value": ""
+    },
+    {
+      "key": "customer_id",
+      "value": ""
+    },
+    {
+      "key": "customer_traveller_id",
+      "value": ""
+    },
+    {
+      "key": "vendor_id",
+      "value": ""
+    },
+    {
+      "key": "vendor_vehicle_id",
+      "value": ""
+    },
+    {
+      "key": "vendor_driver_id",
+      "value": ""
+    }
   ]
 }

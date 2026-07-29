@@ -1,5 +1,22 @@
 # Booking Engine
 
+## Booking route and text standards
+
+Every new booking captures three distinct route fields:
+
+- `travellingFrom` — journey origin
+- `travellingTo` — journey destination
+- `pickupReportingAddress` — the exact pickup/reporting address or location
+
+All three fields are required when a booking is created. The API stores them in
+`bookings.travelling_from`, `bookings.travelling_to`, and
+`bookings.pickup_reporting_address`.
+
+All human-readable booking text is normalized to Title Case in the backend
+service layer on both create and update. Identifiers, enum values, package
+codes, phone numbers, dates, times, and other machine-readable values are not
+case-transformed.
+
 Version: 1.0
 
 Status: Approved Requirements Baseline (Frozen)
@@ -11,6 +28,34 @@ Baseline Date: 20 July 2026
 This document defines the booking workflow for Cablix ERP tenant operations.
 
 Bookings are tenant-owned records and must always be scoped by tenant.
+
+## Booking Number
+
+Before creating its first booking, each tenant configures a booking prefix.
+
+- Prefix is exactly four uppercase alphanumeric characters.
+- Prefix is globally unique across tenants.
+- The backend generates a random number between `100000` and `999999`.
+- The six-digit random number is globally unique across bookings.
+- The frontend must never generate or submit the booking number.
+
+Format:
+
+```text
+<PREFIX>-<SIX_DIGIT_RANDOM_NUMBER>
+```
+
+Example:
+
+```text
+CMFP-265381
+```
+
+The database applies uniqueness to the complete `booking_id`. Because every
+tenant has a globally unique four-character booking prefix, this guarantees
+that every generated Booking ID is unique without storing the six-digit part
+in a second column. Creation retries safely when a generated Booking ID
+collides.
 
 ## Booking Scope
 
@@ -94,11 +139,31 @@ Draft / Confirmed / Assigned / Running -> Cancelled
 
 Closed booking should not remain in current, ongoing, or in-transit lists. Closed bookings should have a separate list/report.
 
+### Lifecycle enforcement
+
+Lifecycle changes are backend-controlled and cannot be made through the
+general booking update API:
+
+- Draft → Confirmed through the confirm action.
+- Confirmed → Assigned through duty assignment.
+- Assigned → Running through duty start.
+- Running → Completed through duty completion.
+- Draft, Confirmed, Assigned, or Running → Cancelled with a mandatory reason.
+- Completed → Closed is handled by the separate booking-closing workflow.
+
+Starting duty requires an assigned active vehicle and driver. Opening and
+closing odometer readings are mandatory for own vehicles and optional for
+vendor vehicles. A closing reading cannot be lower than its opening reading.
+The API calculates actual distance from the two readings.
+
+Lifecycle timestamps, odometer readings, execution remarks, cancellation
+details, and the acting tenant user audit record are stored in PostgreSQL.
+
 ## Customer And Traveller
 
 Booking should support:
 
-- Retail customer
+- Individual customer
 - Corporate customer
 - Travel agent
 
@@ -108,7 +173,7 @@ If the customer does not exist, booking form should allow adding a new customer 
 
 New customer modal should support:
 
-- Retail
+- Individuals
 - Corporate
 - Travel Agent
 - Gender
@@ -128,30 +193,25 @@ Assignment source should drive closure and profit logic.
 
 Own vehicle assignment:
 
-- Vendor parent should be the tenant's own-company parent record.
-- Vehicle ownership should be own.
-- Driver ownership should be own unless vendor driver support is explicitly selected later.
+- `vehicle_id` references an `OWN` central Vehicle with no Vendor.
+- `driver_id` references an `OWN` central Driver with no Vendor.
+- `vendor_id` is null.
 
 Vendor vehicle assignment:
 
-- Vendor parent should be an external vendor.
-- Vehicle ownership should be vendor.
-- Driver ownership should be vendor or vendor-provided.
+- Vehicle and Driver reference central VENDOR resources.
+- Both resources must belong to the assigned Vendor by default.
 - Vendor rate and vendor payable should be captured.
 
 Vendor rates are separate from customer billing rates.
 
-## Vendor Parent Rule
+## Unified Resource Rule
 
-Vendors are parent records for vehicles and drivers.
-
-Each tenant should have one own-company parent record. Own vehicles and own drivers are added under this parent.
-
-External vendors are separate parent records. Vendor vehicles and vendor drivers are added under the selected external vendor.
-
-In UI, display this as `Ownership`.
-
-In backend, store vehicle/driver ownership as `ownership_type`.
+Duty assignment stores `vehicle_id`, `driver_id`, and nullable `vendor_id`.
+It must not introduce separate own/vendor ID columns. Vehicle ownership uses
+`ownership_type`; Driver engagement uses `engagement_type`. If both selected
+resources are Vendor-linked, they must belong to the same Vendor unless a
+separate cross-Vendor workflow is explicitly approved.
 
 ## Booking Closure
 
@@ -272,12 +332,38 @@ Profit action should show after booking is closed.
 
 Closed bookings should be visible in closed booking lists and profit reports.
 
-## Future Backend Notes
+## Implemented Backend APIs
+
+The initial database-backed Booking and Duty Assignment APIs are:
+
+```text
+GET    /api/v1/tenant/bookings/settings
+PATCH  /api/v1/tenant/bookings/settings
+GET    /api/v1/tenant/bookings
+POST   /api/v1/tenant/bookings
+GET    /api/v1/tenant/bookings/:bookingId
+PATCH  /api/v1/tenant/bookings/:bookingId
+DELETE /api/v1/tenant/bookings/:bookingId
+PATCH  /api/v1/tenant/bookings/:bookingId/assignment
+PATCH  /api/v1/tenant/bookings/:bookingId/confirm
+PATCH  /api/v1/tenant/bookings/:bookingId/duty/start
+PATCH  /api/v1/tenant/bookings/:bookingId/duty/complete
+PATCH  /api/v1/tenant/bookings/:bookingId/cancel
+POST   /api/v1/tenant/bookings/:bookingId/close
+GET    /api/v1/tenant/bookings/:bookingId/profit
+POST   /api/v1/tenant/bookings/:bookingId/collections
+PATCH  /api/v1/tenant/bookings/:bookingId/collections/:collectionId/verify
+DELETE /api/v1/tenant/bookings/:bookingId/collections/:collectionId
+```
+
+The assignment service validates tenant ownership, OWN/VENDOR classification,
+same-Vendor consistency, active resources, and overlapping assigned/running
+duties.
 
 Bookings should store:
 
 - tenant_id
-- booking_number
+- booking_id
 - customer_id
 - traveller_id
 - booking_type
@@ -297,5 +383,19 @@ Bookings should store:
 - vendor_rate
 - vendor_payable_amount
 - status
+- confirmed_at
+- assigned_at
+- duty_started_at
+- duty_completed_at
+- opening_odometer
+- closing_odometer
+- duty_start_remarks
+- duty_completion_remarks
+- cancelled_at
+- cancellation_reason
 - created_at
 - updated_at
+
+Booking closure is persisted separately as an immutable billing and profitability
+snapshot. Closing creates one draft invoice in the same database transaction.
+Collections are separate records and never overwrite the closure totals.

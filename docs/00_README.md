@@ -106,6 +106,8 @@ docs/
 ├── 06_INVOICE_ENGINE.md
 ├── 07_ACCOUNTS_ENGINE.md
 ├── 08_BACKEND_ARCHITECTURE.md
+├── 09_FLEET_MANAGEMENT.md
+├── 17_OWN_AND_VENDOR_RESOURCE_ARCHITECTURE.md
 └── postman/
     ├── Cablix_ERP_API.postman_collection.json
     ├── Cablix_Local.postman_environment.json
@@ -129,6 +131,8 @@ Every new developer or AI assistant should read the documents in the following o
 | 7 | 06_INVOICE_ENGINE.md | Invoice numbering, drafts, GST, cancellation |
 | 8 | 07_ACCOUNTS_ENGINE.md | Collections, ledgers, expenses, daily closing |
 | 9 | 08_BACKEND_ARCHITECTURE.md | Node.js backend architecture and API layering |
+| 10 | 17_OWN_AND_VENDOR_RESOURCE_ARCHITECTURE.md | Unified Vehicle and Driver master architecture |
+| 11 | 09_FLEET_MANAGEMENT.md | Tenant-owned vehicle lifecycle and fleet operations |
 
 ---
 

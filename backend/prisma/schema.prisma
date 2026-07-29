@@ -58,6 +58,105 @@ enum UserStatus {
   LOCKED
 }
 
+enum SetupRecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CustomerType {
+  RETAIL
+  CORPORATE
+  TRAVEL_AGENT
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum Salutation {
+  MR
+  MS
+}
+
+enum VehicleOwnershipType {
+  OWN
+  VENDOR
+}
+
+enum DriverEngagementType {
+  OWN
+  VENDOR
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  ASSIGNED
+  RUNNING
+  COMPLETED
+  CLOSED
+  CANCELLED
+}
+
+enum BookingType {
+  PACKAGE
+  LOCAL
+  AIRPORT_TRANSFER
+  RAILWAY_STATION_TRANSFER
+  OUTSTATION
+}
+
+enum AssignmentSource {
+  OWN
+  VENDOR
+}
+
+enum PricingBasis {
+  FIXED
+  RATE_PER_KM
+}
+
+enum TripType {
+  ONE_WAY
+  ROUNDTRIP
+  MULTI_CITY
+}
+
+enum BillingTripType {
+  KM_BASED
+  PACKAGE_BASED
+}
+
+enum CollectionPaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CARD
+  CHEQUE
+}
+
+enum CollectionStatus {
+  PENDING
+  WITH_MANAGER
+  DEPOSITED
+  VERIFIED
+  DIRECTLY_RECEIVED
+  VOID
+}
+
+enum InvoiceStatus {
+  DRAFT
+  GENERATED
+  CANCELLED
+}
+
+enum GstType {
+  NO_GST
+  CGST_SGST
+  IGST
+}
+
 model PlatformUser {
   id                String     @id @default(uuid()) @db.Uuid
   name              String     @db.VarChar(150)
@@ -178,6 +277,9 @@ model Tenant {
   dateFormat                String           @default("DD/MM/YYYY") @map("date_format") @db.VarChar(30)
   invoicePrefix             String?          @map("invoice_prefix") @db.VarChar(30)
   invoiceNumberLength       Int              @default(6) @map("invoice_number_length")
+  bookingPrefix             String?          @unique(map: "tenants_booking_prefix_key") @map("booking_prefix") @db.Char(4)
+  smsPrefix                 String?          @map("sms_prefix") @db.VarChar(12)
+  invoiceSettings           Json?            @map("invoice_settings")
   taxSettings               Json?            @map("tax_settings")
   status                    TenantStatus     @default(PENDING_SETUP)
   onboardingStatus          OnboardingStatus @default(NOT_STARTED) @map("onboarding_status")
@@ -187,20 +289,457 @@ model Tenant {
   updatedAt                 DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   closedAt                  DateTime?        @map("closed_at") @db.Timestamptz(6)
 
-  createdBy       PlatformUser?          @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       PlatformUser?          @relation("TenantUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  subscriptions   TenantSubscription[]
-  users           TenantUser[]
-  roles           TenantRole[]
-  rolePermissions TenantRolePermission[]
-  refreshTokens   TenantRefreshToken[]
-  onboardingItems TenantOnboardingItem[]
-  auditLogs       TenantAuditLog[]
+  createdBy          PlatformUser?             @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy          PlatformUser?             @relation("TenantUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  subscriptions      TenantSubscription[]
+  users              TenantUser[]
+  roles              TenantRole[]
+  rolePermissions    TenantRolePermission[]
+  refreshTokens      TenantRefreshToken[]
+  onboardingItems    TenantOnboardingItem[]
+  auditLogs          TenantAuditLog[]
+  gstRegistrations   GstRegistration[]
+  bankAccounts       TenantBankAccount[]
+  locations          TenantLocation[]
+  userLocations      TenantUserLocation[]
+  gstLocations       GstRegistrationLocation[]
+  customers          Customer[]
+  customerContacts   CustomerContact[]
+  travellers         CustomerTraveller[]
+  vendors            Vendor[]
+  vehicleTypes       VehicleType[]
+  vehicles           Vehicle[]
+  drivers            Driver[]
+  bookings           Booking[]
+  bookingClosures    BookingClosure[]
+  bookingCollections BookingCollection[]
+  invoices           Invoice[]
 
   @@index([status], map: "tenants_status_idx")
   @@index([onboardingStatus], map: "tenants_onboarding_status_idx")
   @@index([createdAt], map: "tenants_created_at_idx")
   @@map("tenants")
+}
+
+model Vendor {
+  id          String            @id @default(uuid()) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  vendorCode  String            @map("vendor_code") @db.VarChar(50)
+  name        String            @db.VarChar(200)
+  recordType  String            @map("record_type") @db.VarChar(50)
+  category    String            @db.VarChar(100)
+  rating      Decimal           @default(0) @db.Decimal(3, 2)
+  phone       String            @db.VarChar(30)
+  city        String            @db.VarChar(100)
+  status      SetupRecordStatus @default(ACTIVE)
+  createdById String?           @map("created_by") @db.Uuid
+  updatedById String?           @map("updated_by") @db.Uuid
+  deletedById String?           @map("deleted_by") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicles Vehicle[]
+  drivers  Driver[]
+  bookings Booking[]
+
+  @@unique([tenantId, id], map: "vendors_tenant_id_id_key")
+  @@unique([tenantId, vendorCode], map: "vendors_tenant_code_key")
+  @@index([tenantId, status], map: "vendors_tenant_status_idx")
+  @@map("vendors")
+}
+
+model VehicleType {
+  id        String            @id @default(uuid()) @db.Uuid
+  tenantId  String            @map("tenant_id") @db.Uuid
+  name      String            @db.VarChar(100)
+  status    SetupRecordStatus @default(ACTIVE)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicles Vehicle[]
+
+  @@unique([tenantId, id], map: "vehicle_types_tenant_id_id_key")
+  @@unique([tenantId, name], map: "vehicle_types_tenant_name_key")
+  @@index([tenantId, status], map: "vehicle_types_tenant_status_idx")
+  @@map("vehicle_types")
+}
+
+model Vehicle {
+  id                 String               @id @default(uuid()) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  ownershipType      VehicleOwnershipType @map("ownership_type")
+  vendorId           String?              @map("vendor_id") @db.Uuid
+  vehicleCode        String               @map("vehicle_code") @db.VarChar(50)
+  registrationNumber String               @map("registration_number") @db.VarChar(30)
+  vehicleTypeId      String               @map("vehicle_type_id") @db.Uuid
+  make               String?              @db.VarChar(150)
+  model              String?              @db.VarChar(150)
+  variant            String?              @db.VarChar(150)
+  fuelType           String?              @map("fuel_type") @db.VarChar(50)
+  manufacturingYear  Int?                 @map("manufacturing_year") @db.SmallInt
+  registrationDate   DateTime?            @map("registration_date") @db.Date
+  insuranceExpiry    DateTime?            @map("insurance_expiry") @db.Date
+  permitExpiry       DateTime?            @map("permit_expiry") @db.Date
+  fitnessExpiry      DateTime?            @map("fitness_expiry") @db.Date
+  seatingCapacity    Int?                 @map("seating_capacity")
+  status             SetupRecordStatus    @default(ACTIVE)
+  createdById        String?              @map("created_by") @db.Uuid
+  updatedById        String?              @map("updated_by") @db.Uuid
+  deletedById        String?              @map("deleted_by") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vendor      Vendor?     @relation(fields: [tenantId, vendorId], references: [tenantId, id], onDelete: Restrict)
+  vehicleType VehicleType @relation(fields: [tenantId, vehicleTypeId], references: [tenantId, id], onDelete: Restrict)
+  bookings    Booking[]
+
+  @@unique([tenantId, id], map: "vehicles_tenant_id_id_key")
+  @@unique([tenantId, vehicleCode], map: "vehicles_tenant_code_key")
+  @@index([tenantId, ownershipType, status], map: "vehicles_tenant_ownership_status_idx")
+  @@index([tenantId, vendorId], map: "vehicles_tenant_vendor_idx")
+  @@index([tenantId, vehicleTypeId], map: "vehicles_tenant_type_idx")
+  @@map("vehicles")
+}
+
+model Driver {
+  id              String               @id @default(uuid()) @db.Uuid
+  tenantId        String               @map("tenant_id") @db.Uuid
+  engagementType  DriverEngagementType @map("engagement_type")
+  vendorId        String?              @map("vendor_id") @db.Uuid
+  driverCode      String               @map("driver_code") @db.VarChar(50)
+  salutation      Salutation?
+  name            String               @db.VarChar(150)
+  mobile          String               @db.VarChar(30)
+  alternateMobile String?              @map("alternate_mobile") @db.VarChar(30)
+  licenceNumber   String?              @map("licence_number") @db.VarChar(100)
+  licenceType     String?              @map("licence_type") @db.VarChar(100)
+  licenceExpiry   DateTime?            @map("licence_expiry") @db.Date
+  address         String?              @db.Text
+  identityDetails Json?                @map("identity_details")
+  status          SetupRecordStatus    @default(ACTIVE)
+  createdById     String?              @map("created_by") @db.Uuid
+  updatedById     String?              @map("updated_by") @db.Uuid
+  deletedById     String?              @map("deleted_by") @db.Uuid
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vendor   Vendor?   @relation(fields: [tenantId, vendorId], references: [tenantId, id], onDelete: Restrict)
+  bookings Booking[]
+
+  @@unique([tenantId, id], map: "drivers_tenant_id_id_key")
+  @@unique([tenantId, driverCode], map: "drivers_tenant_code_key")
+  @@index([tenantId, engagementType, status], map: "drivers_tenant_engagement_status_idx")
+  @@index([tenantId, vendorId], map: "drivers_tenant_vendor_idx")
+  @@map("drivers")
+}
+
+model Customer {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  customerCode   String         @map("customer_code") @db.VarChar(50)
+  type           CustomerType
+  salutation     Salutation?
+  name           String         @db.VarChar(200)
+  billingName    String         @map("billing_name") @db.VarChar(200)
+  email          String         @db.VarChar(255)
+  phone          String         @db.VarChar(30)
+  city           String         @db.VarChar(100)
+  gstin          String?        @db.VarChar(20)
+  billingAddress String         @map("billing_address") @db.Text
+  creditLimit    Decimal        @default(0) @map("credit_limit") @db.Decimal(14, 2)
+  outstanding    Decimal        @default(0) @db.Decimal(14, 2)
+  status         CustomerStatus @default(ACTIVE)
+  createdById    String?        @map("created_by") @db.Uuid
+  updatedById    String?        @map("updated_by") @db.Uuid
+  deletedById    String?        @map("deleted_by") @db.Uuid
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contacts   CustomerContact[]
+  travellers CustomerTraveller[]
+  bookings   Booking[]
+  invoices   Invoice[]
+
+  @@unique([tenantId, id], map: "customers_tenant_id_id_key")
+  @@unique([tenantId, customerCode], map: "customers_tenant_code_key")
+  @@index([tenantId, status], map: "customers_tenant_status_idx")
+  @@index([tenantId, name], map: "customers_tenant_name_idx")
+  @@map("customers")
+}
+
+model CustomerContact {
+  id         String      @id @default(uuid()) @db.Uuid
+  tenantId   String      @map("tenant_id") @db.Uuid
+  customerId String      @map("customer_id") @db.Uuid
+  salutation Salutation?
+  name       String      @db.VarChar(150)
+  role       String?     @db.VarChar(100)
+  phone      String?     @db.VarChar(30)
+  email      String?     @db.VarChar(255)
+  isPrimary  Boolean     @default(false) @map("is_primary")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, customerId], map: "customer_contacts_tenant_customer_idx")
+  @@map("customer_contacts")
+}
+
+model CustomerTraveller {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  customerId    String         @map("customer_id") @db.Uuid
+  travellerType String         @map("traveller_type") @db.VarChar(50)
+  salutation    Salutation?
+  name          String         @db.VarChar(150)
+  phone         String?        @db.VarChar(30)
+  email         String?        @db.VarChar(255)
+  department    String?        @db.VarChar(100)
+  employeeId    String?        @map("employee_id") @db.VarChar(100)
+  notes         String?        @db.Text
+  status        CustomerStatus @default(ACTIVE)
+  createdById   String?        @map("created_by") @db.Uuid
+  updatedById   String?        @map("updated_by") @db.Uuid
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer  @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@unique([tenantId, id], map: "customer_travellers_tenant_id_id_key")
+  @@index([tenantId, customerId, status], map: "customer_travellers_tenant_customer_status_idx")
+  @@map("customer_travellers")
+}
+
+model Booking {
+  id                     String           @id @default(uuid()) @db.Uuid
+  tenantId               String           @map("tenant_id") @db.Uuid
+  bookingNumber          String           @unique(map: "bookings_booking_id_key") @map("booking_id") @db.VarChar(11)
+  customerId             String           @map("customer_id") @db.Uuid
+  travellerId            String?          @map("traveller_id") @db.Uuid
+  bookingType            BookingType      @map("booking_type")
+  bookingPackage         String?          @map("booking_package") @db.VarChar(100)
+  tripType               TripType         @default(ONE_WAY) @map("trip_type")
+  serviceCity            String           @map("service_city") @db.VarChar(100)
+  startDate              DateTime         @map("start_date") @db.Date
+  endDate                DateTime         @map("end_date") @db.Date
+  pickupTime             String           @map("pickup_time") @db.VarChar(5)
+  travellingFrom         String?          @map("travelling_from") @db.VarChar(500)
+  travellingTo           String?          @map("travelling_to") @db.VarChar(500)
+  pickupReportingAddress String           @map("pickup_reporting_address") @db.VarChar(500)
+  routeStops             String?          @map("route_stops") @db.Text
+  packageDetails         String?          @map("package_details") @db.Text
+  requestedVehicleType   String           @map("requested_vehicle_type") @db.VarChar(150)
+  assignmentSource       AssignmentSource @default(OWN) @map("assignment_source")
+  vendorId               String?          @map("vendor_id") @db.Uuid
+  vehicleId              String?          @map("vehicle_id") @db.Uuid
+  driverId               String?          @map("driver_id") @db.Uuid
+  pricingBasis           PricingBasis     @map("pricing_basis")
+  customerRate           Decimal          @default(0) @map("customer_rate") @db.Decimal(12, 2)
+  vendorRateType         String?          @map("vendor_rate_type") @db.VarChar(50)
+  vendorRate             Decimal?         @map("vendor_rate") @db.Decimal(12, 2)
+  vendorPayableAmount    Decimal?         @map("vendor_payable_amount") @db.Decimal(12, 2)
+  vendorNotes            String?          @map("vendor_notes") @db.Text
+  status                 BookingStatus    @default(CONFIRMED)
+  confirmedAt            DateTime?        @map("confirmed_at") @db.Timestamptz(6)
+  assignedAt             DateTime?        @map("assigned_at") @db.Timestamptz(6)
+  dutyStartedAt          DateTime?        @map("duty_started_at") @db.Timestamptz(6)
+  dutyCompletedAt        DateTime?        @map("duty_completed_at") @db.Timestamptz(6)
+  openingOdometer        Decimal?         @map("opening_odometer") @db.Decimal(12, 2)
+  closingOdometer        Decimal?         @map("closing_odometer") @db.Decimal(12, 2)
+  dutyStartRemarks       String?          @map("duty_start_remarks") @db.Text
+  dutyCompletionRemarks  String?          @map("duty_completion_remarks") @db.Text
+  cancelledAt            DateTime?        @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason     String?          @map("cancellation_reason") @db.Text
+  notes                  String?          @db.Text
+  createdById            String?          @map("created_by") @db.Uuid
+  updatedById            String?          @map("updated_by") @db.Uuid
+  deletedById            String?          @map("deleted_by") @db.Uuid
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  customer    Customer            @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
+  traveller   CustomerTraveller?  @relation(fields: [tenantId, travellerId], references: [tenantId, id], onDelete: Restrict)
+  vendor      Vendor?             @relation(fields: [tenantId, vendorId], references: [tenantId, id], onDelete: Restrict)
+  vehicle     Vehicle?            @relation(fields: [tenantId, vehicleId], references: [tenantId, id], onDelete: Restrict)
+  driver      Driver?             @relation(fields: [tenantId, driverId], references: [tenantId, id], onDelete: Restrict)
+  closure     BookingClosure?
+  collections BookingCollection[]
+  invoices    Invoice[]
+
+  @@unique([tenantId, id], map: "bookings_tenant_id_id_key")
+  @@index([tenantId, status, startDate], map: "bookings_tenant_status_start_idx")
+  @@index([tenantId, customerId], map: "bookings_tenant_customer_idx")
+  @@index([tenantId, vendorId], map: "bookings_tenant_vendor_idx")
+  @@index([tenantId, vehicleId, startDate, endDate], map: "bookings_tenant_vehicle_dates_idx")
+  @@index([tenantId, driverId, startDate, endDate], map: "bookings_tenant_driver_dates_idx")
+  @@map("bookings")
+}
+
+model BookingClosure {
+  id                      String          @id @default(uuid()) @db.Uuid
+  tenantId                String          @map("tenant_id") @db.Uuid
+  bookingId               String          @unique(map: "booking_closures_booking_key") @map("booking_id") @db.Uuid
+  billingTripType         BillingTripType @map("billing_trip_type")
+  startKm                 Decimal?        @map("start_km") @db.Decimal(12, 2)
+  endKm                   Decimal?        @map("end_km") @db.Decimal(12, 2)
+  actualRunningKm         Decimal         @map("actual_running_km") @db.Decimal(12, 2)
+  minimumBillingKm        Decimal         @map("minimum_billing_km") @db.Decimal(12, 2)
+  billingKm               Decimal         @map("billing_km") @db.Decimal(12, 2)
+  ratePerKm               Decimal?        @map("rate_per_km") @db.Decimal(12, 2)
+  packageAmount           Decimal?        @map("package_amount") @db.Decimal(12, 2)
+  baseFare                Decimal         @map("base_fare") @db.Decimal(12, 2)
+  tollTax                 Decimal         @default(0) @map("toll_tax") @db.Decimal(12, 2)
+  parking                 Decimal         @default(0) @db.Decimal(12, 2)
+  driverAllowance         Decimal         @default(0) @map("driver_allowance") @db.Decimal(12, 2)
+  otherRecoverableCharges Decimal         @default(0) @map("other_recoverable_charges") @db.Decimal(12, 2)
+  gstAmount               Decimal         @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  totalBillAmount         Decimal         @map("total_bill_amount") @db.Decimal(12, 2)
+  dieselCost              Decimal         @default(0) @map("diesel_cost") @db.Decimal(12, 2)
+  directVehicleExpense    Decimal         @default(0) @map("direct_vehicle_expense") @db.Decimal(12, 2)
+  driverCost              Decimal         @default(0) @map("driver_cost") @db.Decimal(12, 2)
+  allocatedOfficeExpense  Decimal         @default(0) @map("allocated_office_expense") @db.Decimal(12, 2)
+  vehicleRevenue          Decimal         @default(0) @map("vehicle_revenue") @db.Decimal(12, 2)
+  netVehicleProfit        Decimal         @default(0) @map("net_vehicle_profit") @db.Decimal(12, 2)
+  vendorPayableAmount     Decimal         @default(0) @map("vendor_payable_amount") @db.Decimal(12, 2)
+  vendorExtraCharges      Decimal         @default(0) @map("vendor_extra_charges") @db.Decimal(12, 2)
+  vendorDeduction         Decimal         @default(0) @map("vendor_deduction") @db.Decimal(12, 2)
+  finalVendorPayable      Decimal         @default(0) @map("final_vendor_payable") @db.Decimal(12, 2)
+  vendorBookingProfit     Decimal         @default(0) @map("vendor_booking_profit") @db.Decimal(12, 2)
+  remarks                 String?         @db.Text
+  attachmentName          String?         @map("attachment_name") @db.VarChar(255)
+  closedAt                DateTime        @default(now()) @map("closed_at") @db.Timestamptz(6)
+  closedById              String          @map("closed_by") @db.Uuid
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "booking_closures_tenant_id_id_key")
+  @@unique([tenantId, bookingId], map: "booking_closures_tenant_booking_key")
+  @@index([tenantId, closedAt], map: "booking_closures_tenant_closed_idx")
+  @@map("booking_closures")
+}
+
+model BookingCollection {
+  id                     String                @id @default(uuid()) @db.Uuid
+  tenantId               String                @map("tenant_id") @db.Uuid
+  bookingId              String                @map("booking_id") @db.Uuid
+  invoiceId              String?               @map("invoice_id") @db.Uuid
+  collectionDate         DateTime              @map("collection_date") @db.Date
+  amount                 Decimal               @db.Decimal(12, 2)
+  paymentMode            CollectionPaymentMode @map("payment_mode")
+  collectedByName        String                @map("collected_by_name") @db.VarChar(150)
+  receiverName           String?               @map("receiver_name") @db.VarChar(150)
+  referenceNumber        String?               @map("reference_number") @db.VarChar(150)
+  remarks                String?               @db.Text
+  depositDate            DateTime?             @map("deposit_date") @db.Date
+  depositMode            String?               @map("deposit_mode") @db.VarChar(50)
+  depositReferenceNumber String?               @map("deposit_reference_number") @db.VarChar(150)
+  depositedByName        String?               @map("deposited_by_name") @db.VarChar(150)
+  verifiedByName         String?               @map("verified_by_name") @db.VarChar(150)
+  status                 CollectionStatus      @default(PENDING)
+  recordedById           String                @map("recorded_by") @db.Uuid
+  verifiedById           String?               @map("verified_by") @db.Uuid
+  verifiedAt             DateTime?             @map("verified_at") @db.Timestamptz(6)
+  voidedAt               DateTime?             @map("voided_at") @db.Timestamptz(6)
+  voidedById             String?               @map("voided_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  booking Booking  @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  invoice Invoice? @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "booking_collections_tenant_id_id_key")
+  @@index([tenantId, bookingId, status], map: "booking_collections_tenant_booking_status_idx")
+  @@index([tenantId, collectionDate], map: "booking_collections_tenant_date_idx")
+  @@map("booking_collections")
+}
+
+model Invoice {
+  id                 String        @id @default(uuid()) @db.Uuid
+  tenantId           String        @map("tenant_id") @db.Uuid
+  bookingId          String?       @map("booking_id") @db.Uuid
+  customerId         String        @map("customer_id") @db.Uuid
+  invoiceNumber      String?       @map("invoice_number") @db.VarChar(100)
+  invoiceSequence    Int?          @map("invoice_sequence")
+  invoicePrefix      String?       @map("invoice_prefix") @db.VarChar(30)
+  financialYear      String?       @map("financial_year") @db.VarChar(20)
+  invoiceDate        DateTime      @map("invoice_date") @db.Date
+  status             InvoiceStatus @default(DRAFT)
+  gstType            GstType       @default(NO_GST) @map("gst_type")
+  billingName        String        @map("billing_name") @db.VarChar(200)
+  billingAddress     String        @map("billing_address") @db.Text
+  customerGstin      String?       @map("customer_gstin") @db.VarChar(20)
+  subtotal           Decimal       @db.Decimal(12, 2)
+  taxableAmount      Decimal       @map("taxable_amount") @db.Decimal(12, 2)
+  cgstAmount         Decimal       @default(0) @map("cgst_amount") @db.Decimal(12, 2)
+  sgstAmount         Decimal       @default(0) @map("sgst_amount") @db.Decimal(12, 2)
+  igstAmount         Decimal       @default(0) @map("igst_amount") @db.Decimal(12, 2)
+  totalGst           Decimal       @default(0) @map("total_gst") @db.Decimal(12, 2)
+  netPayable         Decimal       @map("net_payable") @db.Decimal(12, 2)
+  generatedAt        DateTime?     @map("generated_at") @db.Timestamptz(6)
+  generatedById      String?       @map("generated_by") @db.Uuid
+  cancelledAt        DateTime?     @map("cancelled_at") @db.Timestamptz(6)
+  cancelledById      String?       @map("cancelled_by") @db.Uuid
+  cancellationReason String?       @map("cancellation_reason") @db.Text
+  createdById        String        @map("created_by") @db.Uuid
+  updatedById        String        @map("updated_by") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  booking     Booking?            @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  customer    Customer            @relation(fields: [tenantId, customerId], references: [tenantId, id], onDelete: Restrict)
+  items       InvoiceItem[]
+  collections BookingCollection[]
+
+  @@unique([tenantId, id], map: "invoices_tenant_id_id_key")
+  @@unique([tenantId, bookingId], map: "invoices_tenant_booking_key")
+  @@unique([tenantId, invoiceNumber], map: "invoices_tenant_number_key")
+  @@unique([tenantId, invoiceSequence], map: "invoices_tenant_sequence_key")
+  @@index([tenantId, status, invoiceDate], map: "invoices_tenant_status_date_idx")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  invoiceId        String    @map("invoice_id") @db.Uuid
+  dateType         String    @default("single") @map("date_type") @db.VarChar(20)
+  serviceDate      DateTime? @map("service_date") @db.Date
+  serviceStartDate DateTime? @map("service_start_date") @db.Date
+  serviceEndDate   DateTime? @map("service_end_date") @db.Date
+  description      String    @db.VarChar(500)
+  quantity         Decimal   @db.Decimal(12, 2)
+  unit             String    @db.VarChar(30)
+  rate             Decimal   @db.Decimal(12, 2)
+  amount           Decimal   @db.Decimal(12, 2)
+  sortOrder        Int       @default(0) @map("sort_order")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  invoice Invoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id], map: "invoice_items_tenant_id_id_key")
+  @@index([tenantId, invoiceId, sortOrder], map: "invoice_items_tenant_invoice_order_idx")
+  @@map("invoice_items")
 }
 
 model SubscriptionPlan {
@@ -369,6 +908,7 @@ model TenantUser {
   refreshTokens  TenantRefreshToken[]
   completedItems TenantOnboardingItem[] @relation("OnboardingCompletedBy")
   auditLogs      TenantAuditLog[]       @relation("TenantAuditActor")
+  locations      TenantUserLocation[]
 
   @@unique([tenantId, id], map: "tenant_users_tenant_id_id_key")
   @@unique([tenantId, email], map: "tenant_users_tenant_email_key")
@@ -376,6 +916,125 @@ model TenantUser {
   @@index([tenantId, roleId], map: "tenant_users_tenant_role_idx")
   @@index([tenantId, isPrimaryOwner], map: "tenant_users_tenant_primary_owner_idx")
   @@map("users")
+}
+
+model TenantLocation {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  name         String            @db.VarChar(150)
+  code         String?           @db.VarChar(50)
+  addressLine1 String?           @map("address_line_1") @db.VarChar(255)
+  addressLine2 String?           @map("address_line_2") @db.VarChar(255)
+  city         String?           @db.VarChar(100)
+  state        String?           @db.VarChar(100)
+  pinCode      String?           @map("pin_code") @db.VarChar(20)
+  country      String            @default("India") @db.VarChar(100)
+  phone        String?           @db.VarChar(30)
+  email        String?           @db.VarChar(255)
+  isPrimary    Boolean           @default(false) @map("is_primary")
+  status       SetupRecordStatus @default(ACTIVE)
+  createdById  String?           @map("created_by") @db.Uuid
+  updatedById  String?           @map("updated_by") @db.Uuid
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant           Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users            TenantUserLocation[]
+  gstRegistrations GstRegistrationLocation[]
+
+  @@unique([tenantId, id], map: "locations_tenant_id_id_key")
+  @@unique([tenantId, code], map: "locations_tenant_code_key")
+  @@index([tenantId, status], map: "locations_tenant_status_idx")
+  @@map("locations")
+}
+
+model TenantBankAccount {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  accountName   String            @map("account_name") @db.VarChar(150)
+  bankName      String            @map("bank_name") @db.VarChar(150)
+  branchName    String?           @map("branch_name") @db.VarChar(150)
+  accountNumber String            @map("account_number") @db.VarChar(100)
+  ifscCode      String            @map("ifsc_code") @db.VarChar(20)
+  accountType   String?           @map("account_type") @db.VarChar(50)
+  upiId         String?           @map("upi_id") @db.VarChar(150)
+  isDefault     Boolean           @default(false) @map("is_default")
+  status        SetupRecordStatus @default(ACTIVE)
+  createdById   String?           @map("created_by") @db.Uuid
+  updatedById   String?           @map("updated_by") @db.Uuid
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, accountNumber], map: "bank_accounts_tenant_account_number_key")
+  @@index([tenantId, status], map: "bank_accounts_tenant_status_idx")
+  @@map("tenant_bank_accounts")
+}
+
+model GstRegistration {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  registrationName  String            @map("registration_name") @db.VarChar(150)
+  legalName         String            @map("legal_name") @db.VarChar(200)
+  tradeName         String?           @map("trade_name") @db.VarChar(200)
+  registrationType  String            @map("registration_type") @db.VarChar(50)
+  gstin             String?           @db.VarChar(20)
+  pan               String?           @db.VarChar(20)
+  registeredAddress String?           @map("registered_address") @db.Text
+  addressLine1      String?           @map("address_line_1") @db.VarChar(255)
+  addressLine2      String?           @map("address_line_2") @db.VarChar(255)
+  city              String?           @db.VarChar(100)
+  district          String?           @db.VarChar(100)
+  state             String            @db.VarChar(100)
+  stateCode         String            @map("state_code") @db.VarChar(10)
+  pinCode           String?           @map("pin_code") @db.VarChar(20)
+  country           String            @default("India") @db.VarChar(100)
+  effectiveFrom     DateTime?         @map("effective_from") @db.Date
+  effectiveTo       DateTime?         @map("effective_to") @db.Date
+  isDefault         Boolean           @default(false) @map("is_default")
+  status            SetupRecordStatus @default(ACTIVE)
+  notes             String?           @db.Text
+  createdById       String?           @map("created_by") @db.Uuid
+  updatedById       String?           @map("updated_by") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locations GstRegistrationLocation[]
+
+  @@unique([tenantId, id], map: "gst_registrations_tenant_id_id_key")
+  @@unique([tenantId, gstin], map: "gst_registrations_tenant_gstin_key")
+  @@index([tenantId, status], map: "gst_registrations_tenant_status_idx")
+  @@map("gst_registrations")
+}
+
+model GstRegistrationLocation {
+  tenantId          String @map("tenant_id") @db.Uuid
+  gstRegistrationId String @map("gst_registration_id") @db.Uuid
+  locationId        String @map("location_id") @db.Uuid
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gstRegistration GstRegistration @relation(fields: [tenantId, gstRegistrationId], references: [tenantId, id], onDelete: Cascade)
+  location        TenantLocation  @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([tenantId, gstRegistrationId, locationId])
+  @@index([tenantId, locationId], map: "gst_registration_locations_tenant_location_idx")
+  @@map("gst_registration_locations")
+}
+
+model TenantUserLocation {
+  tenantId   String @map("tenant_id") @db.Uuid
+  userId     String @map("user_id") @db.Uuid
+  locationId String @map("location_id") @db.Uuid
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     TenantUser     @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  location TenantLocation @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([tenantId, userId, locationId])
+  @@index([tenantId, locationId], map: "user_locations_tenant_location_idx")
+  @@map("tenant_user_locations")
 }
 
 model TenantRefreshToken {

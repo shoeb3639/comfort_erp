@@ -27,3 +27,54 @@ export function validateBody(schema: Joi.ObjectSchema): RequestHandler {
     next()
   }
 }
+
+export function validateParams(schema: Joi.ObjectSchema): RequestHandler {
+  return (request, _response, next) => {
+    const result = schema.validate(request.params, {
+      abortEarly: false,
+      allowUnknown: false,
+      stripUnknown: true,
+    })
+    if (result.error) {
+      next(
+        new AppError(
+          'Validation failed',
+          'VALIDATION_ERROR',
+          400,
+          result.error.details.map((detail) => ({
+            field: detail.path.join('.'),
+            message: detail.message,
+          })),
+        ),
+      )
+      return
+    }
+    request.params = result.value as typeof request.params
+    next()
+  }
+}
+
+export function validateQuery(schema: Joi.ObjectSchema): RequestHandler {
+  return (request, _response, next) => {
+    const result = schema.validate(request.query, {
+      abortEarly: false,
+      allowUnknown: false,
+      stripUnknown: true,
+    })
+    if (result.error) {
+      next(
+        new AppError(
+          'Validation failed',
+          'VALIDATION_ERROR',
+          400,
+          result.error.details.map((detail) => ({
+            field: detail.path.join('.'),
+            message: detail.message,
+          })),
+        ),
+      )
+      return
+    }
+    next()
+  }
+}

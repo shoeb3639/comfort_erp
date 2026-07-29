@@ -299,4 +299,89 @@ POST /api/v1/auth/refresh-token
 POST /api/v1/auth/logout
 GET  /api/v1/platform/me
 GET  /api/v1/tenant/me
+GET  /api/v1/tenant/access
+POST /api/v1/platform/tenants
+GET  /api/v1/platform/tenants
+GET  /api/v1/platform/tenants/:tenantId
+GET  /api/v1/platform/subscription-plans
+POST /api/v1/platform/subscription-plans
+PATCH /api/v1/platform/subscription-plans/:planId
+DELETE /api/v1/platform/subscription-plans/:planId
+GET  /api/v1/platform/tenant-subscriptions
+POST /api/v1/platform/tenant-subscriptions
+PATCH /api/v1/platform/tenant-subscriptions/:subscriptionId
+POST /api/v1/platform/tenants/:tenantId/owners
+PATCH /api/v1/platform/tenants/:tenantId/status
+GET/PATCH /api/v1/tenant/setup/company-profile
+GET/PATCH /api/v1/tenant/setup/tax-settings
+GET/PATCH /api/v1/tenant/setup/invoice-settings
+GET       /api/v1/tenant/setup/onboarding
+GET/POST  /api/v1/tenant/setup/locations
+PATCH     /api/v1/tenant/setup/locations/:recordId
+GET/POST  /api/v1/tenant/setup/bank-accounts
+PATCH     /api/v1/tenant/setup/bank-accounts/:recordId
+GET/POST  /api/v1/tenant/setup/gst-registrations
+PATCH     /api/v1/tenant/setup/gst-registrations/:recordId
+GET/POST  /api/v1/tenant/setup/users
+PATCH     /api/v1/tenant/setup/users/:recordId
+GET/POST  /api/v1/tenant/setup/roles
+PATCH     /api/v1/tenant/setup/roles/:recordId
+PATCH     /api/v1/tenant/setup/roles/:recordId/permissions
+GET       /api/v1/tenant/setup/permissions
+GET/POST  /api/v1/tenant/customers
+GET/PATCH /api/v1/tenant/customers/:customerId
+POST      /api/v1/tenant/customers/:customerId/travellers
+GET/PATCH /api/v1/tenant/customers/:customerId/travellers/:travellerId
+GET/POST  /api/v1/tenant/vendors
+GET/PATCH/DELETE /api/v1/tenant/vendors/:vendorId
+GET/POST  /api/v1/tenant/vehicles
+GET/PATCH/DELETE /api/v1/tenant/vehicles/:vehicleId
+GET       /api/v1/tenant/vehicles/types
+GET/POST  /api/v1/tenant/drivers
+GET/PATCH/DELETE /api/v1/tenant/drivers/:driverId
+POST      /api/v1/tenant/vendors/:vendorId/vehicles
+PATCH/DELETE /api/v1/tenant/vendors/:vendorId/vehicles/:childId
+POST      /api/v1/tenant/vendors/:vendorId/drivers
+PATCH/DELETE /api/v1/tenant/vendors/:vendorId/drivers/:childId
 ```
+
+`POST /api/v1/platform/tenants` requires the `tenant.create` platform
+permission. It creates the tenant, subscription, primary owner, tenant system
+roles and permissions, onboarding checklist, and platform audit record in one
+database transaction.
+
+Subscription-plan deletion is a non-destructive deactivation. Tenant
+subscription updates enforce the documented status transitions. A tenant can
+be activated only after it has a primary owner and a usable subscription;
+suspension preserves all tenant data. All mutations create platform audit
+records.
+
+`GET /api/v1/tenant/me` supports the restricted-read policy for expired
+subscriptions. The frontend uses the stricter `GET /api/v1/tenant/access`
+before entering or navigating within the write-capable Tenant ERP.
+
+Phase 3 company-setup APIs derive tenant scope exclusively from the verified
+tenant token. They require an active tenant and usable subscription, enforce
+resource permissions, and record every mutation in the tenant audit log.
+Company profile, tax and invoice settings, GST registrations, bank accounts,
+locations, users, roles, permission assignments, and onboarding progress are
+stored in PostgreSQL. System roles and the primary owner are protected from
+unsafe changes, and tenant-user creation enforces the subscription user limit.
+
+The Customer module uses the same tenant middleware chain. Customers,
+contacts, and employees/travellers are permanent business records after
+creation: users can view and modify them, but no delete API is exposed.
+All records are tenant-scoped and cross-tenant IDs return `404`.
+
+Human-readable Customer module strings are normalized to Title Case before
+database writes. For example, `NEW DELHI` is stored as `New Delhi`. Technical
+identifiers—including emails, GSTINs, phone numbers, passwords, URLs, UUIDs,
+and generated codes—are excluded from this transformation. Person records
+support the optional `MR`/`MS` salutation and store it separately from the
+person's normalized name.
+
+Vendor, Vehicle, and Driver records follow the same tenant isolation, audit
+logging, Title Case, and identifier-preservation rules. Drivers support
+`MR`/`MS`. Central Vehicle and Driver services enforce nullable Vendor linkage
+for OWN resources and mandatory same-tenant Vendor linkage for VENDOR
+resources. Deleting a Vendor is blocked while active resources reference it.

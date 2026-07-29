@@ -126,8 +126,65 @@ async function seedTenantSecurity(): Promise<void> {
   }
 }
 
+async function seedSubscriptionPlans(): Promise<void> {
+  const plans = [
+    {
+      code: 'STARTER',
+      name: 'Starter',
+      description:
+        'For small operators starting with digital booking and billing.',
+      billingCycle: 'MONTHLY' as const,
+      basePrice: 1499,
+      validityDays: 30,
+      userLimit: 3,
+      vehicleLimit: 10,
+      bookingLimit: 300,
+      storageLimitMb: 1024,
+      trialDays: 14,
+    },
+    {
+      code: 'GROWTH',
+      name: 'Growth',
+      description:
+        'For active fleet operators with accounting and manager ledger workflows.',
+      billingCycle: 'MONTHLY' as const,
+      basePrice: 4999,
+      validityDays: 30,
+      userLimit: 10,
+      vehicleLimit: 50,
+      bookingLimit: 2000,
+      storageLimitMb: 5120,
+      trialDays: 14,
+    },
+    {
+      code: 'ENTERPRISE',
+      name: 'Enterprise',
+      description: 'Custom limits, priority support, and advanced reporting.',
+      billingCycle: 'CUSTOM' as const,
+      basePrice: 0,
+      validityDays: null,
+      userLimit: null,
+      vehicleLimit: null,
+      bookingLimit: null,
+      storageLimitMb: null,
+      trialDays: 0,
+    },
+  ]
+
+  await Promise.all(
+    plans.map((plan) =>
+      prisma.subscriptionPlan.upsert({
+        where: { code: plan.code },
+        create: { ...plan, isActive: true },
+        update: { ...plan, isActive: true },
+      }),
+    ),
+  )
+}
+
 async function main(): Promise<void> {
   await seedPlatformSecurity()
+  await seedSubscriptionPlans()
   await seedTenantSecurity()
 }
 

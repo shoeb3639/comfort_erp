@@ -70,6 +70,20 @@ Collection is separate from manager expense fund.
 
 Cash booking payment should not increase manager ledger balance.
 
+### Implemented Booking Collection APIs
+
+Booking closing and collection are database-backed. A collection can be recorded,
+verified, or voided without changing the immutable booking closure:
+
+```text
+POST   /api/v1/tenant/bookings/:bookingId/collections
+PATCH  /api/v1/tenant/bookings/:bookingId/collections/:collectionId/verify
+DELETE /api/v1/tenant/bookings/:bookingId/collections/:collectionId
+```
+
+The service rejects collection totals above the booking invoice amount. Collection
+summary (`total`, `balance`, and payment state) is calculated from non-void records.
+
 ## Booking Cash Deposit
 
 Booking cash deposit tracks customer cash collected and deposited to company bank.

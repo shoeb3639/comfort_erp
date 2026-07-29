@@ -9,6 +9,11 @@ export const swaggerSpecification = swaggerJsdoc({
       description: 'Multi-tenant SaaS ERP API for car rental operations.',
     },
     servers: [{ url: '/api/v1' }],
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      },
+    },
   },
   apis: ['src/modules/**/*.routes.ts', 'dist/modules/**/*.routes.js'],
 })

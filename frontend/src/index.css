@@ -1,11 +1,39 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;800;900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;800;900&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@keyframes toast-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(100% + 2rem)) scale(0.96);
+  }
+  65% {
+    opacity: 1;
+    transform: translateX(-0.5rem) scale(1.02);
+  }
+  82% {
+    transform: translateX(0.2rem) scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-slide-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in {
+    animation: none;
+  }
+}
+
 :root {
-  font-family: 'Lato', Arial, Helvetica, sans-serif;
+  font-family: "Lato", Arial, Helvetica, sans-serif;
   color: #0f172a;
   background: #f8fafc;
   font-synthesis: none;

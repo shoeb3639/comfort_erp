@@ -34,7 +34,8 @@ export async function refreshSession(refreshToken) {
 }
 
 export async function validateSession(session) {
-  const endpoint = session.user.userType === 'PLATFORM' ? '/platform/me' : '/tenant/me'
+  const endpoint =
+    session.user.userType === 'PLATFORM' ? '/platform/me' : '/tenant/access'
   await api.get(endpoint, {
     headers: { Authorization: `Bearer ${session.accessToken}` },
   })

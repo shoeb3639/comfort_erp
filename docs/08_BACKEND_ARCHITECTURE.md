@@ -328,6 +328,20 @@ Other modules should use the same naming and responsibility pattern, replacing
 module may be omitted, but responsibilities must not be moved into unrelated
 layers.
 
+## Unified Vehicle And Driver Masters
+
+Vehicles and drivers are independent tenant modules and follow the complete
+Route → Middleware → Controller → Service → Repository → Prisma flow.
+
+- One `vehicles` table stores OWN and VENDOR vehicles.
+- One `drivers` table stores OWN and VENDOR drivers.
+- OWN resources have no Vendor link.
+- VENDOR resources require a same-tenant Vendor link.
+- Vendor-profile nested endpoints delegate to the central Vehicle or Driver
+  service; they do not own separate child tables.
+- Central list APIs validate `ownershipType`, `engagementType`, and `vendorId`
+  filters before repository access.
+
 ## Platform and Tenant Separation
 
 The backend must clearly separate:

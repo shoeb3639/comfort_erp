@@ -253,7 +253,23 @@ Invoice screen should support:
 
 Generated invoice edit should be controlled and audited.
 
-## Future Backend Notes
+## Implemented Backend Scope
+
+Booking closing now creates a database-backed draft invoice and generic invoice
+items. Draft lookup, list/display, and final generation are available through:
+
+```text
+GET   /api/v1/tenant/invoices
+GET   /api/v1/tenant/invoices/:invoiceId
+PATCH /api/v1/tenant/invoices/:invoiceId/generate
+```
+
+Drafts do not consume an invoice number. Generation assigns a tenant-scoped,
+financial-year number atomically and preserves billing, tenant, GST, and bank
+display data through the API. Direct/manual invoice creation, cancellation, and
+controlled revision/versioning remain future scope.
+
+## Persistence
 
 Invoices should store:
 

@@ -1,5 +1,16 @@
 # Database Principles
 
+## Human-readable text casing
+
+Human-readable text must be normalized to Title Case by the backend service
+layer before every create or update operation. This rule applies consistently
+to tenant-facing modules, including Company Setup, Customers, Vendors,
+Vehicles, Drivers, Bookings, Invoices, and future operational masters.
+
+Do not case-transform machine-readable values such as IDs, UUIDs, email
+addresses, passwords, URLs, registration numbers, tax identifiers, enum values,
+permission keys, prefix/code fields, phone numbers, dates, or times.
+
 Version: 1.0
 
 Status: Approved Requirements Baseline (Frozen)
@@ -58,7 +69,8 @@ Business-facing numbers should not be used as primary keys.
 Examples:
 
 - invoice_number is not the invoice primary key.
-- booking_number is not the booking primary key.
+- booking_id is not the booking primary key; the internal `id` UUID remains the
+  primary key.
 - tenant_code is not the tenant primary key.
 
 ## Foreign Keys
@@ -271,23 +283,17 @@ Backend/database field:
 ownership_type
 ```
 
-Recommended values:
+Vehicle values:
 
-- own
-- vendor
+- `OWN`
+- `VENDOR`
 
-Vendor parent classification:
+Driver engagement uses `engagement_type` with the same values.
 
-```text
-record_type
-```
-
-Recommended values:
-
-- own_company
-- external_vendor
-
-Each tenant should have one own-company parent record for own vehicles and drivers.
+OWN resources have `vendor_id = NULL`. VENDOR resources require a composite
+tenant-safe foreign key to an external Vendor in the same tenant. PostgreSQL
+check constraints enforce both rules. Vehicles and drivers use one central
+table each; do not create ownership-specific tables.
 
 ## Indexing
 

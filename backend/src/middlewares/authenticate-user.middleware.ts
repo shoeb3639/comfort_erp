@@ -26,6 +26,9 @@ export const authenticateUser: RequestHandler = async (
     if (!user || user.status !== 'ACTIVE' || user.roleId !== auth.roleId) {
       throw new AppError('User account is not active', 'UNAUTHORIZED', 401)
     }
+    auth.permissions = user.role.permissions.map(
+      (item) => item.permission.permissionKey,
+    )
   } else {
     const user = await authRepository.findTenantUserStatus(
       auth.tenantId!,
@@ -39,6 +42,9 @@ export const authenticateUser: RequestHandler = async (
     ) {
       throw new AppError('User account is not active', 'UNAUTHORIZED', 401)
     }
+    auth.permissions = user.role.permissions.map(
+      (item) => item.permission.permissionKey,
+    )
   }
 
   request.auth = auth

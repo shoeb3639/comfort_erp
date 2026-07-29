@@ -27,7 +27,7 @@ If the source code conflicts with this document, this document takes precedence 
 The existing React frontend already contains mock-data CRUD screens for the Tenant ERP area:
 
 - Customers
-- Vendors
+- Vendors — completed end to end, including linked drivers and vehicles
 - Bookings
 - Booking Closure
 - Invoices
@@ -629,11 +629,9 @@ Tenant-owned records:
 
 ## Tenant Fleet Ownership Rules
 
-Vendors act as the parent record for vehicles and drivers.
-
-Each tenant should have one internal company parent record for its own fleet. For example, Comfort Cars should exist as the tenant's own company parent record. Own vehicles and own drivers are added under this parent record.
-
-External vendors are separate parent records. Vendor vehicles and vendor drivers are added under the corresponding external vendor record.
+Vehicles and drivers use central tenant-scoped masters. Vendors represent
+external suppliers only; the tenant's own company is not created as a Vendor
+to parent own resources.
 
 UI wording:
 
@@ -642,21 +640,22 @@ UI wording:
 
 Backend/database wording:
 
-- Use `ownership_type` for vehicles and drivers.
-- Use a vendor parent classification such as `record_type` or `vendor_type` to identify the tenant's own company parent versus external vendors.
+- Use `ownership_type` for vehicles.
+- Use `engagement_type` for drivers.
 
 Recommended values:
 
-- Vendor parent classification: `own_company`, `external_vendor`
-- Vehicle/driver ownership type: `own`, `vendor`
+- Vehicle ownership: `OWN`, `VENDOR`
+- Driver engagement: `OWN`, `VENDOR`
 
 Rules:
 
-- A tenant should not create multiple own-company parent records.
-- Own vehicles and own drivers must be linked to the own-company parent record.
-- Vendor vehicles and vendor drivers must be linked to an external vendor parent record.
-- Vehicle and driver ownership should be inherited from the selected parent record in the UI.
-- The own-company parent record should not be deletable after setup because operational records depend on it.
+- OWN resources must have `vendor_id = NULL`.
+- VENDOR resources must link to an active Vendor in the authenticated tenant.
+- Vendor-profile resource forms force VENDOR classification and the selected
+  Vendor.
+- Central masters, Vendor profiles, booking assignment, and reports use the
+  same Vehicle and Driver rows.
 
 ## Vendor Vehicle Booking Profit Rules
 
@@ -737,7 +736,6 @@ vendors
 id
 tenant_id
 name
-record_type          -- own_company / external_vendor
 phone
 city
 status
@@ -746,22 +744,23 @@ vehicles
 --------
 id
 tenant_id
-vendor_id
-ownership_type       -- own / vendor
+vendor_id            -- nullable for OWN
+ownership_type       -- OWN / VENDOR
 registration_number
-vehicle_type
-make_model
+vehicle_type_id
+make
+model
 status
 
 drivers
 -------
 id
 tenant_id
-vendor_id
-ownership_type       -- own / vendor
+vendor_id            -- nullable for OWN
+engagement_type      -- OWN / VENDOR
 name
 mobile
-license_number
+licence_number
 status
 ```
 
@@ -1172,12 +1171,20 @@ The next implementation sequence should be:
 - Company profile
 - Tax settings
 - Invoice settings
+- GST registrations
 - Bank account
+- Locations
 - Users
+- Roles and permission assignments
+
+Implemented as tenant-scoped PostgreSQL APIs under
+`/api/v1/tenant/setup`. The Company Setup, GST Registrations, Tenant Users,
+Roles, and Permissions screens use these APIs; the legacy browser-stored
+invoice-settings route redirects to the database-backed Company Setup screen.
 
 ### Phase 4 - Connect Existing ERP UI
 
-- Customers
+- Customers — completed end to end
 - Vendors
 - Vehicles
 - Drivers
