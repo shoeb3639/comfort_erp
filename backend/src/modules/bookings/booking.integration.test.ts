@@ -1,0 +1,407 @@
+import request from 'supertest'
+import { app } from '../../app'
+import { prisma } from '../../config/prisma'
+import { hashPassword } from '../../shared/security/password'
+import { TENANT_PERMISSIONS } from '../auth/auth.constants'
+
+const password = 'Booking-Test!9Qv7#Secure'
+let token: string
+let tenantId: string
+let customerId: string
+let vehicleId: string
+let driverId: string
+
+async function clean() {
+  await prisma.bookingCollection.deleteMany()
+  await prisma.invoiceItem.deleteMany()
+  await prisma.invoice.deleteMany()
+  await prisma.bookingClosure.deleteMany()
+  await prisma.booking.deleteMany()
+  await prisma.vehicle.deleteMany()
+  await prisma.vehicleType.deleteMany()
+  await prisma.driver.deleteMany()
+  await prisma.vendor.deleteMany()
+  await prisma.customerTraveller.deleteMany()
+  await prisma.customer.deleteMany()
+  await prisma.tenantAuditLog.deleteMany()
+  await prisma.tenantRefreshToken.deleteMany()
+  await prisma.tenantRolePermission.deleteMany()
+  await prisma.tenantUser.deleteMany()
+  await prisma.tenantRole.deleteMany()
+  await prisma.tenantSubscription.deleteMany()
+  await prisma.tenant.deleteMany()
+  await prisma.permission.deleteMany()
+  await prisma.subscriptionPlan.deleteMany()
+}
+
+beforeAll(async () => {
+  await clean()
+  const permissions = await Promise.all(
+    TENANT_PERMISSIONS.map(([module, action]) =>
+      prisma.permission.create({
+        data: { module, action, permissionKey: `${module}.${action}` },
+      }),
+    ),
+  )
+  const plan = await prisma.subscriptionPlan.create({
+    data: {
+      code: 'BOOKING_TEST',
+      name: 'Booking Test',
+      billingCycle: 'MONTHLY',
+      basePrice: 1000,
+    },
+  })
+  const tenant = await prisma.tenant.create({
+    data: {
+      code: 'BOOKING_TENANT',
+      legalName: 'Booking Tenant',
+      email: 'booking@test.example.com',
+      mobile: '9999999999',
+      status: 'ACTIVE',
+    },
+  })
+  tenantId = tenant.id
+  const role = await prisma.tenantRole.create({
+    data: { tenantId, name: 'Booking Admin', code: 'BOOKING_ADMIN' },
+  })
+  await prisma.tenantRolePermission.createMany({
+    data: permissions.map((permission) => ({
+      tenantId,
+      roleId: role.id,
+      permissionId: permission.id,
+    })),
+  })
+  await prisma.tenantUser.create({
+    data: {
+      tenantId,
+      roleId: role.id,
+      name: 'Booking User',
+      email: 'booking-user@example.com',
+      passwordHash: await hashPassword(password),
+      status: 'ACTIVE',
+    },
+  })
+  await prisma.tenantSubscription.create({
+    data: {
+      tenantId,
+      planId: plan.id,
+      status: 'ACTIVE',
+      billingCycle: 'MONTHLY',
+      startsAt: new Date(Date.now() - 86400000),
+      expiresAt: new Date(Date.now() + 30 * 86400000),
+      amount: 1000,
+      finalAmount: 1000,
+      paymentStatus: 'PAID',
+    },
+  })
+  const customer = await prisma.customer.create({
+    data: {
+      tenantId,
+      customerCode: 'CUS-001',
+      type: 'RETAIL',
+      name: 'Test Customer',
+      billingName: 'Test Customer',
+      email: 'customer@example.com',
+      phone: '9888888888',
+      city: 'New Delhi',
+      billingAddress: 'Test Address',
+    },
+  })
+  customerId = customer.id
+  const type = await prisma.vehicleType.create({
+    data: { tenantId, name: 'Sedan' },
+  })
+  vehicleId = (
+    await prisma.vehicle.create({
+      data: {
+        tenantId,
+        ownershipType: 'OWN',
+        vehicleCode: 'VEH-001',
+        registrationNumber: 'DL01AA0001',
+        vehicleTypeId: type.id,
+      },
+    })
+  ).id
+  driverId = (
+    await prisma.driver.create({
+      data: {
+        tenantId,
+        engagementType: 'OWN',
+        driverCode: 'DRV-001',
+        name: 'Test Driver',
+        mobile: '9777777777',
+      },
+    })
+  ).id
+  const login = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'booking-user@example.com', password })
+  token = login.body.data.accessToken as string
+})
+
+afterAll(async () => {
+  await clean()
+  await prisma.$disconnect()
+})
+
+function authorized(method: 'get' | 'post' | 'patch' | 'delete', path: string) {
+  return request(app)[method](path).set('Authorization', `Bearer ${token}`)
+}
+
+describe('booking and duty assignment APIs', () => {
+  it('requires and applies a unique prefix, creates booking, and assigns own duty resources', async () => {
+    const missingPrefix = await authorized(
+      'post',
+      '/api/v1/tenant/bookings',
+    ).send({
+      customerId,
+      bookingType: 'LOCAL',
+      serviceCity: 'New Delhi',
+      startDate: '2026-08-01',
+      endDate: '2026-08-01',
+      pickupTime: '10:00',
+      travellingFrom: 'new delhi',
+      travellingTo: 'gurugram',
+      pickupReportingAddress: 'airport terminal two',
+      requestedVehicleType: 'Sedan',
+      assignmentSource: 'OWN',
+      pricingBasis: 'FIXED',
+      customerRate: 2500,
+    })
+    expect(missingPrefix.status).toBe(409)
+
+    expect(
+      (
+        await authorized('patch', '/api/v1/tenant/bookings/settings').send({
+          bookingPrefix: 'BKNG',
+        })
+      ).status,
+    ).toBe(200)
+
+    const created = await authorized('post', '/api/v1/tenant/bookings').send({
+      customerId,
+      bookingType: 'LOCAL',
+      serviceCity: 'New Delhi',
+      startDate: '2026-08-01',
+      endDate: '2026-08-01',
+      pickupTime: '10:00',
+      travellingFrom: 'new delhi',
+      travellingTo: 'gurugram',
+      pickupReportingAddress: 'airport terminal two',
+      requestedVehicleType: 'Sedan',
+      assignmentSource: 'OWN',
+      pricingBasis: 'FIXED',
+      customerRate: 2500,
+    })
+    expect(created.status).toBe(201)
+    expect(created.body.data.id).toMatch(/^BKNG-\d{6}$/)
+    expect(created.body.data.travellingFrom).toBe('New Delhi')
+    expect(created.body.data.travellingTo).toBe('Gurugram')
+    expect(created.body.data.pickupReportingAddress).toBe(
+      'Airport Terminal Two',
+    )
+
+    const updated = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}`,
+    ).send({
+      travellingFrom: 'south delhi',
+      travellingTo: 'cyber city',
+      pickupReportingAddress: 'terminal three arrival gate',
+      routeStops: 'dhaula kuan > aerocity',
+      packageDetails: 'airport transfer package',
+      requestedVehicleType: 'executive sedan',
+      notes: 'meet at arrival gate',
+    })
+    expect(updated.status).toBe(200)
+    expect(updated.body.data.travellingFrom).toBe('South Delhi')
+    expect(updated.body.data.travellingTo).toBe('Cyber City')
+    expect(updated.body.data.pickupReportingAddress).toBe(
+      'Terminal Three Arrival Gate',
+    )
+    expect(updated.body.data.routeStops).toBe('Dhaula Kuan > Aerocity')
+    expect(updated.body.data.packageDetails).toBe('Airport Transfer Package')
+    expect(updated.body.data.requestedVehicleType).toBe('Executive Sedan')
+    expect(updated.body.data.notes).toBe('Meet At Arrival Gate')
+
+    const assigned = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/assignment`,
+    ).send({
+      assignmentSource: 'OWN',
+      vendorId: null,
+      vehicleId,
+      driverId,
+    })
+    expect(assigned.status).toBe(200)
+    expect(assigned.body.data.status).toBe('Assigned')
+    expect(
+      (await authorized('get', '/api/v1/tenant/bookings')).body.data,
+    ).toHaveLength(1)
+
+    const missingOpeningOdometer = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/start`,
+    ).send({})
+    expect(missingOpeningOdometer.status).toBe(400)
+
+    const started = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/start`,
+    ).send({ openingOdometer: 12500.5, remarks: 'driver reported on time' })
+    expect(started.status).toBe(200)
+    expect(started.body.data.status).toBe('In Transit')
+    expect(started.body.data.openingOdometer).toBe(12500.5)
+    expect(started.body.data.dutyStartRemarks).toBe('Driver Reported On Time')
+
+    const invalidClosingOdometer = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
+    ).send({ closingOdometer: 12499 })
+    expect(invalidClosingOdometer.status).toBe(400)
+
+    const completed = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
+    ).send({
+      closingOdometer: 12620.75,
+      remarks: 'guest dropped successfully',
+    })
+    expect(completed.status).toBe(200)
+    expect(completed.body.data.status).toBe('Completed')
+    expect(completed.body.data.actualDistance).toBe(120.25)
+    expect(completed.body.data.dutyCompletionRemarks).toBe(
+      'Guest Dropped Successfully',
+    )
+
+    const cancelCompleted = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/cancel`,
+    ).send({ reason: 'should not be accepted' })
+    expect(cancelCompleted.status).toBe(409)
+
+    const closed = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/close`,
+    ).send({
+      billingTripType: 'PACKAGE_BASED',
+      startKm: 12500.5,
+      endKm: 12620.75,
+      packageAmount: 2500,
+      tollTax: 150,
+      parking: 50,
+      driverAllowance: 300,
+      otherRecoverableCharges: 100,
+      dieselCost: 700,
+      directVehicleExpense: 100,
+      driverCost: 250,
+      remarks: 'trip closed after document review',
+    })
+    expect(closed.status).toBe(200)
+    expect(closed.body.data.status).toBe('Closed')
+    expect(closed.body.data.closeDetails.totalBillAmount).toBe(3100)
+    expect(closed.body.data.closeDetails.netVehicleProfit).toBe(1450)
+    expect(closed.body.data.invoice.invoiceStatus).toBe('Draft')
+
+    const profit = await authorized(
+      'get',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/profit`,
+    )
+    expect(profit.status).toBe(200)
+    expect(profit.body.data.closeDetails.vehicleRevenue).toBe(2500)
+
+    const invoices = await authorized('get', '/api/v1/tenant/invoices')
+    expect(invoices.status).toBe(200)
+    expect(invoices.body.data).toHaveLength(1)
+    const invoiceId = invoices.body.data[0].id as string
+
+    const generated = await authorized(
+      'patch',
+      `/api/v1/tenant/invoices/${invoiceId}/generate`,
+    ).send({})
+    expect(generated.status).toBe(200)
+    expect(generated.body.data.invoiceStatus).toBe('Generated')
+    expect(generated.body.data.invoiceNumber).toMatch(
+      /^INV\/\d{4}-\d{2}\/\d{6}$/,
+    )
+
+    const collection = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
+    ).send({
+      collectionDate: '2026-08-02',
+      amount: 1000,
+      paymentMode: 'CASH',
+      collectedBy: 'Driver',
+      receiverName: 'Operations Manager',
+      depositStatus: 'DEPOSITED',
+      depositDate: '2026-08-02',
+      depositMode: 'Cash Deposit',
+      depositReferenceNumber: 'DEP-1001',
+    })
+    expect(collection.status).toBe(201)
+    expect(collection.body.data.collectionSummary.totalCollected).toBe(1000)
+    const collectionId = collection.body.data.collections[0].id as string
+
+    const excessiveCollection = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
+    ).send({
+      collectionDate: '2026-08-02',
+      amount: 2200,
+      paymentMode: 'UPI',
+      collectedBy: 'Office',
+    })
+    expect(excessiveCollection.status).toBe(409)
+
+    const verified = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections/${collectionId}/verify`,
+    ).send({ verifiedBy: 'Accounts Manager' })
+    expect(verified.status).toBe(200)
+    expect(verified.body.data.collections[0].depositStatus).toBe('Verified')
+
+    const voided = await authorized(
+      'delete',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections/${collectionId}`,
+    )
+    expect(voided.status).toBe(200)
+    expect(voided.body.data.collections).toHaveLength(0)
+
+    const draft = await authorized('post', '/api/v1/tenant/bookings').send({
+      customerId,
+      bookingType: 'LOCAL',
+      serviceCity: 'New Delhi',
+      startDate: '2026-08-03',
+      endDate: '2026-08-03',
+      pickupTime: '11:00',
+      travellingFrom: 'new delhi',
+      travellingTo: 'noida',
+      pickupReportingAddress: 'test pickup address',
+      requestedVehicleType: 'Sedan',
+      assignmentSource: 'OWN',
+      pricingBasis: 'FIXED',
+      customerRate: 1800,
+      status: 'DRAFT',
+    })
+    expect(draft.status).toBe(201)
+    expect(draft.body.data.status).toBe('Draft')
+
+    const confirmed = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${draft.body.data.id as string}/confirm`,
+    ).send({})
+    expect(confirmed.status).toBe(200)
+    expect(confirmed.body.data.status).toBe('Confirmed')
+
+    const cancelled = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${draft.body.data.id as string}/cancel`,
+    ).send({ reason: 'customer changed travel plan' })
+    expect(cancelled.status).toBe(200)
+    expect(cancelled.body.data.status).toBe('Cancelled')
+    expect(cancelled.body.data.cancellationReason).toBe(
+      'Customer Changed Travel Plan',
+    )
+  })
+})
