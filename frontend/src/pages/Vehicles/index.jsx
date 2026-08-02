@@ -21,6 +21,7 @@ const empty = {
   model: "",
   variant: "",
   fuelType: "",
+  seatingCapacity: "",
   manufacturingYear: "",
   registrationDate: "",
   insuranceExpiry: "",
@@ -90,6 +91,9 @@ export default function VehiclesPage() {
         model: form.model || null,
         variant: form.variant || null,
         fuelType: form.fuelType || null,
+        seatingCapacity: form.seatingCapacity
+          ? Number(form.seatingCapacity)
+          : null,
         manufacturingYear: form.manufacturingYear ? Number(form.manufacturingYear) : null,
         registrationDate: form.registrationDate || null,
         insuranceExpiry: form.insuranceExpiry || null,
@@ -129,9 +133,9 @@ export default function VehiclesPage() {
       </div>
       <div className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={18} /><input className={`${field} pl-10`} placeholder="Search registration, make, model or vendor" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{["Registration", "Type", "Make / Model", "Ownership", "Vendor", "Status", "Actions"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
+        <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-600"><tr>{["Registration", "Type", "Make / Model", "Seats", "Ownership", "Vendor", "Status", "Actions"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
           <tbody>{visible.map((item) => <tr key={item.id} className="border-t border-slate-100">
-            <td className="px-4 py-3 font-semibold">{item.registrationNumber}</td><td className="px-4 py-3">{item.vehicleType?.name}</td><td className="px-4 py-3">{[item.make, item.model].filter(Boolean).join(" ") || "-"}</td><td className="px-4 py-3">{item.ownershipType}</td><td className="px-4 py-3">{item.vendor?.name || "-"}</td><td className="px-4 py-3">{item.status}</td>
+            <td className="px-4 py-3 font-semibold">{item.registrationNumber}</td><td className="px-4 py-3">{item.vehicleType?.name}</td><td className="px-4 py-3">{[item.make, item.model].filter(Boolean).join(" ") || "-"}</td><td className="px-4 py-3">{item.seatingCapacity || "-"}</td><td className="px-4 py-3">{item.ownershipType}</td><td className="px-4 py-3">{item.vendor?.name || "-"}</td><td className="px-4 py-3">{item.status}</td>
             <td className="px-4 py-3"><div className="flex gap-2"><button onClick={() => edit(item)} title="Edit"><Edit size={17} /></button><button onClick={() => remove(item)} title="Archive"><Trash2 size={17} /></button></div></td>
           </tr>)}</tbody>
         </table>
@@ -145,6 +149,7 @@ export default function VehiclesPage() {
           <label>Vehicle Type<select required className={field} value={form.vehicleTypeId} onChange={(e) => setForm({ ...form, vehicleTypeId: e.target.value })}><option value="">Select type</option>{types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}<option value="__new__">+ Add new type</option></select></label>
           {form.vehicleTypeId === "__new__" && <label>New Vehicle Type<input required className={field} value={form.vehicleTypeName} onChange={(e) => setForm({ ...form, vehicleTypeName: e.target.value })} /></label>}
           {[["make","Make"],["model","Model"],["variant","Variant"],["fuelType","Fuel Type"],["manufacturingYear","Manufacturing Year"]].map(([key,label]) => <label key={key}>{label}<input className={field} type={key === "manufacturingYear" ? "number" : "text"} value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>)}
+          <label>Seating Capacity<input className={field} type="number" min="1" max="100" step="1" value={form.seatingCapacity ?? ""} onChange={(e) => setForm({ ...form, seatingCapacity: e.target.value })} /></label>
           {[["registrationDate","Registration Date"],["insuranceExpiry","Insurance Expiry"],["permitExpiry","Permit Expiry"],["fitnessExpiry","Fitness Expiry"]].map(([key,label]) => <label key={key}>{label}<input type="date" className={field} value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>)}
           <label>Status<select className={field} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></label>
         </div>

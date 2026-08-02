@@ -12,6 +12,10 @@ import type {
 } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
+import {
+  normalizeReferenceNumber,
+  validateReference,
+} from '../accounts/accounts.service'
 import * as repository from './booking.repository'
 
 export interface Context {
@@ -183,6 +187,7 @@ function map(record: Awaited<ReturnType<typeof repository.find>>) {
     traveller_id: record.travellerId,
     customer: record.customer.billingName,
     travellerName: record.traveller?.name,
+    customerPhone: record.traveller?.phone || record.customer.phone,
     booking_type: record.bookingType.toLowerCase(),
     duty_package: record.bookingPackage,
     trip_type: record.tripType.toLowerCase(),
@@ -1076,31 +1081,97 @@ export async function addCollection(
       'COLLECTION_EXCEEDS_BALANCE',
       409,
     )
-  const status = resolvedCollectionStatus(input)
-  await repository.createCollection(
-    context.tenantId,
-    booking.id,
-    context.userId,
-    {
-      invoiceId: booking.invoices[0]?.id ?? null,
-      collectionDate: input.collectionDate,
-      amount: input.amount,
-      paymentMode: input.paymentMode,
-      collectedByName: toTitleCase(input.collectedBy),
-      receiverName: titleCaseOptional(input.receiverName) ?? null,
-      referenceNumber: input.referenceNumber ?? null,
-      remarks: titleCaseOptional(input.remarks) ?? null,
-      depositDate: input.depositDate ?? null,
-      depositMode: titleCaseOptional(input.depositMode) ?? null,
-      depositReferenceNumber: input.depositReferenceNumber ?? null,
-      depositedByName: titleCaseOptional(input.depositedBy) ?? null,
-      verifiedByName: titleCaseOptional(input.verifiedBy) ?? null,
-      status,
-      ...(status === 'VERIFIED'
-        ? { verifiedAt: new Date(), verifiedById: context.userId }
-        : {}),
-    },
+  const suppliedReferences = [
+    input.referenceNumber
+      ? {
+          referenceNumber: input.referenceNumber.trim(),
+          normalizedReferenceNumber: normalizeReferenceNumber(
+            input.referenceNumber,
+          ),
+          source: 'COLLECTION' as const,
+        }
+      : null,
+    input.depositReferenceNumber
+      ? {
+          referenceNumber: input.depositReferenceNumber.trim(),
+          normalizedReferenceNumber: normalizeReferenceNumber(
+            input.depositReferenceNumber,
+          ),
+          source: 'CASH_DEPOSIT' as const,
+        }
+      : null,
+  ].filter(
+    (
+      reference,
+    ): reference is {
+      referenceNumber: string
+      normalizedReferenceNumber: string
+      source: 'COLLECTION' | 'CASH_DEPOSIT'
+    } => Boolean(reference),
   )
+  if (
+    new Set(
+      suppliedReferences.map(
+        (reference) => reference.normalizedReferenceNumber,
+      ),
+    ).size !== suppliedReferences.length
+  )
+    throw new AppError(
+      'Payment and deposit reference numbers must be different',
+      'DUPLICATE_REFERENCE',
+      409,
+    )
+  for (const reference of suppliedReferences) {
+    const validation = await validateReference(
+      context.tenantId,
+      reference.referenceNumber,
+    )
+    if (!validation.available)
+      throw new AppError(
+        `Reference number ${reference.referenceNumber} is already in use`,
+        'DUPLICATE_REFERENCE',
+        409,
+      )
+  }
+  const status = resolvedCollectionStatus(input)
+  try {
+    await repository.createCollection(
+      context.tenantId,
+      booking.id,
+      context.userId,
+      {
+        invoiceId: booking.invoices[0]?.id ?? null,
+        collectionDate: input.collectionDate,
+        amount: input.amount,
+        paymentMode: input.paymentMode,
+        collectedByName: toTitleCase(input.collectedBy),
+        receiverName: titleCaseOptional(input.receiverName) ?? null,
+        referenceNumber: input.referenceNumber?.trim() || null,
+        remarks: titleCaseOptional(input.remarks) ?? null,
+        depositDate: input.depositDate ?? null,
+        depositMode: titleCaseOptional(input.depositMode) ?? null,
+        depositReferenceNumber: input.depositReferenceNumber?.trim() || null,
+        depositedByName: titleCaseOptional(input.depositedBy) ?? null,
+        verifiedByName: titleCaseOptional(input.verifiedBy) ?? null,
+        status,
+        ...(status === 'VERIFIED'
+          ? { verifiedAt: new Date(), verifiedById: context.userId }
+          : {}),
+      },
+      suppliedReferences,
+    )
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    )
+      throw new AppError(
+        'Payment or deposit reference number is already in use',
+        'DUPLICATE_REFERENCE',
+        409,
+      )
+    throw error
+  }
   return get(context, booking.id)
 }
 
@@ -1112,6 +1183,18 @@ export async function verifyCollection(
 ) {
   const booking = await repository.find(context.tenantId, idOrNumber)
   if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  const collection = booking.collections.find(
+    (record) => record.id === collectionId,
+  )
+  if (
+    collection?.paymentMode === 'CASH' &&
+    collection.cashDeposit?.status !== 'DEPOSITED'
+  )
+    throw new AppError(
+      'Cash must be deposited before the collection can be verified',
+      'CASH_DEPOSIT_REQUIRED',
+      409,
+    )
   const result = await repository.verifyCollection(
     context.tenantId,
     booking.id,

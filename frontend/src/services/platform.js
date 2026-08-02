@@ -125,6 +125,20 @@ export async function getPlatformAuditLogs() {
   return response.data.data;
 }
 
+export async function getPlatformUsers() {
+  const response = await api.get("/platform/users", {
+    headers: authorizationHeaders(),
+  });
+  return response.data.data;
+}
+
+export async function getSubscriptionPayments() {
+  const response = await api.get("/platform/subscription-payments", {
+    headers: authorizationHeaders(),
+  });
+  return response.data.data;
+}
+
 export function getPlatformErrorMessage(error) {
   const details = error.response?.data?.details;
   if (Array.isArray(details) && details.length > 0) {

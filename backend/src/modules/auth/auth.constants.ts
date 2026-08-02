@@ -38,6 +38,14 @@ export const TENANT_PERMISSIONS = [
   ['deposit', 'verify'],
   ['expense', 'create'],
   ['manager_ledger', 'view'],
+  ['accounts.collection', 'view'],
+  ['accounts.deposit', 'manage'],
+  ['accounts.ledger', 'view'],
+  ['accounts.fund', 'release'],
+  ['accounts.expense', 'manage'],
+  ['accounts.daily_closing', 'manage'],
+  ['accounts.audit', 'verify'],
+  ['reports', 'view'],
 ] as const
 
 export const TENANT_SYSTEM_ROLES = [
@@ -65,6 +73,12 @@ export const TENANT_SYSTEM_ROLES = [
       'booking.assign',
       'booking.close',
       'collection.create',
+      'accounts.collection.view',
+      'accounts.deposit.manage',
+      'accounts.ledger.view',
+      'accounts.expense.manage',
+      'accounts.daily_closing.manage',
+      'reports.view',
     ],
   },
   {
@@ -76,6 +90,7 @@ export const TENANT_SYSTEM_ROLES = [
       'booking.create',
       'booking.assign',
       'booking.close',
+      'accounts.collection.view',
     ],
   },
   {
@@ -91,6 +106,14 @@ export const TENANT_SYSTEM_ROLES = [
       'deposit.verify',
       'expense.create',
       'manager_ledger.view',
+      'accounts.collection.view',
+      'accounts.deposit.manage',
+      'accounts.ledger.view',
+      'accounts.fund.release',
+      'accounts.expense.manage',
+      'accounts.daily_closing.manage',
+      'accounts.audit.verify',
+      'reports.view',
     ],
   },
   {
@@ -105,6 +128,7 @@ export const TENANT_SYSTEM_ROLES = [
       'vehicle.manage',
       'driver.view',
       'driver.manage',
+      'reports.view',
     ],
   },
   {

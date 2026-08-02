@@ -6,6 +6,39 @@ import * as repository from './invoice.repository'
 
 type InvoiceRecord = NonNullable<Awaited<ReturnType<typeof repository.find>>>
 
+export interface InvoiceInput {
+  bookingId?: string | null
+  customerId: string
+  invoiceDate: Date
+  gstType: 'NO_GST' | 'CGST_SGST' | 'IGST'
+  billingName: string
+  billingAddress: string
+  customerGstin?: string | null
+  referenceNumber?: string | null
+  billingType?: string | null
+  billingContact?: string | null
+  billingMobile?: string | null
+  billingEmail?: string | null
+  vehicleDescription?: string | null
+  serviceCity?: string | null
+  placeOfSupply?: string | null
+  hsnCode?: string | null
+  paymentTerms?: string | null
+  terms?: string | null
+  displaySnapshot?: Prisma.InputJsonValue | null
+  items: Array<{
+    dateType: string
+    serviceDate?: Date | null
+    serviceStartDate?: Date | null
+    serviceEndDate?: Date | null
+    description: string
+    quantity: number
+    unit: string
+    rate: number
+    amount?: number
+  }>
+}
+
 function financialYear(date = new Date()) {
   const startYear =
     date.getUTCMonth() >= 3 ? date.getUTCFullYear() : date.getUTCFullYear() - 1
@@ -16,6 +49,11 @@ export function mapInvoice(invoice: InvoiceRecord) {
   const bank = invoice.tenant.bankAccounts[0]
   const gst = invoice.tenant.gstRegistrations[0]
   return {
+    ...(invoice.displaySnapshot &&
+    typeof invoice.displaySnapshot === 'object' &&
+    !Array.isArray(invoice.displaySnapshot)
+      ? invoice.displaySnapshot
+      : {}),
     id: invoice.id,
     invoice_source: invoice.bookingId ? 'booking' : 'direct',
     invoiceSource: invoice.bookingId ? 'booking' : 'direct',
@@ -24,10 +62,26 @@ export function mapInvoice(invoice: InvoiceRecord) {
       `Draft • ${invoice.booking?.bookingNumber || invoice.id.slice(0, 8)}`,
     invoiceDate: invoice.invoiceDate.toISOString().slice(0, 10),
     bookingId: invoice.booking?.bookingNumber || '',
+    booking_id: invoice.bookingId,
+    bookingRecordId: invoice.bookingId,
     billingCustomer: invoice.billingName,
     billingName: invoice.billingName,
     billingAddress: invoice.billingAddress,
     customerGstin: invoice.customerGstin,
+    customerId: invoice.customerId,
+    billing_customer_id: invoice.customerId,
+    referenceNumber: invoice.referenceNumber,
+    billingType: invoice.billingType,
+    billingContact: invoice.billingContact,
+    traveller: invoice.billingContact,
+    mobileNumber: invoice.billingMobile,
+    email: invoice.billingEmail,
+    vehicle: invoice.vehicleDescription || invoice.booking?.requestedVehicleType || '',
+    serviceCity: invoice.serviceCity || invoice.booking?.serviceCity || '',
+    placeOfSupply: invoice.placeOfSupply,
+    hsnCode: invoice.hsnCode,
+    paymentTerms: invoice.paymentTerms,
+    terms: invoice.terms,
     invoiceStatus: toTitleCase(invoice.status),
     status: toTitleCase(invoice.status),
     gstType:
@@ -36,8 +90,6 @@ export function mapInvoice(invoice: InvoiceRecord) {
         : invoice.gstType === 'IGST'
           ? 'IGST'
           : 'No GST',
-    vehicle: invoice.booking?.requestedVehicleType || '',
-    serviceCity: invoice.booking?.serviceCity || '',
     items: invoice.items.map((item) => ({
       id: item.id,
       dateType: item.dateType,
@@ -86,6 +138,8 @@ export function mapInvoice(invoice: InvoiceRecord) {
         }
       : null,
     generatedAt: invoice.generatedAt?.toISOString() ?? null,
+    cancelledAt: invoice.cancelledAt?.toISOString() ?? null,
+    cancellationReason: invoice.cancellationReason,
   }
 }
 
@@ -99,6 +153,216 @@ export async function list(
 export async function get(context: Context, invoiceId: string) {
   const invoice = await repository.find(context.tenantId, invoiceId)
   if (!invoice) throw new AppError('Invoice was not found', 'NOT_FOUND', 404)
+  return mapInvoice(invoice)
+}
+
+function optional(value: string | null | undefined) {
+  return value?.trim() || null
+}
+
+export function calculateInvoiceAmounts(input: InvoiceInput) {
+  const items = input.items.map((item, index) => {
+    const amount = item.amount ?? item.quantity * item.rate
+    if (Math.abs(amount - item.quantity * item.rate) > 0.01)
+      throw new AppError(
+        `Invoice item ${index + 1} amount must equal quantity × rate`,
+        'INVALID_INVOICE_AMOUNT',
+        400,
+      )
+    return { ...item, amount }
+  })
+  const subtotal = items.reduce((sum, item) => sum + item.amount, 0)
+  const taxableAmount = Math.max(0, subtotal)
+  const cgstAmount = input.gstType === 'CGST_SGST' ? taxableAmount * 0.025 : 0
+  const sgstAmount = input.gstType === 'CGST_SGST' ? taxableAmount * 0.025 : 0
+  const igstAmount = input.gstType === 'IGST' ? taxableAmount * 0.05 : 0
+  const totalGst = cgstAmount + sgstAmount + igstAmount
+  return {
+    items,
+    subtotal,
+    taxableAmount,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    totalGst,
+    netPayable: taxableAmount + totalGst,
+  }
+}
+
+export async function save(
+  context: Context,
+  invoiceId: string | null,
+  input: InvoiceInput,
+) {
+  const [customer, booking] = await Promise.all([
+    repository.findCustomer(context.tenantId, input.customerId),
+    input.bookingId
+      ? repository.findBooking(context.tenantId, input.bookingId)
+      : null,
+  ])
+  if (!customer)
+    throw new AppError('Customer was not found', 'NOT_FOUND', 404)
+  if (input.bookingId && !booking)
+    throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  if (booking && booking.customerId !== input.customerId)
+    throw new AppError(
+      'Booking and invoice customer do not match',
+      'VALIDATION_ERROR',
+      400,
+    )
+  const calculated = calculateInvoiceAmounts(input)
+  try {
+    const invoice = await repository.save(
+      context.tenantId,
+      context.userId,
+      invoiceId,
+      {
+        tenantId: context.tenantId,
+        bookingId: input.bookingId ?? null,
+        customerId: input.customerId,
+        invoiceDate: input.invoiceDate,
+        gstType: input.gstType,
+        billingName: input.billingName.trim(),
+        billingAddress: input.billingAddress.trim(),
+        customerGstin: optional(input.customerGstin),
+        referenceNumber: optional(input.referenceNumber),
+        billingType: optional(input.billingType),
+        billingContact: optional(input.billingContact),
+        billingMobile: optional(input.billingMobile),
+        billingEmail: optional(input.billingEmail),
+        vehicleDescription: optional(input.vehicleDescription),
+        serviceCity: optional(input.serviceCity),
+        placeOfSupply: optional(input.placeOfSupply),
+        hsnCode: optional(input.hsnCode),
+        paymentTerms: optional(input.paymentTerms),
+        terms: optional(input.terms),
+        displaySnapshot: input.displaySnapshot ?? Prisma.JsonNull,
+        subtotal: calculated.subtotal,
+        taxableAmount: calculated.taxableAmount,
+        cgstAmount: calculated.cgstAmount,
+        sgstAmount: calculated.sgstAmount,
+        igstAmount: calculated.igstAmount,
+        totalGst: calculated.totalGst,
+        netPayable: calculated.netPayable,
+        createdById: context.userId,
+        updatedById: context.userId,
+      },
+      calculated.items.map((item, index) => ({
+        dateType: item.dateType,
+        serviceDate: item.serviceDate ? new Date(item.serviceDate) : null,
+        serviceStartDate: item.serviceStartDate
+          ? new Date(item.serviceStartDate)
+          : null,
+        serviceEndDate: item.serviceEndDate
+          ? new Date(item.serviceEndDate)
+          : null,
+        description: item.description.trim(),
+        quantity: item.quantity,
+        unit: item.unit,
+        rate: item.rate,
+        amount: item.amount,
+        sortOrder: index,
+      })),
+    )
+    if (!invoice)
+      throw new AppError(
+        'Invoice cannot be edited in its current status',
+        'INVALID_INVOICE_STATUS',
+        409,
+      )
+    return mapInvoice(invoice)
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    )
+      throw new AppError(
+        'This booking already has an invoice',
+        'INVOICE_ALREADY_EXISTS',
+        409,
+      )
+    throw error
+  }
+}
+
+export async function options(context: Context) {
+  const [customers, bookings, vehicles, drivers, tenant] =
+    await repository.options(context.tenantId)
+  return {
+    customers,
+    bookings,
+    vehicles,
+    drivers,
+    settings: tenant
+      ? {
+          prefix: tenant.invoicePrefix || 'INV',
+          hsnCode:
+            typeof tenant.invoiceSettings === 'object' &&
+            tenant.invoiceSettings &&
+            !Array.isArray(tenant.invoiceSettings) &&
+            'hsnCode' in tenant.invoiceSettings
+              ? typeof tenant.invoiceSettings.hsnCode === 'string'
+                ? tenant.invoiceSettings.hsnCode
+                : ''
+              : '996601',
+          terms:
+            typeof tenant.invoiceSettings === 'object' &&
+            tenant.invoiceSettings &&
+            !Array.isArray(tenant.invoiceSettings) &&
+            'terms' in tenant.invoiceSettings
+              ? typeof tenant.invoiceSettings.terms === 'string'
+                ? tenant.invoiceSettings.terms
+                : ''
+              : '',
+          placeOfSupply: tenant.state || '',
+          logoUrl: tenant.logoUrl || '',
+          companyDetails: {
+            name: tenant.tradeName || tenant.legalName,
+            address: [
+              tenant.addressLine1,
+              tenant.addressLine2,
+              tenant.city,
+              tenant.state,
+              tenant.pinCode,
+            ]
+              .filter(Boolean)
+              .join(', '),
+            website: tenant.website || '',
+            mobile: tenant.mobile,
+            gstNumber: tenant.gstRegistrations[0]?.gstin || tenant.gstin || '',
+            category: tenant.businessType || '',
+          },
+          bankDetails: tenant.bankAccounts[0]
+            ? {
+                accountName: tenant.bankAccounts[0].accountName,
+                accountNumber: tenant.bankAccounts[0].accountNumber,
+                bankName: tenant.bankAccounts[0].bankName,
+                ifscCode: tenant.bankAccounts[0].ifscCode,
+                upiId: tenant.bankAccounts[0].upiId,
+              }
+            : null,
+        }
+      : null,
+  }
+}
+
+export async function cancel(
+  context: Context,
+  invoiceId: string,
+  reason: string,
+) {
+  const invoice = await repository.cancel(
+    context.tenantId,
+    invoiceId,
+    context.userId,
+    reason.trim(),
+  )
+  if (!invoice)
+    throw new AppError(
+      'Only a generated invoice can be cancelled',
+      'INVALID_INVOICE_STATUS',
+      409,
+    )
   return mapInvoice(invoice)
 }
 

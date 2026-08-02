@@ -294,7 +294,11 @@ describe('platform phase-one APIs', () => {
     ).resolves.toBe(1)
     await expect(
       prisma.platformAuditLog.count({
-        where: { module: 'TENANT', referenceId: tenantId },
+        where: {
+          module: 'TENANT',
+          referenceId: tenantId,
+          action: { in: ['ACTIVATE', 'SUSPEND'] },
+        },
       }),
     ).resolves.toBe(2)
   })

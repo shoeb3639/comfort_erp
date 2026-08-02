@@ -223,6 +223,8 @@ export function deactivatePlan(id: string, metadata: Metadata) {
 
 export const listSubscriptions = repository.listSubscriptions
 export const listAuditLogs = repository.listAuditLogs
+export const listPlatformUsers = repository.listPlatformUsers
+export const listSubscriptionPayments = repository.listSubscriptionPayments
 
 export async function createSubscription(
   input: CreateSubscriptionInput,

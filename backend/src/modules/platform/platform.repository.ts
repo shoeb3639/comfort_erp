@@ -119,6 +119,46 @@ export function listAuditLogs() {
   })
 }
 
+export function listPlatformUsers() {
+  return prisma.platformUser.findMany({
+    orderBy: [{ status: 'asc' }, { name: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      mobile: true,
+      designation: true,
+      status: true,
+      lastLoginAt: true,
+      createdAt: true,
+      role: { select: { id: true, name: true, code: true } },
+    },
+  })
+}
+
+export function listSubscriptionPayments() {
+  return prisma.subscriptionPayment.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: {
+      tenantSubscription: {
+        select: {
+          id: true,
+          tenant: {
+            select: {
+              id: true,
+              code: true,
+              legalName: true,
+              tradeName: true,
+            },
+          },
+          plan: { select: { id: true, code: true, name: true } },
+        },
+      },
+      recordedBy: { select: { id: true, name: true, email: true } },
+    },
+  })
+}
+
 export function updateTenant(
   tenantId: string,
   data: Prisma.TenantUncheckedUpdateInput,

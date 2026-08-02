@@ -10,6 +10,7 @@ const include = {
   closure: true,
   collections: {
     where: { status: { not: 'VOID' as const } },
+    include: { cashDeposit: true },
     orderBy: { collectionDate: 'desc' as const },
   },
   invoices: {
@@ -306,11 +307,65 @@ export function createCollection(
     Prisma.BookingCollectionUncheckedCreateInput,
     'tenantId' | 'bookingId' | 'recordedById'
   >,
+  references: Array<{
+    referenceNumber: string
+    normalizedReferenceNumber: string
+    source: 'COLLECTION' | 'CASH_DEPOSIT'
+  }>,
 ) {
   return prisma.$transaction(async (transaction) => {
     const collection = await transaction.bookingCollection.create({
       data: { ...data, tenantId, bookingId, recordedById: userId },
     })
+    if (collection.paymentMode === 'CASH') {
+      const depositMode =
+        collection.depositMode === 'UPI'
+          ? 'UPI'
+          : collection.depositMode === 'Bank Transfer'
+            ? 'BANK_TRANSFER'
+            : collection.depositMode === 'Cash Deposit'
+              ? 'CASH_DEPOSIT'
+              : null
+      const hasDeposit = ['DEPOSITED', 'VERIFIED'].includes(collection.status)
+      await transaction.bookingCashDeposit.create({
+        data: {
+          tenantId,
+          collectionId: collection.id,
+          amountCollected: collection.amount,
+          depositedAmount: hasDeposit ? collection.amount : 0,
+          receiverManagerName: collection.receiverName,
+          status:
+            collection.status === 'WITH_MANAGER'
+              ? 'WITH_MANAGER'
+              : collection.status === 'DEPOSITED'
+                ? 'DEPOSITED'
+                : collection.status === 'VERIFIED'
+                  ? 'VERIFIED'
+                  : 'COLLECTED',
+          depositDate: collection.depositDate,
+          depositMode,
+          bankReference: collection.depositReferenceNumber,
+          depositedByName: collection.depositedByName,
+          verifiedAmount:
+            collection.status === 'VERIFIED' ? collection.amount : null,
+          verifiedById: collection.verifiedById,
+          verifiedByName: collection.verifiedByName,
+          verifiedAt: collection.verifiedAt,
+          createdById: userId,
+          updatedById: userId,
+        },
+      })
+    }
+    if (references.length)
+      await transaction.accountReference.createMany({
+        data: references.map((reference) => ({
+          ...reference,
+          tenantId,
+          sourceId: collection.id,
+          createdById: userId,
+          updatedById: userId,
+        })),
+      })
     await transaction.tenantAuditLog.create({
       data: {
         tenantId,
@@ -318,6 +373,13 @@ export function createCollection(
         module: 'BOOKING_COLLECTION',
         action: 'CREATE',
         referenceId: collection.id,
+        newValues: {
+          bookingId,
+          status: collection.status,
+          paymentMode: collection.paymentMode,
+          referenceNumber: collection.referenceNumber,
+          depositReferenceNumber: collection.depositReferenceNumber,
+        },
       },
     })
     return collection
@@ -332,6 +394,10 @@ export function verifyCollection(
   verifiedByName: string | null,
 ) {
   return prisma.$transaction(async (transaction) => {
+    const current = await transaction.bookingCollection.findFirst({
+      where: { tenantId, bookingId, id: collectionId },
+      select: { status: true, verifiedByName: true, amount: true },
+    })
     const updated = await transaction.bookingCollection.updateMany({
       where: {
         tenantId,
@@ -347,6 +413,22 @@ export function verifyCollection(
       },
     })
     if (!updated.count) return null
+    await transaction.bookingCashDeposit.updateMany({
+      where: {
+        tenantId,
+        collectionId,
+        status: 'DEPOSITED',
+        deletedAt: null,
+      },
+      data: {
+        status: 'VERIFIED',
+        verifiedAmount: current?.amount ?? null,
+        verifiedAt: new Date(),
+        verifiedById: userId,
+        verifiedByName,
+        updatedById: userId,
+      },
+    })
     await transaction.tenantAuditLog.create({
       data: {
         tenantId,
@@ -354,6 +436,8 @@ export function verifyCollection(
         module: 'BOOKING_COLLECTION',
         action: 'VERIFY',
         referenceId: collectionId,
+        ...(current ? { oldValues: current } : {}),
+        newValues: { status: 'VERIFIED', verifiedByName },
       },
     })
     return transaction.bookingCollection.findUniqueOrThrow({
@@ -369,6 +453,10 @@ export function voidCollection(
   userId: string,
 ) {
   return prisma.$transaction(async (transaction) => {
+    const current = await transaction.bookingCollection.findFirst({
+      where: { tenantId, bookingId, id: collectionId },
+      select: { status: true },
+    })
     const updated = await transaction.bookingCollection.updateMany({
       where: {
         tenantId,
@@ -383,6 +471,15 @@ export function voidCollection(
       },
     })
     if (!updated.count) return null
+    await transaction.bookingCashDeposit.updateMany({
+      where: { tenantId, collectionId, status: { not: 'VOID' } },
+      data: {
+        status: 'VOID',
+        deletedAt: new Date(),
+        deletedById: userId,
+        updatedById: userId,
+      },
+    })
     await transaction.tenantAuditLog.create({
       data: {
         tenantId,
@@ -390,6 +487,8 @@ export function voidCollection(
         module: 'BOOKING_COLLECTION',
         action: 'VOID',
         referenceId: collectionId,
+        ...(current ? { oldValues: current } : {}),
+        newValues: { status: 'VOID' },
       },
     })
     return true

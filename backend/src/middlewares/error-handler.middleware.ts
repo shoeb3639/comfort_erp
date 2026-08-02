@@ -18,9 +18,23 @@ export const errorHandler: ErrorRequestHandler = (
   response,
   _next,
 ) => {
+  const databaseUnavailable =
+    typeof error === 'object' &&
+    error !== null &&
+    ('code' in error
+      ? ['P1000', 'P1001', 'P1002', 'P1008', 'P1017'].includes(
+          String(error.code),
+        )
+      : false)
   const appError =
     error instanceof AppError
       ? error
+      : databaseUnavailable
+        ? new AppError(
+            'Database service is unavailable. Please try again shortly.',
+            'SERVICE_UNAVAILABLE',
+            503,
+          )
       : new AppError(
           'An unexpected error occurred',
           'INTERNAL_SERVER_ERROR',

@@ -10,8 +10,11 @@ let tenantId: string
 let customerId: string
 let vehicleId: string
 let driverId: string
+let managerId: string
 
 async function clean() {
+  await prisma.bookingCashDeposit.deleteMany()
+  await prisma.accountReference.deleteMany()
   await prisma.bookingCollection.deleteMany()
   await prisma.invoiceItem.deleteMany()
   await prisma.invoice.deleteMany()
@@ -62,7 +65,7 @@ beforeAll(async () => {
   })
   tenantId = tenant.id
   const role = await prisma.tenantRole.create({
-    data: { tenantId, name: 'Booking Admin', code: 'BOOKING_ADMIN' },
+    data: { tenantId, name: 'Booking Admin', code: 'ADMIN' },
   })
   await prisma.tenantRolePermission.createMany({
     data: permissions.map((permission) => ({
@@ -71,7 +74,7 @@ beforeAll(async () => {
       permissionId: permission.id,
     })),
   })
-  await prisma.tenantUser.create({
+  const user = await prisma.tenantUser.create({
     data: {
       tenantId,
       roleId: role.id,
@@ -81,6 +84,7 @@ beforeAll(async () => {
       status: 'ACTIVE',
     },
   })
+  managerId = user.id
   await prisma.tenantSubscription.create({
     data: {
       tenantId,
@@ -343,6 +347,160 @@ describe('booking and duty assignment APIs', () => {
     expect(collection.body.data.collectionSummary.totalCollected).toBe(1000)
     const collectionId = collection.body.data.collections[0].id as string
 
+    const duplicateReference = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
+    ).send({
+      collectionDate: '2026-08-02',
+      amount: 100,
+      paymentMode: 'BANK_TRANSFER',
+      collectedBy: 'Office',
+      referenceNumber: 'dep-1001',
+    })
+    expect(duplicateReference.status).toBe(409)
+    expect(duplicateReference.body.code).toBe('DUPLICATE_REFERENCE')
+
+    const collectionRegister = await authorized(
+      'get',
+      `/api/v1/tenant/accounts/collections?paymentMode=CASH&customerId=${customerId}&dateFrom=2026-08-01&dateTo=2026-08-03`,
+    )
+    expect(collectionRegister.status).toBe(200)
+    expect(collectionRegister.body.data.collections).toHaveLength(1)
+    expect(collectionRegister.body.data.summary).toMatchObject({
+      totalBilled: 3100,
+      totalCollected: 1000,
+      outstandingBalance: 2100,
+      partiallyPaidBookings: 1,
+    })
+
+    const collectionReceipt = await authorized(
+      'get',
+      `/api/v1/tenant/accounts/collections/${collectionId}`,
+    )
+    expect(collectionReceipt.status).toBe(200)
+    expect(collectionReceipt.body.data.receiptNumber).toMatch(/^COL-2026-/)
+    expect(collectionReceipt.body.data.auditTrail[0].action).toBe('CREATE')
+
+    const pendingCashCollection = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
+    ).send({
+      collectionDate: '2026-08-02',
+      amount: 500,
+      paymentMode: 'CASH',
+      collectedBy: 'Driver',
+      depositStatus: 'PENDING',
+    })
+    expect(pendingCashCollection.status).toBe(201)
+
+    const cashRegister = await authorized(
+      'get',
+      '/api/v1/tenant/accounts/cash-deposits?dateFrom=2026-08-01&dateTo=2026-08-03',
+    )
+    expect(cashRegister.status).toBe(200)
+    expect(cashRegister.body.data.deposits).toHaveLength(2)
+    expect(cashRegister.body.data.policies).toEqual({
+      customerCashAffectsManagerLedger: false,
+      depositedAmountCannotExceedCollectedCash: true,
+    })
+    const pendingDeposit = (
+      cashRegister.body.data.deposits as Array<{
+        id: string
+        status: string
+      }>
+    ).find((deposit) => deposit.status === 'COLLECTED')
+    expect(pendingDeposit).toBeDefined()
+
+    const receivedCash = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${pendingDeposit!.id}/receive`,
+    ).send({ managerId, remarks: 'cash handed to operations manager' })
+    expect(receivedCash.status).toBe(200)
+    expect(receivedCash.body.data.status).toBe('WITH_MANAGER')
+    expect(receivedCash.body.data.receiverManager.id).toBe(managerId)
+
+    const excessiveDeposit = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${pendingDeposit!.id}/deposit`,
+    ).send({
+      depositedAmount: 501,
+      depositDate: '2026-08-03',
+      depositMode: 'CASH_DEPOSIT',
+      bankReference: 'BANK-OVER-501',
+      depositedBy: 'Accounts Manager',
+    })
+    expect(excessiveDeposit.status).toBe(409)
+    expect(excessiveDeposit.body.code).toBe('DEPOSIT_EXCEEDS_CASH')
+
+    const depositedCash = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${pendingDeposit!.id}/deposit`,
+    ).send({
+      depositedAmount: 500,
+      depositDate: '2026-08-03',
+      depositMode: 'CASH_DEPOSIT',
+      bankReference: 'BANK-DEP-500',
+      attachmentName: 'deposit-slip.pdf',
+      depositedBy: 'Accounts Manager',
+    })
+    expect(depositedCash.status).toBe(200)
+    expect(depositedCash.body.data.status).toBe('DEPOSITED')
+    expect(depositedCash.body.data.bankReference).toBe('BANK-DEP-500')
+
+    const verifiedCash = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${pendingDeposit!.id}/verify`,
+    ).send({
+      verifiedAmount: 500,
+      verifiedBy: 'Accounts Manager',
+    })
+    expect(verifiedCash.status).toBe(200)
+    expect(verifiedCash.body.data.status).toBe('VERIFIED')
+    expect(verifiedCash.body.data.auditTrail[0].action).toBe('VERIFY')
+
+    const mismatchCollection = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
+    ).send({
+      collectionDate: '2026-08-02',
+      amount: 200,
+      paymentMode: 'CASH',
+      collectedBy: 'Office',
+      depositStatus: 'PENDING',
+    })
+    expect(mismatchCollection.status).toBe(201)
+    const collectedDeposits = await authorized(
+      'get',
+      '/api/v1/tenant/accounts/cash-deposits?status=COLLECTED',
+    )
+    const mismatchDepositId = collectedDeposits.body.data.deposits[0]
+      .id as string
+    const partialDeposit = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${mismatchDepositId}/deposit`,
+    ).send({
+      depositedAmount: 150,
+      depositDate: '2026-08-03',
+      depositMode: 'CASH_DEPOSIT',
+      bankReference: 'BANK-PARTIAL-150',
+      depositedBy: 'Accounts Manager',
+    })
+    expect(partialDeposit.status).toBe(200)
+    const mismatchVerification = await authorized(
+      'patch',
+      `/api/v1/tenant/accounts/cash-deposits/${mismatchDepositId}/verify`,
+    ).send({
+      verifiedAmount: 150,
+      verifiedBy: 'Accounts Manager',
+      mismatchReason: 'Bank deposit is short by fifty rupees',
+    })
+    expect(mismatchVerification.status).toBe(200)
+    expect(mismatchVerification.body.data.status).toBe('MISMATCH')
+    expect(mismatchVerification.body.data.mismatchAmount).toBe(50)
+    expect(mismatchVerification.body.data.auditTrail[0].action).toBe(
+      'MISMATCH',
+    )
+
     const excessiveCollection = await authorized(
       'post',
       `/api/v1/tenant/bookings/${created.body.data.id as string}/collections`,
@@ -361,12 +519,25 @@ describe('booking and duty assignment APIs', () => {
     expect(verified.status).toBe(200)
     expect(verified.body.data.collections[0].depositStatus).toBe('Verified')
 
+    const verifiedReceipt = await authorized(
+      'get',
+      `/api/v1/tenant/accounts/collections/${collectionId}`,
+    )
+    expect(verifiedReceipt.body.data.auditTrail[0].action).toBe('VERIFY')
+
     const voided = await authorized(
       'delete',
       `/api/v1/tenant/bookings/${created.body.data.id as string}/collections/${collectionId}`,
     )
     expect(voided.status).toBe(200)
-    expect(voided.body.data.collections).toHaveLength(0)
+    expect(voided.body.data.collections).toHaveLength(2)
+
+    const voidReceipt = await authorized(
+      'get',
+      `/api/v1/tenant/accounts/collections/${collectionId}`,
+    )
+    expect(voidReceipt.body.data.status).toBe('VOID')
+    expect(voidReceipt.body.data.auditTrail[0].action).toBe('VOID')
 
     const draft = await authorized('post', '/api/v1/tenant/bookings').send({
       customerId,

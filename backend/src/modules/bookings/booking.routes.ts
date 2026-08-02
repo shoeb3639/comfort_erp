@@ -125,7 +125,7 @@ bookingRouter.post(
 )
 bookingRouter.patch(
   '/:bookingId/collections/:collectionId/verify',
-  authorizePermission('deposit.verify'),
+  authorizePermission('accounts.deposit.manage'),
   validateParams(bookingCollectionParamsSchema),
   validateBody(collectionVerificationSchema),
   controller.verifyCollection,

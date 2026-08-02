@@ -7,8 +7,13 @@ import {
   MoreVertical,
   Printer,
   Search,
+  XCircle,
 } from "lucide-react";
-import { generateInvoice, listInvoices } from "../../services/invoices";
+import {
+  cancelInvoice,
+  generateInvoice,
+  listInvoices,
+} from "../../services/invoices";
 import { formatMoney, normalizeInvoice } from "./invoiceUtils";
 
 const statusStyles = {
@@ -237,6 +242,16 @@ function InvoicesPage() {
                                 Generate Invoice
                               </button>
                             )}
+                            {invoice.invoiceStatus !== "Cancelled" && (
+                              <Link
+                                to={`/invoices/${invoice.id}/edit`}
+                                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={() => setOpenActionId("")}
+                              >
+                                <FilePenLine size={16} />
+                                Edit Invoice
+                              </Link>
+                            )}
                             <Link
                               to={`/invoices/${invoice.id}/preview`}
                               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -254,13 +269,44 @@ function InvoicesPage() {
                               Print
                             </Link>
                             <Link
-                              to={`/invoices/${invoice.id}/preview`}
+                              to={`/invoices/${invoice.id}/print`}
                               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                               onClick={() => setOpenActionId("")}
                             >
                               <FileText size={16} />
                               Download PDF
                             </Link>
+                            {invoice.invoiceStatus === "Generated" && (
+                              <button
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
+                                onClick={async () => {
+                                  const reason = window.prompt(
+                                    "Cancellation reason",
+                                  );
+                                  if (!reason) return;
+                                  try {
+                                    const updated = normalizeInvoice(
+                                      await cancelInvoice(invoice.id, reason),
+                                    );
+                                    setInvoices((current) =>
+                                      current.map((item) =>
+                                        item.id === invoice.id ? updated : item,
+                                      ),
+                                    );
+                                    setOpenActionId("");
+                                    setNotice("Invoice cancelled.");
+                                  } catch (error) {
+                                    setNotice(
+                                      error.response?.data?.message ||
+                                        "Unable to cancel invoice.",
+                                    );
+                                  }
+                                }}
+                              >
+                                <XCircle size={16} />
+                                Cancel Invoice
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

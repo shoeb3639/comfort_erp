@@ -16,7 +16,8 @@ Prepared By: System Architecture Team
 
 ## Document Purpose
 
-This document defines the official high-level SaaS architecture of Cablix ERP before backend implementation begins.
+This document defines the official high-level SaaS architecture of Cablix ERP
+and records the implementation boundaries that preserve it.
 
 Every developer, AI coding assistant, technical consultant, or future contributor must read this document before making any modification to the system.
 
@@ -24,18 +25,30 @@ If the source code conflicts with this document, this document takes precedence 
 
 ## Current Project Status
 
-The existing React frontend already contains mock-data CRUD screens for the Tenant ERP area:
+The system is implemented as a React tenant/platform frontend with an
+Express, TypeScript, PostgreSQL, and Prisma backend. Authentication resolves
+platform and tenant identity from signed tokens. Tenant-owned repositories
+apply the authenticated tenant context rather than accepting a tenant identity
+from request payloads.
 
-- Customers
-- Vendors — completed end to end, including linked drivers and vehicles
-- Bookings
-- Booking Closure
-- Invoices
-- Accounts
+Implemented backend domains include:
 
-These screens represent the operational ERP used by a tenant after login. They should not be deleted, redesigned, or unnecessarily modified while platform-level SaaS architecture is being added.
+- Platform tenant registration, tenant status, subscription plans,
+  subscriptions, subscription payments, platform users, and audit logs
+- Tenant company setup, users, roles, permissions, and location assignments
+- Customers and travellers
+- Vendors, vehicles, and drivers using the unified ownership model
+- Booking creation, assignment, duty lifecycle, closure, collections, and
+  booking profit
+- Invoice persistence and generation
+- Accounts foundations, booking cash deposits, manager ledgers, and company
+  fund releases
 
-The backend is not implemented yet. The current frontend uses mock JSON data and browser localStorage for testing. Backend development must treat the current tenant ERP screens as the tenant-side application area.
+The Tenant ERP and Platform Admin screens are API-backed where their domain is
+available. A screen must not ship with browser `localStorage` or bundled JSON
+presented as operational data. Features without a persisted backend domain
+remain outside navigation until their API, authorization, audit, and
+tenant-isolation rules are implemented.
 
 ## Official SaaS Hierarchy
 

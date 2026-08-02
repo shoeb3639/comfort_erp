@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import InvoiceItemTable, {
@@ -7,19 +7,21 @@ import InvoiceItemTable, {
 import {
   calculateInvoiceTotals,
   companyDetails,
-  createInvoiceNumber,
   defaultBankDetails,
   formatMoney,
-  getInvoiceById,
   getInvoiceSettings,
-  getNextInvoiceId,
-  saveInvoiceSettings,
 } from "./invoiceUtils";
 import {
-  createMockRecord,
-  getMockData,
-  updateMockRecord,
-} from "../../services/api";
+  createInvoiceDraft,
+  generateInvoice,
+  getInvoice,
+  getInvoiceOptions,
+  updateInvoice,
+} from "../../services/invoices";
+import {
+  createCustomer,
+  createCustomerTraveller,
+} from "../../services/customers";
 import { InvoiceLogo, InvoiceSignature } from "./components/InvoiceVisuals";
 
 const fieldClass =
@@ -143,9 +145,9 @@ function createDefaultInvoiceValues(settings, invoice) {
     customerGstin: invoice?.customerGstin || "",
     mobileNumber: invoice?.mobileNumber || "",
     email: invoice?.email || "",
-    invoiceNumber: invoice?.invoiceNumber || createInvoiceNumber(settings),
+    invoiceNumber: invoice?.invoiceNumber || "Draft - not generated",
     invoiceDate: invoice?.invoiceDate || new Date().toISOString().slice(0, 10),
-    bookingId: invoice?.bookingId || "",
+    bookingId: invoice?.bookingRecordId || invoice?.booking_id || "",
     traveller: invoice?.traveller || "",
     vehicle: invoice?.vehicle || "",
     gstType: invoice?.gstType || "IGST",
@@ -155,42 +157,93 @@ function createDefaultInvoiceValues(settings, invoice) {
 function InvoiceFormPage() {
   const navigate = useNavigate();
   const { invoiceId } = useParams();
-  const settings = getInvoiceSettings();
-  const editingInvoice = useMemo(
-    () => (invoiceId ? getInvoiceById(invoiceId) : null),
-    [invoiceId],
-  );
+  const [settings, setSettings] = useState(() => getInvoiceSettings());
+  const [editingInvoice, setEditingInvoice] = useState(null);
+  const [loading, setLoading] = useState(Boolean(invoiceId));
   const isEditMode = Boolean(invoiceId);
-  const bookings = useMemo(() => getMockData("bookings"), []);
-  const [customers, setCustomers] = useState(() => getMockData("customers"));
-  const [travellers, setTravellers] = useState(() => getMockData("travellers"));
-  const vehicles = useMemo(() => getMockData("vehicles"), []);
-  const drivers = useMemo(() => getMockData("drivers"), []);
-  const [items, setItems] = useState(() =>
-    editingInvoice?.items?.length
-      ? editingInvoice.items
-      : [
-          createInvoiceLineItem({
-            serviceDate: "2026-07-18",
-            description: "Prayagraj To Rewa Dropping",
-            qty: 340,
-            unit: "KM",
-            rate: 11,
-            amount: 3740,
-          }),
-        ],
-  );
+  const [bookings, setBookings] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [travellers, setTravellers] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [items, setItems] = useState(() => [
+    createInvoiceLineItem({ description: "", qty: 1, unit: "Trip", rate: 0 }),
+  ]);
   const [lastDraftId, setLastDraftId] = useState("");
 
   const {
     register,
     watch,
     setValue,
+    reset,
     handleSubmit,
     formState: { errors },
   } = useForm({
     defaultValues: createDefaultInvoiceValues(settings, editingInvoice),
   });
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getInvoiceOptions(), invoiceId ? getInvoice(invoiceId) : null])
+      .then(([options, invoice]) => {
+        if (!active) return;
+        const liveSettings = options.settings
+          ? { ...getInvoiceSettings(), ...options.settings }
+          : getInvoiceSettings();
+        setSettings(liveSettings);
+        const customerRows = options.customers.map((customer) => ({
+          ...customer,
+          type:
+            customer.type === "RETAIL"
+              ? "Individuals"
+              : customer.type === "CORPORATE"
+                ? "Corporate"
+                : "Travel Agent",
+          address: customer.billingAddress,
+          status: customer.status === "ACTIVE" ? "Active" : "Inactive",
+        }));
+        setCustomers(customerRows);
+        setTravellers(
+          customerRows.flatMap((customer) =>
+            (customer.travellers || []).map((traveller) => ({
+              ...traveller,
+              customer_id: customer.id,
+              status: traveller.status === "ACTIVE" ? "Active" : "Inactive",
+            })),
+          ),
+        );
+        setBookings(
+          options.bookings.map((booking) => ({
+            ...booking,
+            billing_customer_id: booking.customerId,
+            traveller_id: booking.travellerId,
+            customer: booking.customer?.billingName,
+            booking_type: String(booking.bookingType || "").toLowerCase(),
+            vehicleType: booking.requestedVehicleType,
+            amount: booking.customerRate,
+          })),
+        );
+        setVehicles(
+          options.vehicles.map((vehicle) => ({
+            ...vehicle,
+            plate: vehicle.registrationNumber,
+            type: vehicle.vehicleType?.name,
+          })),
+        );
+        setDrivers(options.drivers);
+        if (invoice) {
+          setEditingInvoice(invoice);
+          setItems(invoice.items?.length ? invoice.items : []);
+          reset(createDefaultInvoiceValues(liveSettings, invoice));
+        } else {
+          reset(createDefaultInvoiceValues(liveSettings, null));
+        }
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [invoiceId, reset]);
 
   const values = watch();
   const totals = calculateInvoiceTotals(items, values.gstType);
@@ -213,6 +266,7 @@ function InvoiceFormPage() {
     const customer = customers.find(
       (item) => item.id === booking.billing_customer_id,
     );
+    setValue("billing_customer_id", booking.billing_customer_id || "");
     const traveller = travellers.find(
       (item) => item.id === booking.traveller_id,
     );
@@ -322,7 +376,7 @@ function InvoiceFormPage() {
       );
   }
 
-  function createDirectCustomerIfNeeded(formValues) {
+  async function createDirectCustomerIfNeeded(formValues) {
     if (!isDirectInvoice) return formValues;
     if (formValues.customerMode === "existing") {
       return {
@@ -331,7 +385,6 @@ function InvoiceFormPage() {
       };
     }
 
-    const timestamp = Date.now();
     const name =
       formValues.newCustomerName ||
       formValues.billingCustomer ||
@@ -341,11 +394,9 @@ function InvoiceFormPage() {
         ? name
         : formValues.newCustomerName || name;
     const contactName = formValues.newContactPerson || name;
-    const customer = {
-      id: `CUST-${timestamp}`,
+    const customer = await createCustomer({
       type: formValues.customerType,
       name,
-      displayName: name,
       billingName,
       email: formValues.newEmail || formValues.email,
       phone: formValues.newMobile || formValues.mobileNumber,
@@ -354,29 +405,18 @@ function InvoiceFormPage() {
       address: formValues.newBillingAddress || formValues.billingAddress,
       status: "Active",
       creditLimit: 0,
-      outstanding: 0,
       contacts: [
         {
           name: contactName,
           role: "Primary",
           phone: formValues.newMobile || "",
           email: formValues.newEmail || "",
+          isPrimary: true,
         },
       ],
-      travellers: contactName ? [contactName] : [],
-      rateCards: [],
-      bookings: [],
-      invoices: [],
-      payments: [],
-      documents: [],
-    };
-
-    createMockRecord("customers", customer);
+    });
     setCustomers((currentCustomers) => [customer, ...currentCustomers]);
-
-    const traveller = {
-      id: `TRV-${timestamp}`,
-      customer_id: customer.id,
+    const traveller = await createCustomerTraveller(customer.id, {
       traveller_type:
         formValues.customerType === "Travel Agent"
           ? "Guest"
@@ -386,14 +426,11 @@ function InvoiceFormPage() {
       name: contactName,
       phone: formValues.newMobile || "",
       email: formValues.newEmail || "",
-      department: "",
-      employee_id: "",
-      notes: "Created from direct invoice.",
-      status: "Active",
-    };
-
-    createMockRecord("travellers", traveller);
-    setTravellers((currentTravellers) => [traveller, ...currentTravellers]);
+    });
+    setTravellers((currentTravellers) => [
+      { ...traveller, customer_id: customer.id, status: "Active" },
+      ...currentTravellers,
+    ]);
 
     return {
       ...formValues,
@@ -409,15 +446,13 @@ function InvoiceFormPage() {
     };
   }
 
-  function handleAddDirectTraveller() {
+  async function handleAddDirectTraveller() {
     const customer = customers.find(
       (item) => item.id === values.directCustomerId,
     );
     if (!customer || !values.billingName) return;
 
-    const traveller = {
-      id: `TRV-${Date.now()}`,
-      customer_id: customer.id,
+    const traveller = await createCustomerTraveller(customer.id, {
       traveller_type:
         customer.type === "Travel Agent"
           ? "Guest"
@@ -427,20 +462,11 @@ function InvoiceFormPage() {
       name: values.billingName,
       phone: values.mobileNumber || "",
       email: values.email || "",
-      department: "",
-      employee_id: "",
-      notes: "Added from direct invoice.",
-      status: "Active",
-    };
-
-    createMockRecord("travellers", traveller);
-    setTravellers((currentTravellers) => [traveller, ...currentTravellers]);
-    updateMockRecord("customers", customer.id, {
-      ...customer,
-      travellers: Array.from(
-        new Set([...(customer.travellers || []), traveller.name]),
-      ),
     });
+    setTravellers((currentTravellers) => [
+      { ...traveller, customer_id: customer.id, status: "Active" },
+      ...currentTravellers,
+    ]);
     setValue("directTravellerId", traveller.id);
   }
 
@@ -458,123 +484,70 @@ function InvoiceFormPage() {
     ]);
   }
 
-  function buildInvoice(formValues, status) {
-    const isGenerated = status === "Generated";
-    const previousStatus =
-      editingInvoice?.invoiceStatus || editingInvoice?.status;
-    const shouldConsumeNumber =
-      isGenerated && (!isEditMode || previousStatus !== "Generated");
-    const invoiceNumber = isGenerated
-      ? shouldConsumeNumber
-        ? createInvoiceNumber(settings)
-        : editingInvoice?.invoiceNumber || formValues.invoiceNumber
-      : isEditMode
-        ? editingInvoice?.invoiceNumber ||
-          formValues.invoiceNumber ||
-          "Draft - not generated"
-        : "Draft - not generated";
+  function buildInvoicePayload(formValues) {
     const source = formValues.invoiceSource === "direct" ? "direct" : "booking";
     const booking =
       source === "booking"
         ? bookings.find((item) => item.id === formValues.bookingId)
         : null;
-
     return {
-      id: isEditMode ? editingInvoice.id : getNextInvoiceId(),
-      ...formValues,
-      invoice_source: source,
-      invoiceSource: source,
-      booking_id: source === "booking" ? formValues.bookingId : null,
-      bookingId: source === "booking" ? formValues.bookingId : "",
-      billing_customer_id:
+      bookingId: source === "booking" ? formValues.bookingId : null,
+      customerId:
         formValues.billing_customer_id || formValues.directCustomerId || "",
-      customer_type:
-        source === "direct"
-          ? formValues.customerType
-          : formValues.customer_type,
-      traveller_id:
-        source === "direct"
-          ? formValues.directTravellerId || null
-          : formValues.traveller_id,
-      vehicle_id: formValues.vehicleId || null,
-      driver_id: formValues.driverId || null,
-      location_id: formValues.placeOfSupply || "",
-      invoice_series_id: settings.prefix,
-      invoice_number: invoiceNumber,
-      invoice_date: formValues.invoiceDate,
-      reference_number: formValues.referenceNumber || "",
+      invoiceDate: formValues.invoiceDate,
+      gstType:
+        formValues.gstType === "CGST + SGST"
+          ? "CGST_SGST"
+          : formValues.gstType === "IGST"
+            ? "IGST"
+            : "NO_GST",
+      billingName: formValues.billingName,
+      billingAddress: formValues.billingAddress,
+      customerGstin: formValues.customerGstin || null,
+      referenceNumber: formValues.referenceNumber || null,
+      billingType: formValues.billingType || null,
+      billingContact: formValues.billingName || null,
+      billingMobile: formValues.mobileNumber || null,
+      billingEmail: formValues.email || null,
+      vehicleDescription: formValues.vehicle || null,
       serviceCity:
         source === "booking"
-          ? booking?.serviceCity || ""
+          ? booking?.serviceCity || null
           : formValues.placeOfSupply || "",
-      service_city:
-        source === "booking"
-          ? booking?.serviceCity || ""
-          : formValues.placeOfSupply || "",
-      includeVehiclePnL: formValues.includeVehiclePnL === "Yes",
-      invoiceNumber,
-      invoiceStatus: status,
-      status,
-      items,
-      totals,
+      placeOfSupply: formValues.placeOfSupply || null,
       hsnCode: settings.hsnCode,
+      paymentTerms: formValues.paymentTerms || null,
       terms: settings.terms,
-      bankDetails: settings.bankDetails || defaultBankDetails,
-      logoUrl: settings.logoUrl,
-      signatureUrl: settings.signatureUrl,
-      stampUrl: settings.stampUrl,
-      billingCustomer: formValues.billingCustomer,
-      customerGstin: formValues.customerGstin,
-      total: `₹${totals.netPayable.toFixed(2)}`,
-      booking: source === "booking" ? formValues.bookingId : "",
-      dueDate: formValues.invoiceDate,
-      createdAt: editingInvoice?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      displaySnapshot: {
+        invoiceSource: source,
+        billingCustomer: formValues.billingCustomer,
+        traveller: formValues.billingName,
+        includeVehiclePnL: formValues.includeVehiclePnL === "Yes",
+        logoUrl: settings.logoUrl,
+        signatureUrl: settings.signatureUrl,
+        stampUrl: settings.stampUrl,
+      },
+      items: items.map((item) => ({
+        dateType: item.dateType || "single",
+        serviceDate: item.serviceDate || null,
+        serviceStartDate: item.serviceStartDate || null,
+        serviceEndDate: item.serviceEndDate || null,
+        description: item.description,
+        quantity: Number(item.qty ?? item.quantity),
+        unit: item.unit,
+        rate: Number(item.rate),
+        amount: Number(item.amount),
+      })),
     };
   }
 
-  function persistInvoice(formValues, status, redirectTarget = "") {
-    const preparedValues = createDirectCustomerIfNeeded(formValues);
-    const previousStatus =
-      editingInvoice?.invoiceStatus || editingInvoice?.status;
-    const shouldConsumeNumber =
-      status === "Generated" && (!isEditMode || previousStatus !== "Generated");
-    const invoicePayload = buildInvoice(preparedValues, status);
-    const invoice = isEditMode
-      ? updateMockRecord("invoices", editingInvoice.id, invoicePayload)
-      : createMockRecord("invoices", invoicePayload);
-
-    if (shouldConsumeNumber) {
-      saveInvoiceSettings({
-        ...settings,
-        nextNumber: Number(settings.nextNumber || 1) + 1,
-      });
-      if (
-        !isEditMode &&
-        preparedValues.invoiceSource === "direct" &&
-        preparedValues.billing_customer_id
-      ) {
-        const customer = getMockData("customers").find(
-          (item) => item.id === preparedValues.billing_customer_id,
-        );
-        if (customer) {
-          const updatedCustomer = {
-            ...customer,
-            outstanding:
-              Number(customer.outstanding || 0) +
-              Number(totals.netPayable || 0),
-            invoices: Array.from(
-              new Set([...(customer.invoices || []), invoice.id]),
-            ),
-          };
-          updateMockRecord("customers", customer.id, updatedCustomer);
-          setCustomers((currentCustomers) =>
-            currentCustomers.map((item) =>
-              item.id === customer.id ? updatedCustomer : item,
-            ),
-          );
-        }
-      }
+  async function persistInvoice(formValues, status, redirectTarget = "") {
+    const preparedValues = await createDirectCustomerIfNeeded(formValues);
+    let invoice = isEditMode
+      ? await updateInvoice(invoiceId, buildInvoicePayload(preparedValues))
+      : await createInvoiceDraft(buildInvoicePayload(preparedValues));
+    if (status === "Generated" && invoice.invoiceStatus === "Draft") {
+      invoice = await generateInvoice(invoice.id);
     }
 
     if (redirectTarget === "preview") {
@@ -588,9 +561,11 @@ function InvoiceFormPage() {
     }
 
     setLastDraftId(invoice.id);
+    if (!isEditMode) navigate(`/invoices/${invoice.id}/edit`, { replace: true });
   }
 
   const bank = settings.bankDetails || defaultBankDetails;
+  const liveCompany = settings.companyDetails || companyDetails;
   const defaultSaveStatus = isEditMode
     ? editingInvoice?.invoiceStatus || editingInvoice?.status || "Draft"
     : "Draft";
@@ -598,6 +573,14 @@ function InvoiceFormPage() {
     isEditMode && defaultSaveStatus === "Generated"
       ? "Update Invoice"
       : "Generate Invoice";
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        Loading invoice…
+      </div>
+    );
+  }
 
   if (invoiceId && !editingInvoice) {
     return (
@@ -644,15 +627,15 @@ function InvoiceFormPage() {
             </div>
             <div className="text-right text-[14px] leading-6">
               <h1 className="text-[34px] font-bold leading-10">
-                {companyDetails.name}
+                {liveCompany.name}
               </h1>
-              <p>{companyDetails.subtitle}</p>
-              <p>{companyDetails.address}</p>
-              <p>Website: {companyDetails.website}</p>
-              <p>Mobile No.: {companyDetails.mobile}</p>
+              <p>{liveCompany.subtitle}</p>
+              <p>{liveCompany.address}</p>
+              <p>Website: {liveCompany.website}</p>
+              <p>Mobile No.: {liveCompany.mobile}</p>
               <p className="font-semibold">
-                GSTIN : {companyDetails.gstNumber} | HSN CODE:{" "}
-                {settings.hsnCode} | Category: {companyDetails.category}
+                GSTIN : {liveCompany.gstNumber} | HSN CODE:{" "}
+                {settings.hsnCode} | Category: {liveCompany.category}
               </p>
             </div>
           </header>

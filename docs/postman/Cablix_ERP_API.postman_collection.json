@@ -829,6 +829,420 @@
           }
         },
         {
+          "name": "Accounts Foundation",
+          "item": [
+            {
+              "name": "Get Accounts Foundation",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/foundation",
+                "description": "Returns only the Accounts permissions and navigation available to the authenticated tenant user, plus common enums and audit policies."
+              }
+            },
+            {
+              "name": "Validate Account Reference",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"referenceNumber\": \"UTR-2026-001\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/references/validate",
+                "description": "Normalizes and checks the payment reference only within the authenticated tenant."
+              }
+            },
+            {
+              "name": "List Account Collections",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/collections?dateFrom=2026-08-01&dateTo=2026-08-31&paymentMode=CASH&status=DEPOSITED&booking={{booking_id}}",
+                "description": "Returns the filtered collection register, booking payment balances, summary totals, filter options, and pagination."
+              }
+            },
+            {
+              "name": "Get Collection Receipt and Audit",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/collections/{{collection_id}}",
+                "description": "Returns receipt details and the tenant audit trail for one collection."
+              }
+            },
+            {
+              "name": "List Cash Deposits",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Cash deposits retrieved', () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200 && pm.response.json().data.deposits.length) pm.collectionVariables.set('cash_deposit_id', pm.response.json().data.deposits[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/cash-deposits",
+                "description": "Returns tenant cash-deposit rows, workflow summaries, manager/customer filters, and the no-manager-ledger-impact policy."
+              }
+            },
+            {
+              "name": "Get Cash Deposit Detail",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/cash-deposits/{{cash_deposit_id}}"
+              }
+            },
+            {
+              "name": "Assign Cash to Receiver Manager",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"managerId\": \"{{tenant_user_id}}\",\n  \"remarks\": \"Cash handed to operations manager\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/cash-deposits/{{cash_deposit_id}}/receive"
+              }
+            },
+            {
+              "name": "Record Company Bank Deposit",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"depositedAmount\": 1000,\n  \"depositDate\": \"2026-08-03\",\n  \"depositMode\": \"CASH_DEPOSIT\",\n  \"bankReference\": \"BANK-DEP-1001\",\n  \"attachmentName\": \"deposit-slip.pdf\",\n  \"depositedBy\": \"Accounts Manager\",\n  \"remarks\": \"Deposited to company bank\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/cash-deposits/{{cash_deposit_id}}/deposit"
+              }
+            },
+            {
+              "name": "Verify Company Bank Credit",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"verifiedAmount\": 1000,\n  \"verifiedBy\": \"Accounts Manager\",\n  \"mismatchReason\": null,\n  \"remarks\": \"Bank credit matched\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/cash-deposits/{{cash_deposit_id}}/verify"
+              }
+            },
+            {
+              "name": "List Manager Ledgers",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Manager ledgers retrieved', () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200 && pm.response.json().data.ledgers.length) pm.collectionVariables.set('manager_ledger_id', pm.response.json().data.ledgers[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/manager-ledgers?status=ACTIVE&managerId={{tenant_user_id}}&locationId={{location_id}}",
+                "description": "Lists tenant-scoped manager ledgers with summaries, eligible manager/location options, and running-balance formula."
+              }
+            },
+            {
+              "name": "Create Manager Ledger",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Manager ledger created', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('manager_ledger_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"managerId\": \"{{tenant_user_id}}\",\n  \"locationId\": \"{{location_id}}\",\n  \"openingBalance\": 10000,\n  \"remarks\": \"Operational opening fund\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/manager-ledgers",
+                "description": "Creates one operational ledger and opening entry for a manager/location combination."
+              }
+            },
+            {
+              "name": "Get Manager Ledger Detail",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/manager-ledgers/{{manager_ledger_id}}",
+                "description": "Returns manager/location data, entries with running balances, and the complete ledger audit trail."
+              }
+            },
+            {
+              "name": "Update Manager Ledger Status",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"INACTIVE\",\n  \"reason\": \"Manager transferred\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/manager-ledgers/{{manager_ledger_id}}/status",
+                "description": "Activates or deactivates a ledger without deleting its financial history."
+              }
+            },
+            {
+              "name": "List Company Fund Releases",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Fund releases retrieved', () => pm.response.to.have.status(200));",
+                      "if (pm.response.code === 200 && pm.response.json().data.releases.length) pm.collectionVariables.set('fund_release_id', pm.response.json().data.releases[0].id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/fund-releases?ledgerId={{manager_ledger_id}}&status=VERIFIED",
+                "description": "Lists tenant-scoped company fund releases with ledger/payment/date/status/search filters and summaries."
+              }
+            },
+            {
+              "name": "Create and Post Company Fund Release",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Fund released and posted', () => pm.response.to.have.status(201));",
+                      "if (pm.response.code === 201) pm.collectionVariables.set('fund_release_id', pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ledgerId\": \"{{manager_ledger_id}}\",\n  \"releaseDate\": \"2026-07-29\",\n  \"amount\": 10000,\n  \"paymentMode\": \"BANK_TRANSFER\",\n  \"referenceNumber\": \"FUND-UTR-10001\",\n  \"description\": \"Operational trip advance\",\n  \"attachmentName\": \"transfer-proof.pdf\",\n  \"remarks\": \"Approved for daily operations\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{base_url}}/tenant/accounts/fund-releases",
+                "description": "Atomically reserves the reference, creates a verified release and credit entry, and updates ledger totals."
+              }
+            },
+            {
+              "name": "Get Company Fund Release Detail",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{base_url}}/tenant/accounts/fund-releases/{{fund_release_id}}",
+                "description": "Returns release, manager/location, approval/verification, ledger-entry linkage, and audit details."
+              }
+            }
+          ]
+        },
+        {
           "name": "Bookings and Duty Assignment",
           "item": [
             {
@@ -1045,7 +1459,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "POST",
@@ -1066,7 +1484,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "GET",
@@ -1092,7 +1514,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "POST",
@@ -1113,7 +1539,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "PATCH",
@@ -1134,7 +1564,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "DELETE",
@@ -1178,7 +1612,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "GET",
@@ -1192,7 +1630,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "GET",
@@ -1206,7 +1648,11 @@
                 "auth": {
                   "type": "bearer",
                   "bearer": [
-                    { "key": "token", "value": "{{access_token}}", "type": "string" }
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
                   ]
                 },
                 "method": "PATCH",
@@ -2411,6 +2857,18 @@
     },
     {
       "key": "collection_id",
+      "value": ""
+    },
+    {
+      "key": "cash_deposit_id",
+      "value": ""
+    },
+    {
+      "key": "manager_ledger_id",
+      "value": ""
+    },
+    {
+      "key": "fund_release_id",
       "value": ""
     },
     {

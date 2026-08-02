@@ -99,6 +99,20 @@ platformRouter.get(
   authorizePermission('platform.dashboard.view'),
   platformController.listAuditLogs,
 )
+platformRouter.get(
+  '/users',
+  authenticateUser,
+  checkPlatformUser,
+  authorizePermission('platform.dashboard.view'),
+  platformController.listPlatformUsers,
+)
+platformRouter.get(
+  '/subscription-payments',
+  authenticateUser,
+  checkPlatformUser,
+  authorizePermission('subscription.manage'),
+  platformController.listSubscriptionPayments,
+)
 platformRouter.patch(
   '/subscription-plans/:planId',
   authenticateUser,

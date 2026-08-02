@@ -1,21 +1,21 @@
 import { Router } from 'express'
-import Joi from 'joi'
 import { authenticateUser } from '../../middlewares/authenticate-user.middleware'
 import { authorizePermission } from '../../middlewares/authorize-permission.middleware'
 import { checkSubscription } from '../../middlewares/check-subscription.middleware'
 import { checkTenantStatus } from '../../middlewares/check-tenant-status.middleware'
 import { resolveTenant } from '../../middlewares/resolve-tenant.middleware'
 import {
+  validateBody,
   validateParams,
   validateQuery,
 } from '../../middlewares/validate-request.middleware'
 import * as controller from './invoice.controller'
-
-const params = Joi.object({ invoiceId: Joi.string().uuid().required() })
-const query = Joi.object({
-  search: Joi.string().trim().max(200).empty(''),
-  status: Joi.string().valid('DRAFT', 'GENERATED', 'CANCELLED'),
-})
+import {
+  cancelInvoiceSchema,
+  invoiceBodySchema,
+  invoiceParamsSchema,
+  invoiceQuerySchema,
+} from './invoice.schema'
 
 export const invoiceRouter = Router()
 invoiceRouter.use(
@@ -27,18 +27,43 @@ invoiceRouter.use(
 invoiceRouter.get(
   '/',
   authorizePermission('invoice.view'),
-  validateQuery(query),
+  validateQuery(invoiceQuerySchema),
   controller.list,
+)
+invoiceRouter.get(
+  '/options',
+  authorizePermission('invoice.create'),
+  controller.options,
+)
+invoiceRouter.post(
+  '/',
+  authorizePermission('invoice.create'),
+  validateBody(invoiceBodySchema),
+  controller.create,
 )
 invoiceRouter.get(
   '/:invoiceId',
   authorizePermission('invoice.view'),
-  validateParams(params),
+  validateParams(invoiceParamsSchema),
   controller.get,
+)
+invoiceRouter.put(
+  '/:invoiceId',
+  authorizePermission('invoice.create'),
+  validateParams(invoiceParamsSchema),
+  validateBody(invoiceBodySchema),
+  controller.update,
 )
 invoiceRouter.patch(
   '/:invoiceId/generate',
   authorizePermission('invoice.generate'),
-  validateParams(params),
+  validateParams(invoiceParamsSchema),
   controller.generate,
+)
+invoiceRouter.patch(
+  '/:invoiceId/cancel',
+  authorizePermission('invoice.generate'),
+  validateParams(invoiceParamsSchema),
+  validateBody(cancelInvoiceSchema),
+  controller.cancel,
 )

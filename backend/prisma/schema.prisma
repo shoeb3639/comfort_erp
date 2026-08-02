@@ -157,6 +157,97 @@ enum GstType {
   IGST
 }
 
+enum AccountTransactionType {
+  FUND_RELEASE
+  EXPENSE
+  ADJUSTMENT
+  FUND_RETURN
+  DRIVER_ADVANCE
+  DRIVER_RECOVERY
+  PARTNER_WITHDRAWAL
+  OWNER_WITHDRAWAL
+  EMPLOYEE_ADVANCE
+}
+
+enum AccountPaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CARD
+  CHEQUE
+}
+
+enum AccountEntryDirection {
+  CREDIT
+  DEBIT
+}
+
+enum AccountExpenseCategory {
+  FUEL
+  VEHICLE_MAINTENANCE
+  DRIVER_PAYMENT
+  OFFICE_EXPENSE
+  EMPLOYEE_ADVANCE
+  PARTNER_OWNER_WITHDRAWAL
+  RECOVERABLE_TRIP_CHARGE
+  OTHER
+}
+
+enum AccountReferenceSource {
+  COLLECTION
+  CASH_DEPOSIT
+  FUND_RELEASE
+  EXPENSE
+  ADJUSTMENT
+  FUND_RETURN
+}
+
+enum CashDepositStatus {
+  COLLECTED
+  WITH_MANAGER
+  DEPOSITED
+  VERIFIED
+  MISMATCH
+  VOID
+}
+
+enum CashDepositMode {
+  CASH_DEPOSIT
+  UPI
+  BANK_TRANSFER
+}
+
+enum ManagerLedgerEntryType {
+  OPENING_BALANCE
+  FUND_RELEASE
+  EXPENSE
+  ADJUSTMENT
+  FUND_RETURN
+  DRIVER_ADVANCE
+  DRIVER_RECOVERY
+  PARTNER_WITHDRAWAL
+  OWNER_WITHDRAWAL
+  EMPLOYEE_ADVANCE
+  REVERSAL
+}
+
+enum FundReleaseStatus {
+  PENDING
+  APPROVED
+  VERIFIED
+  REJECTED
+}
+
+enum DailyClosingStatus {
+  OPEN
+  CLOSED
+}
+
+enum AuditResolutionStatus {
+  OPEN
+  RESOLVED
+}
+
 model PlatformUser {
   id                String     @id @default(uuid()) @db.Uuid
   name              String     @db.VarChar(150)
@@ -289,31 +380,39 @@ model Tenant {
   updatedAt                 DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   closedAt                  DateTime?        @map("closed_at") @db.Timestamptz(6)
 
-  createdBy          PlatformUser?             @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy          PlatformUser?             @relation("TenantUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  subscriptions      TenantSubscription[]
-  users              TenantUser[]
-  roles              TenantRole[]
-  rolePermissions    TenantRolePermission[]
-  refreshTokens      TenantRefreshToken[]
-  onboardingItems    TenantOnboardingItem[]
-  auditLogs          TenantAuditLog[]
-  gstRegistrations   GstRegistration[]
-  bankAccounts       TenantBankAccount[]
-  locations          TenantLocation[]
-  userLocations      TenantUserLocation[]
-  gstLocations       GstRegistrationLocation[]
-  customers          Customer[]
-  customerContacts   CustomerContact[]
-  travellers         CustomerTraveller[]
-  vendors            Vendor[]
-  vehicleTypes       VehicleType[]
-  vehicles           Vehicle[]
-  drivers            Driver[]
-  bookings           Booking[]
-  bookingClosures    BookingClosure[]
-  bookingCollections BookingCollection[]
-  invoices           Invoice[]
+  createdBy            PlatformUser?             @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy            PlatformUser?             @relation("TenantUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  subscriptions        TenantSubscription[]
+  users                TenantUser[]
+  roles                TenantRole[]
+  rolePermissions      TenantRolePermission[]
+  refreshTokens        TenantRefreshToken[]
+  onboardingItems      TenantOnboardingItem[]
+  auditLogs            TenantAuditLog[]
+  gstRegistrations     GstRegistration[]
+  bankAccounts         TenantBankAccount[]
+  locations            TenantLocation[]
+  userLocations        TenantUserLocation[]
+  gstLocations         GstRegistrationLocation[]
+  customers            Customer[]
+  customerContacts     CustomerContact[]
+  travellers           CustomerTraveller[]
+  vendors              Vendor[]
+  vehicleTypes         VehicleType[]
+  vehicles             Vehicle[]
+  drivers              Driver[]
+  bookings             Booking[]
+  bookingClosures      BookingClosure[]
+  bookingCollections   BookingCollection[]
+  invoices             Invoice[]
+  accountReferences    AccountReference[]
+  cashDeposits         BookingCashDeposit[]
+  managerLedgers       ManagerLedger[]
+  managerLedgerEntries ManagerLedgerEntry[]
+  fundReleases         CompanyFundRelease[]
+  accountTransactions  AccountTransaction[]
+  dailyClosings        DailyClosing[]
+  auditResolutions     AccountAuditResolution[]
 
   @@index([status], map: "tenants_status_idx")
   @@index([onboardingStatus], map: "tenants_onboarding_status_idx")
@@ -662,14 +761,56 @@ model BookingCollection {
   createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  booking Booking  @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
-  invoice Invoice? @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  booking     Booking             @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)
+  invoice     Invoice?            @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+  cashDeposit BookingCashDeposit?
 
   @@unique([tenantId, id], map: "booking_collections_tenant_id_id_key")
   @@index([tenantId, bookingId, status], map: "booking_collections_tenant_booking_status_idx")
   @@index([tenantId, collectionDate], map: "booking_collections_tenant_date_idx")
+  @@index([tenantId, paymentMode, status, collectionDate], map: "booking_collections_tenant_mode_status_date_idx")
   @@map("booking_collections")
+}
+
+model BookingCashDeposit {
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @map("tenant_id") @db.Uuid
+  collectionId        String            @map("collection_id") @db.Uuid
+  amountCollected     Decimal           @map("amount_collected") @db.Decimal(12, 2)
+  depositedAmount     Decimal           @default(0) @map("deposited_amount") @db.Decimal(12, 2)
+  receiverManagerId   String?           @map("receiver_manager_id") @db.Uuid
+  receiverManagerName String?           @map("receiver_manager_name") @db.VarChar(150)
+  receivedAt          DateTime?         @map("received_at") @db.Timestamptz(6)
+  status              CashDepositStatus @default(COLLECTED)
+  depositDate         DateTime?         @map("deposit_date") @db.Date
+  depositMode         CashDepositMode?  @map("deposit_mode")
+  bankReference       String?           @map("bank_reference") @db.VarChar(150)
+  attachmentName      String?           @map("attachment_name") @db.VarChar(255)
+  depositedById       String?           @map("deposited_by") @db.Uuid
+  depositedByName     String?           @map("deposited_by_name") @db.VarChar(150)
+  verifiedAmount      Decimal?          @map("verified_amount") @db.Decimal(12, 2)
+  verifiedById        String?           @map("verified_by") @db.Uuid
+  verifiedByName      String?           @map("verified_by_name") @db.VarChar(150)
+  verifiedAt          DateTime?         @map("verified_at") @db.Timestamptz(6)
+  mismatchAmount      Decimal           @default(0) @map("mismatch_amount") @db.Decimal(12, 2)
+  mismatchReason      String?           @map("mismatch_reason") @db.Text
+  remarks             String?           @db.Text
+  createdById         String            @map("created_by") @db.Uuid
+  updatedById         String            @map("updated_by") @db.Uuid
+  deletedById         String?           @map("deleted_by") @db.Uuid
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  collection BookingCollection @relation(fields: [tenantId, collectionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "booking_cash_deposits_tenant_id_id_key")
+  @@unique([tenantId, collectionId], map: "booking_cash_deposits_tenant_collection_key")
+  @@index([tenantId, status, depositDate], map: "booking_cash_deposits_tenant_status_date_idx")
+  @@index([tenantId, receiverManagerId, status], map: "booking_cash_deposits_tenant_manager_status_idx")
+  @@map("booking_cash_deposits")
 }
 
 model Invoice {
@@ -687,6 +828,18 @@ model Invoice {
   billingName        String        @map("billing_name") @db.VarChar(200)
   billingAddress     String        @map("billing_address") @db.Text
   customerGstin      String?       @map("customer_gstin") @db.VarChar(20)
+  referenceNumber    String?       @map("reference_number") @db.VarChar(150)
+  billingType        String?       @map("billing_type") @db.VarChar(50)
+  billingContact     String?       @map("billing_contact") @db.VarChar(200)
+  billingMobile      String?       @map("billing_mobile") @db.VarChar(30)
+  billingEmail       String?       @map("billing_email") @db.VarChar(255)
+  vehicleDescription String?       @map("vehicle_description") @db.VarChar(255)
+  serviceCity        String?       @map("service_city") @db.VarChar(150)
+  placeOfSupply      String?       @map("place_of_supply") @db.VarChar(150)
+  hsnCode            String?       @map("hsn_code") @db.VarChar(30)
+  paymentTerms       String?       @map("payment_terms") @db.VarChar(255)
+  terms              String?       @db.Text
+  displaySnapshot    Json?         @map("display_snapshot")
   subtotal           Decimal       @db.Decimal(12, 2)
   taxableAmount      Decimal       @map("taxable_amount") @db.Decimal(12, 2)
   cgstAmount         Decimal       @default(0) @map("cgst_amount") @db.Decimal(12, 2)
@@ -740,6 +893,28 @@ model InvoiceItem {
   @@unique([tenantId, id], map: "invoice_items_tenant_id_id_key")
   @@index([tenantId, invoiceId, sortOrder], map: "invoice_items_tenant_invoice_order_idx")
   @@map("invoice_items")
+}
+
+model AccountReference {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  tenantId                  String                 @map("tenant_id") @db.Uuid
+  referenceNumber           String                 @map("reference_number") @db.VarChar(150)
+  normalizedReferenceNumber String                 @map("normalized_reference_number") @db.VarChar(150)
+  source                    AccountReferenceSource
+  sourceId                  String?                @map("source_id") @db.Uuid
+  createdById               String                 @map("created_by") @db.Uuid
+  updatedById               String                 @map("updated_by") @db.Uuid
+  deletedById               String?                @map("deleted_by") @db.Uuid
+  createdAt                 DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                 DateTime?              @map("deleted_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, normalizedReferenceNumber], map: "account_references_tenant_normalized_key")
+  @@index([tenantId, source, sourceId], map: "account_references_tenant_source_idx")
+  @@index([tenantId, deletedAt], map: "account_references_tenant_deleted_idx")
+  @@map("account_references")
 }
 
 model SubscriptionPlan {
@@ -903,12 +1078,16 @@ model TenantUser {
   updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
-  tenant         Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  role           TenantRole             @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Restrict)
-  refreshTokens  TenantRefreshToken[]
-  completedItems TenantOnboardingItem[] @relation("OnboardingCompletedBy")
-  auditLogs      TenantAuditLog[]       @relation("TenantAuditActor")
-  locations      TenantUserLocation[]
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  role                 TenantRole             @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Restrict)
+  refreshTokens        TenantRefreshToken[]
+  completedItems       TenantOnboardingItem[] @relation("OnboardingCompletedBy")
+  auditLogs            TenantAuditLog[]       @relation("TenantAuditActor")
+  locations            TenantUserLocation[]
+  managerLedgers       ManagerLedger[]        @relation("ManagerLedgerManager")
+  fundReleasesReleased CompanyFundRelease[]   @relation("FundReleaseReleasedBy")
+  fundReleasesApproved CompanyFundRelease[]   @relation("FundReleaseApprovedBy")
+  fundReleasesVerified CompanyFundRelease[]   @relation("FundReleaseVerifiedBy")
 
   @@unique([tenantId, id], map: "tenant_users_tenant_id_id_key")
   @@unique([tenantId, email], map: "tenant_users_tenant_email_key")
@@ -941,11 +1120,185 @@ model TenantLocation {
   tenant           Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   users            TenantUserLocation[]
   gstRegistrations GstRegistrationLocation[]
+  managerLedgers   ManagerLedger[]
 
   @@unique([tenantId, id], map: "locations_tenant_id_id_key")
   @@unique([tenantId, code], map: "locations_tenant_code_key")
   @@index([tenantId, status], map: "locations_tenant_status_idx")
   @@map("locations")
+}
+
+model ManagerLedger {
+  id             String            @id @default(uuid()) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  managerId      String            @map("manager_id") @db.Uuid
+  locationId     String            @map("location_id") @db.Uuid
+  openingBalance Decimal           @default(0) @map("opening_balance") @db.Decimal(14, 2)
+  totalCredits   Decimal           @default(0) @map("total_credits") @db.Decimal(14, 2)
+  totalDebits    Decimal           @default(0) @map("total_debits") @db.Decimal(14, 2)
+  currentBalance Decimal           @default(0) @map("current_balance") @db.Decimal(14, 2)
+  status         SetupRecordStatus @default(ACTIVE)
+  remarks        String?           @db.Text
+  createdById    String            @map("created_by") @db.Uuid
+  updatedById    String            @map("updated_by") @db.Uuid
+  deletedById    String?           @map("deleted_by") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  manager      TenantUser           @relation("ManagerLedgerManager", fields: [tenantId, managerId], references: [tenantId, id], onDelete: Restrict)
+  location     TenantLocation       @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Restrict)
+  entries      ManagerLedgerEntry[]
+  fundReleases CompanyFundRelease[]
+  transactions AccountTransaction[]
+  dailyClosings DailyClosing[]
+
+  @@unique([tenantId, id], map: "manager_ledgers_tenant_id_id_key")
+  @@unique([tenantId, managerId, locationId], map: "manager_ledgers_tenant_manager_location_key")
+  @@index([tenantId, status], map: "manager_ledgers_tenant_status_idx")
+  @@index([tenantId, locationId, status], map: "manager_ledgers_tenant_location_status_idx")
+  @@map("manager_ledgers")
+}
+
+model CompanyFundRelease {
+  id              String             @id @default(uuid()) @db.Uuid
+  tenantId        String             @map("tenant_id") @db.Uuid
+  ledgerId        String             @map("ledger_id") @db.Uuid
+  releaseDate     DateTime           @map("release_date") @db.Date
+  amount          Decimal            @db.Decimal(14, 2)
+  paymentMode     AccountPaymentMode @map("payment_mode")
+  referenceNumber String             @map("reference_number") @db.VarChar(150)
+  description     String             @db.VarChar(500)
+  attachmentName  String?            @map("attachment_name") @db.VarChar(255)
+  status          FundReleaseStatus  @default(PENDING)
+  releasedById    String             @map("released_by") @db.Uuid
+  approvedById    String?            @map("approved_by") @db.Uuid
+  approvedAt      DateTime?          @map("approved_at") @db.Timestamptz(6)
+  verifiedById    String?            @map("verified_by") @db.Uuid
+  verifiedAt      DateTime?          @map("verified_at") @db.Timestamptz(6)
+  ledgerEntryId   String?            @unique(map: "company_fund_releases_ledger_entry_key") @map("ledger_entry_id") @db.Uuid
+  remarks         String?            @db.Text
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ledger     ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
+  releasedBy TenantUser    @relation("FundReleaseReleasedBy", fields: [tenantId, releasedById], references: [tenantId, id], onDelete: Restrict)
+  approvedBy TenantUser?   @relation("FundReleaseApprovedBy", fields: [tenantId, approvedById], references: [tenantId, id], onDelete: Restrict)
+  verifiedBy TenantUser?   @relation("FundReleaseVerifiedBy", fields: [tenantId, verifiedById], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "company_fund_releases_tenant_id_id_key")
+  @@unique([tenantId, referenceNumber], map: "company_fund_releases_tenant_reference_key")
+  @@index([tenantId, status, releaseDate], map: "company_fund_releases_tenant_status_date_idx")
+  @@index([tenantId, ledgerId, releaseDate], map: "company_fund_releases_tenant_ledger_date_idx")
+  @@map("company_fund_releases")
+}
+
+model ManagerLedgerEntry {
+  id              String                 @id @default(uuid()) @db.Uuid
+  tenantId        String                 @map("tenant_id") @db.Uuid
+  ledgerId        String                 @map("ledger_id") @db.Uuid
+  entryNumber     Int                    @map("entry_number")
+  entryDate       DateTime               @map("entry_date") @db.Date
+  entryType       ManagerLedgerEntryType @map("entry_type")
+  description     String                 @db.VarChar(500)
+  credit          Decimal                @default(0) @db.Decimal(14, 2)
+  debit           Decimal                @default(0) @db.Decimal(14, 2)
+  balanceBefore   Decimal                @map("balance_before") @db.Decimal(14, 2)
+  runningBalance  Decimal                @map("running_balance") @db.Decimal(14, 2)
+  referenceNumber String?                @map("reference_number") @db.VarChar(150)
+  sourceId        String?                @map("source_id") @db.Uuid
+  remarks         String?                @db.Text
+  createdById     String                 @map("created_by") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ledger ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "manager_ledger_entries_tenant_id_id_key")
+  @@unique([tenantId, ledgerId, entryNumber], map: "manager_ledger_entries_tenant_ledger_number_key")
+  @@index([tenantId, ledgerId, entryDate], map: "manager_ledger_entries_tenant_ledger_date_idx")
+  @@map("manager_ledger_entries")
+}
+
+model AccountTransaction {
+  id              String                 @id @default(uuid()) @db.Uuid
+  tenantId        String                 @map("tenant_id") @db.Uuid
+  ledgerId        String                 @map("ledger_id") @db.Uuid
+  ledgerEntryId   String                 @unique(map: "account_transactions_ledger_entry_key") @map("ledger_entry_id") @db.Uuid
+  transactionDate DateTime               @map("transaction_date") @db.Date
+  transactionType AccountTransactionType @map("transaction_type")
+  direction       AccountEntryDirection
+  category        AccountExpenseCategory?
+  paymentMode     AccountPaymentMode     @map("payment_mode")
+  amount          Decimal                @db.Decimal(14, 2)
+  description     String                 @db.VarChar(500)
+  referenceNumber String                 @map("reference_number") @db.VarChar(150)
+  vehicleId       String?                @map("vehicle_id") @db.Uuid
+  bookingId       String?                @map("booking_id") @db.Uuid
+  driverId        String?                @map("driver_id") @db.Uuid
+  employeeId      String?                @map("employee_id") @db.Uuid
+  partnerId       String?                @map("partner_id") @db.Uuid
+  details         Json?
+  attachmentName  String?                @map("attachment_name") @db.VarChar(255)
+  remarks         String?                @db.Text
+  createdById     String                 @map("created_by") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ledger ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "account_transactions_tenant_id_id_key")
+  @@unique([tenantId, referenceNumber], map: "account_transactions_tenant_reference_key")
+  @@index([tenantId, transactionDate], map: "account_transactions_tenant_date_idx")
+  @@index([tenantId, ledgerId, transactionDate], map: "account_transactions_ledger_date_idx")
+  @@map("account_transactions")
+}
+
+model DailyClosing {
+  id                   String             @id @default(uuid()) @db.Uuid
+  tenantId             String             @map("tenant_id") @db.Uuid
+  ledgerId             String             @map("ledger_id") @db.Uuid
+  closingDate          DateTime           @map("closing_date") @db.Date
+  openingBalance       Decimal            @map("opening_balance") @db.Decimal(14, 2)
+  credits              Decimal            @default(0) @db.Decimal(14, 2)
+  debits               Decimal            @default(0) @db.Decimal(14, 2)
+  closingBalance       Decimal            @map("closing_balance") @db.Decimal(14, 2)
+  pendingCashDeposit   Decimal            @default(0) @map("pending_cash_deposit") @db.Decimal(14, 2)
+  status               DailyClosingStatus @default(OPEN)
+  closedById           String?            @map("closed_by") @db.Uuid
+  closedAt             DateTime?          @map("closed_at") @db.Timestamptz(6)
+  reopenedById         String?            @map("reopened_by") @db.Uuid
+  reopenedAt           DateTime?          @map("reopened_at") @db.Timestamptz(6)
+  remarks              String?            @db.Text
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ledger ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, ledgerId, closingDate], map: "daily_closings_tenant_ledger_date_key")
+  @@index([tenantId, closingDate, status], map: "daily_closings_tenant_date_status_idx")
+  @@map("daily_closings")
+}
+
+model AccountAuditResolution {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  exceptionKey String                @map("exception_key") @db.VarChar(255)
+  status       AuditResolutionStatus @default(OPEN)
+  resolution   String?               @db.Text
+  resolvedById String?               @map("resolved_by") @db.Uuid
+  resolvedAt   DateTime?             @map("resolved_at") @db.Timestamptz(6)
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, exceptionKey], map: "account_audit_resolutions_tenant_exception_key")
+  @@index([tenantId, status], map: "account_audit_resolutions_tenant_status_idx")
+  @@map("account_audit_resolutions")
 }
 
 model TenantBankAccount {

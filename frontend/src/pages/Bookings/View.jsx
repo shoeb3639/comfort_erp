@@ -99,6 +99,16 @@ function BookingViewPage() {
 
   return (
     <div className="space-y-5">
+      {booking.vehicleId && booking.driverId && (
+        <div className="flex justify-end">
+          <Link
+            to={`/bookings/${booking.id}/duty-slip`}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            Generate Duty Slip
+          </Link>
+        </div>
+      )}
       <Section title="Booking Summary">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReadOnlyField label="Booking ID" value={booking.id} />

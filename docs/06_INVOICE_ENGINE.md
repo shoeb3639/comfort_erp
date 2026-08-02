@@ -255,19 +255,33 @@ Generated invoice edit should be controlled and audited.
 
 ## Implemented Backend Scope
 
-Booking closing now creates a database-backed draft invoice and generic invoice
-items. Draft lookup, list/display, and final generation are available through:
+Booking closing creates a database-backed draft invoice and generic invoice
+items. Booking and direct/manual invoices now use the same persisted workflow:
 
 ```text
-GET   /api/v1/tenant/invoices
-GET   /api/v1/tenant/invoices/:invoiceId
-PATCH /api/v1/tenant/invoices/:invoiceId/generate
+GET    /api/v1/tenant/invoices
+GET    /api/v1/tenant/invoices/options
+POST   /api/v1/tenant/invoices
+GET    /api/v1/tenant/invoices/:invoiceId
+PUT    /api/v1/tenant/invoices/:invoiceId
+PATCH  /api/v1/tenant/invoices/:invoiceId/generate
+PATCH  /api/v1/tenant/invoices/:invoiceId/cancel
 ```
 
-Drafts do not consume an invoice number. Generation assigns a tenant-scoped,
-financial-year number atomically and preserves billing, tenant, GST, and bank
-display data through the API. Direct/manual invoice creation, cancellation, and
-controlled revision/versioning remain future scope.
+Drafts do not consume an invoice number. The backend recalculates every line,
+GST component, and net payable rather than trusting browser totals. Generation
+assigns a tenant-scoped financial-year number atomically and stores the company,
+GST, bank, logo, and invoice display snapshot used for the legal invoice.
+
+Draft edits, generated-invoice controlled revisions, generation, and
+cancellation all create tenant audit events. Generated invoice numbers remain
+locked and cancelled numbers are never reused. Cancellation preserves the
+invoice and records its reason, user, and timestamp.
+
+The invoice form options endpoint returns authenticated-tenant customers,
+travellers, bookings, vehicles, drivers, company settings, GST registration,
+and bank details. The React invoice list, form, preview, and print workflow no
+longer persists invoice records in bundled JSON or browser local storage.
 
 ## Persistence
 

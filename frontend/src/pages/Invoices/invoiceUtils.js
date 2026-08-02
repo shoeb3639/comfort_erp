@@ -1,5 +1,3 @@
-import { getMockData } from '../../services/api'
-
 export const companyDetails = {
   name: 'COMFORT CARS',
   subtitle: 'Taxi Service in Prayagraj',
@@ -32,23 +30,10 @@ export const defaultInvoiceSettings = {
 }
 
 export function getInvoiceSettings() {
-  if (typeof window === 'undefined') return defaultInvoiceSettings
-
-  const storedValue = window.localStorage.getItem('booking_admin_invoice_settings')
-  if (!storedValue) return defaultInvoiceSettings
-
-  try {
-    return { ...defaultInvoiceSettings, ...JSON.parse(storedValue) }
-  } catch {
-    return defaultInvoiceSettings
-  }
+  return defaultInvoiceSettings
 }
 
 export function saveInvoiceSettings(settings) {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem('booking_admin_invoice_settings', JSON.stringify(settings))
-  }
-
   return settings
 }
 
@@ -64,8 +49,7 @@ export function createInvoiceNumber(settings = getInvoiceSettings()) {
 }
 
 export function getNextInvoiceId() {
-  const invoices = getMockData('invoices')
-  return `INV-${String(invoices.length + 1).padStart(3, '0')}`
+  return ''
 }
 
 export function calculateInvoiceTotals(items = [], gstType = 'No GST') {
@@ -120,5 +104,5 @@ export function normalizeInvoice(invoice) {
 }
 
 export function getInvoiceById(invoiceId) {
-  return getMockData('invoices').map(normalizeInvoice).find((invoice) => invoice.id === invoiceId)
+  return undefined
 }

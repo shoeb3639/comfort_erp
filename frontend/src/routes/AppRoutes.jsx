@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "../auth/ProtectedRoute";
+import PermissionRoute from "../auth/PermissionRoute";
 import MainLayout from "../layouts/MainLayout";
 import PlatformLayout from "../layouts/PlatformLayout";
 import AccessDeniedPage from "../pages/Access/AccessDenied";
@@ -10,21 +11,24 @@ import BookingCashDepositPage from "../pages/Accounts/BookingCashDeposit";
 import DailyClosingPage from "../pages/Accounts/DailyClosing";
 import ManagerLedgerPage from "../pages/Accounts/ManagerLedger";
 import ManagerLedgerDetailPage from "../pages/Accounts/ManagerLedgerDetail";
+import ManagerLedgerCreatePage from "../pages/Accounts/ManagerLedgerCreate";
 import ManagerLedgerFormPage from "../pages/Accounts/ManagerLedgerForm";
 import AuditVerificationPage from "../pages/Accounts/Reconciliation";
 import TransactionsPage from "../pages/Accounts/Transactions";
+import AccountsOverviewPage from "../pages/Accounts/Overview";
+import AccountsCollectionsPage from "../pages/Accounts/Collections";
 import BookingsPage from "../pages/Bookings";
 import CloseBookingPage from "../pages/Bookings/Close";
 import BookingCollectionPage from "../pages/Bookings/Collection";
 import BookingFormPage from "../pages/Bookings/Form";
 import BookingProfitPage from "../pages/Bookings/Profit";
 import BookingViewPage from "../pages/Bookings/View";
+import DutySlipPage from "../pages/Bookings/DutySlip";
 import CustomerCreatePage from "../pages/Customers/Create";
 import CustomerDetailPage from "../pages/Customers/Detail";
 import CustomerEditPage from "../pages/Customers/Edit";
 import CustomersPage from "../pages/Customers";
 import DashboardPage from "../pages/Dashboard";
-import ExpensesPage from "../pages/Expenses";
 import InvoiceFormPage from "../pages/Invoices/Form";
 import InvoicesPage from "../pages/Invoices";
 import InvoicePreviewPage from "../pages/Invoices/Preview";
@@ -34,9 +38,7 @@ import PlatformAuditLogsPage from "../pages/Platform/AuditLogs";
 import PlatformDashboardPage from "../pages/Platform/Dashboard";
 import PlatformPaymentsPage from "../pages/Platform/Payments";
 import PlatformPlansPage from "../pages/Platform/Plans";
-import PlatformSettingsPage from "../pages/Platform/Settings";
 import PlatformSubscriptionsPage from "../pages/Platform/Subscriptions";
-import PlatformSupportPage from "../pages/Platform/Support";
 import PlatformTenantsPage from "../pages/Platform/Tenants";
 import PlatformUsersPage from "../pages/Platform/Users";
 import ReportsPage from "../pages/Reports";
@@ -83,12 +85,10 @@ function AppRoutes() {
             element={<Navigate to="/platform/payments" replace />}
           />
           <Route path="/platform/users" element={<PlatformUsersPage />} />
-          <Route path="/platform/support" element={<PlatformSupportPage />} />
           <Route
             path="/platform/audit-logs"
             element={<PlatformAuditLogsPage />}
           />
-          <Route path="/platform/settings" element={<PlatformSettingsPage />} />
         </Route>
       </Route>
       <Route element={<ProtectedRoute userType="TENANT" />}>
@@ -98,6 +98,7 @@ function AppRoutes() {
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/new" element={<BookingFormPage />} />
           <Route path="/bookings/:id" element={<BookingViewPage />} />
+          <Route path="/bookings/:id/duty-slip" element={<DutySlipPage />} />
           <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
           <Route path="/bookings/:id/close" element={<CloseBookingPage />} />
           <Route
@@ -142,43 +143,114 @@ function AppRoutes() {
           />
           <Route
             path="/accounts"
-            element={<Navigate to="/accounts/manager-ledger" replace />}
+            element={
+              <PermissionRoute
+                anyOf={[
+                  "accounts.collection.view",
+                  "accounts.deposit.manage",
+                  "accounts.ledger.view",
+                  "accounts.fund.release",
+                  "accounts.expense.manage",
+                  "accounts.daily_closing.manage",
+                  "accounts.audit.verify",
+                ]}
+              >
+                <AccountsOverviewPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/accounts/collections"
+            element={
+              <PermissionRoute anyOf={["accounts.collection.view"]}>
+                <AccountsCollectionsPage />
+              </PermissionRoute>
+            }
           />
           <Route
             path="/accounts/manager-ledger"
-            element={<ManagerLedgerPage />}
+            element={
+              <PermissionRoute anyOf={["accounts.ledger.view"]}>
+                <ManagerLedgerPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/accounts/manager-ledger/new"
+            element={
+              <PermissionRoute anyOf={["accounts.fund.release"]}>
+                <ManagerLedgerCreatePage />
+              </PermissionRoute>
+            }
           />
           <Route
             path="/accounts/manager-ledger/release"
-            element={<ManagerLedgerFormPage />}
+            element={
+              <PermissionRoute anyOf={["accounts.fund.release"]}>
+                <ManagerLedgerFormPage />
+              </PermissionRoute>
+            }
           />
           <Route
-            path="/accounts/manager-ledger/:managerName"
-            element={<ManagerLedgerDetailPage />}
+            path="/accounts/manager-ledger/:ledgerId"
+            element={
+              <PermissionRoute anyOf={["accounts.ledger.view"]}>
+                <ManagerLedgerDetailPage />
+              </PermissionRoute>
+            }
           />
-          <Route path="/accounts/transactions" element={<TransactionsPage />} />
+          <Route
+            path="/accounts/transactions"
+            element={
+              <PermissionRoute anyOf={["accounts.expense.manage"]}>
+                <TransactionsPage />
+              </PermissionRoute>
+            }
+          />
           <Route
             path="/accounts/expense-entry"
             element={<Navigate to="/accounts/transactions" replace />}
           />
           <Route
             path="/accounts/booking-cash-deposit"
-            element={<BookingCashDepositPage />}
+            element={
+              <PermissionRoute anyOf={["accounts.deposit.manage"]}>
+                <BookingCashDepositPage />
+              </PermissionRoute>
+            }
           />
           <Route
             path="/accounts/daily-closing"
-            element={<DailyClosingPage />}
+            element={
+              <PermissionRoute anyOf={["accounts.daily_closing.manage"]}>
+                <DailyClosingPage />
+              </PermissionRoute>
+            }
           />
           <Route
             path="/accounts/audit-verification"
-            element={<AuditVerificationPage />}
+            element={
+              <PermissionRoute anyOf={["accounts.audit.verify"]}>
+                <AuditVerificationPage />
+              </PermissionRoute>
+            }
           />
           <Route
             path="/accounts/reconciliation"
             element={<Navigate to="/accounts/audit-verification" replace />}
           />
-          <Route path="/expenses" element={<ExpensesPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route
+            path="/expenses"
+            element={<Navigate to="/accounts/transactions" replace />}
+          />
+          <Route
+            path="/reports"
+            element={
+              <PermissionRoute anyOf={["reports.view"]}>
+                <ReportsPage />
+              </PermissionRoute>
+            }
+          />
           <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/settings/gst-registrations"

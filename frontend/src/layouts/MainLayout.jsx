@@ -28,6 +28,16 @@ import {
 } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
+const accountPermissions = [
+  "accounts.collection.view",
+  "accounts.deposit.manage",
+  "accounts.ledger.view",
+  "accounts.fund.release",
+  "accounts.expense.manage",
+  "accounts.daily_closing.manage",
+  "accounts.audit.verify",
+];
+
 const navItems = [
   {
     id: "dashboard",
@@ -44,9 +54,9 @@ const navItems = [
     icon: CalendarCheck,
   },
   {
-    id: "masters",
-    label: "Masters",
-    shortLabel: "Masters",
+    id: "master",
+    label: "Master",
+    shortLabel: "Master",
     icon: CarFront,
     children: [
       { to: "/customers", label: "Customers" },
@@ -67,16 +77,50 @@ const navItems = [
     label: "Accounts",
     shortLabel: "Accts",
     icon: WalletCards,
+    permissions: accountPermissions,
     children: [
-      { to: "/accounts/manager-ledger", label: "Manager Ledger" },
+      {
+        to: "/accounts",
+        label: "Accounts Overview",
+        exact: true,
+        permissions: accountPermissions,
+      },
+      {
+        to: "/accounts/collections",
+        label: "Collections",
+        permissions: ["accounts.collection.view"],
+      },
+      {
+        to: "/accounts/manager-ledger",
+        label: "Manager Ledger",
+        permissions: ["accounts.ledger.view"],
+      },
+      {
+        to: "/accounts/manager-ledger/release",
+        label: "Fund Release",
+        permissions: ["accounts.fund.release"],
+      },
       {
         to: "/accounts/transactions",
         label: "Expense Entry",
         aliases: ["/accounts/expense-entry", "/expenses"],
+        permissions: ["accounts.expense.manage"],
       },
-      { to: "/accounts/booking-cash-deposit", label: "Booking Cash Deposit" },
-      { to: "/accounts/daily-closing", label: "Daily Closing" },
-      { to: "/accounts/audit-verification", label: "Audit & Verification" },
+      {
+        to: "/accounts/booking-cash-deposit",
+        label: "Booking Cash Deposit",
+        permissions: ["accounts.deposit.manage"],
+      },
+      {
+        to: "/accounts/daily-closing",
+        label: "Daily Closing",
+        permissions: ["accounts.daily_closing.manage"],
+      },
+      {
+        to: "/accounts/audit-verification",
+        label: "Audit & Verification",
+        permissions: ["accounts.audit.verify"],
+      },
     ],
   },
   {
@@ -85,6 +129,7 @@ const navItems = [
     label: "Reports",
     shortLabel: "Reports",
     icon: BarChart3,
+    permissions: ["reports.view"],
   },
   {
     id: "settings",
@@ -122,10 +167,11 @@ const bottomNavItems = [
     icon: ReceiptText,
   },
   {
-    to: "/accounts/manager-ledger",
+    to: "/accounts",
     label: "Accounts",
     shortLabel: "Accts",
     icon: WalletCards,
+    permissions: accountPermissions,
   },
 ];
 
@@ -171,20 +217,16 @@ const pageMeta = {
     description:
       "Manage manager ledger, operational transactions, booking cash deposits, daily closing, and audit verification.",
   },
-  "/expenses": {
-    eyebrow: "Operations spend",
-    title: "Expenses",
-    description: "Track operational spend and approvals.",
-  },
-  "/reports": {
-    eyebrow: "Performance",
-    title: "Reports",
-    description: "View performance and finance reporting.",
-  },
   "/settings": {
     eyebrow: "Workspace",
     title: "Settings",
     description: "Configure integrations, roles, and system preferences.",
+  },
+  "/reports": {
+    eyebrow: "Business intelligence",
+    title: "Reports",
+    description:
+      "Generate tenant-scoped operational and financial reports from live records.",
   },
 };
 
@@ -298,6 +340,15 @@ function getPageMeta(pathname) {
       title: "Manager Ledger",
       description:
         "Track each manager running balance for company fund releases, operational expenses, returns, and adjustments.",
+    };
+  }
+
+  if (pathname === "/accounts/manager-ledger/new") {
+    return {
+      eyebrow: "Accounts",
+      title: "Create Manager Ledger",
+      description:
+        "Create a database-backed operational wallet for one manager and location.",
     };
   }
 
@@ -606,10 +657,29 @@ function getTopbarActions(pathname) {
   if (pathname === "/accounts/manager-ledger") {
     return [
       {
-        to: "/accounts/manager-ledger/release",
-        label: "Release Amount",
+        to: "/accounts/manager-ledger/new",
+        label: "Create Ledger",
         icon: Plus,
         variant: "primary",
+        permissions: ["accounts.fund.release"],
+      },
+    ];
+  }
+
+  if (pathname === "/accounts/manager-ledger/new") {
+    return [
+      {
+        form: "manager-ledger-create-form",
+        type: "submit",
+        label: "Create Ledger",
+        icon: Plus,
+        variant: "primary",
+      },
+      {
+        to: "/accounts/manager-ledger",
+        label: "Cancel",
+        icon: ArrowLeft,
+        variant: "secondary",
       },
     ];
   }
@@ -767,8 +837,34 @@ function ComingSoonBadge() {
   );
 }
 
+function hasPermission(item, userPermissions) {
+  return (
+    !item.permissions?.length ||
+    item.permissions.some((permission) => userPermissions.has(permission))
+  );
+}
+
+function visibleNavigation(items, permissions) {
+  const userPermissions = new Set(permissions || []);
+  return items
+    .filter((item) => hasPermission(item, userPermissions))
+    .map((item) =>
+      item.children
+        ? {
+            ...item,
+            children: item.children.filter((child) =>
+              hasPermission(child, userPermissions),
+            ),
+          }
+        : item,
+    )
+    .filter((item) => !item.children || item.children.length > 0);
+}
+
 function SidebarNav({ collapsed = false, className = "", onNavigate }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const permittedNavItems = visibleNavigation(navItems, user?.permissions);
   const [openGroupId, setOpenGroupId] = useState(() =>
     findActiveGroupId(location.pathname),
   );
@@ -786,7 +882,7 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
 
   return (
     <nav className={`space-y-1 px-3 py-4 ${className}`}>
-      {navItems.map((item) => {
+      {permittedNavItems.map((item) => {
         const Icon = item.icon;
         const hasChildren = Boolean(item.children?.length);
         const isActive = hasChildren
@@ -913,19 +1009,23 @@ function MainLayout() {
   const [pageTopbarAction, setPageTopbarAction] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const basePath = `/${location.pathname.split("/")[1] || "dashboard"}`;
   const meta =
     getPageMeta(location.pathname) ||
     pageMeta[location.pathname] ||
     pageMeta[basePath] ||
     pageMeta["/dashboard"];
-  const topbarActions = pageTopbarAction
+  const requestedTopbarActions = pageTopbarAction
     ? Array.isArray(pageTopbarAction)
       ? pageTopbarAction
       : [pageTopbarAction]
     : getTopbarActions(location.pathname);
-  const mobileItems = bottomNavItems;
+  const topbarActions = visibleNavigation(
+    requestedTopbarActions,
+    user?.permissions,
+  );
+  const mobileItems = visibleNavigation(bottomNavItems, user?.permissions);
 
   useEffect(() => {
     setIsMenuOpen(false);

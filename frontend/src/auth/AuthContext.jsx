@@ -27,8 +27,10 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        await authService.validateSession(storedSession)
-        if (active) setSession(storedSession)
+        const validatedSession =
+          await authService.validateSession(storedSession)
+        authService.storeSession(validatedSession)
+        if (active) setSession(validatedSession)
       } catch {
         let refreshedSession = null
         try {
@@ -59,8 +61,9 @@ export function AuthProvider({ children }) {
 
   async function signIn(credentials) {
     const nextSession = await authService.login(credentials)
+    let validatedSession
     try {
-      await authService.validateSession(nextSession)
+      validatedSession = await authService.validateSession(nextSession)
     } catch (validationError) {
       try {
         await authService.logout(nextSession.refreshToken)
@@ -69,15 +72,26 @@ export function AuthProvider({ children }) {
       }
       throw validationError
     }
-    authService.storeSession(nextSession)
-    setSession(nextSession)
-    return nextSession
+    authService.storeSession(validatedSession)
+    setSession(validatedSession)
+    return validatedSession
   }
 
   const validateAccess = useCallback(async () => {
     if (!session) return false
     try {
-      await authService.validateSession(session)
+      const validatedSession = await authService.validateSession(session)
+      authService.storeSession(validatedSession)
+      const currentPermissions = session.user?.permissions || []
+      const validatedPermissions = validatedSession.user?.permissions || []
+      if (
+        currentPermissions.length !== validatedPermissions.length ||
+        currentPermissions.some(
+          (permission, index) => permission !== validatedPermissions[index],
+        )
+      ) {
+        setSession(validatedSession)
+      }
       return true
     } catch {
       authService.clearSession()

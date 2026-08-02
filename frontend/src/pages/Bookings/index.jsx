@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BarChart3,
   Car,
-  ClipboardList,
   CircleCheck,
   Edit,
   Eye,
@@ -689,6 +688,7 @@ function BookingsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [openActionId, setOpenActionId] = useState("");
+  const [actionMenuPosition, setActionMenuPosition] = useState(null);
   const [assignmentBooking, setAssignmentBooking] = useState(null);
   const [lifecycleAction, setLifecycleAction] = useState(null);
   const [notice, setNotice] = useState(location.state?.notice || "");
@@ -861,12 +861,6 @@ function BookingsPage() {
       setNotice(getBookingErrorMessage(error));
       throw error;
     }
-  }
-
-  function handleGenerateDutySlip(booking) {
-    console.log("Generate duty slip", booking);
-    setOpenActionId("");
-    setNotice(`Duty slip generated for ${booking.id}.`);
   }
 
   function handleSendMessage(booking) {
@@ -1135,17 +1129,42 @@ function BookingsPage() {
                           aria-expanded={openActionId === booking.id}
                           aria-label={`Open actions for ${booking.id}`}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
-                          onClick={() =>
-                            setOpenActionId((currentId) =>
-                              currentId === booking.id ? "" : booking.id,
-                            )
-                          }
+                          onClick={(event) => {
+                            const willOpen = openActionId !== booking.id;
+                            if (!willOpen) {
+                              setOpenActionId("");
+                              setActionMenuPosition(null);
+                              return;
+                            }
+                            const rect =
+                              event.currentTarget.getBoundingClientRect();
+                            const opensUpward =
+                              rect.bottom + 420 > window.innerHeight;
+                            setActionMenuPosition({
+                              right: Math.max(
+                                8,
+                                window.innerWidth - rect.right,
+                              ),
+                              ...(opensUpward
+                                ? {
+                                    bottom: Math.max(
+                                      8,
+                                      window.innerHeight - rect.top + 4,
+                                    ),
+                                  }
+                                : { top: rect.bottom + 4 }),
+                            });
+                            setOpenActionId(booking.id);
+                          }}
                         >
                           <MoreVertical size={17} />
                         </button>
 
                         {openActionId === booking.id && (
-                          <div className="absolute right-0 top-10 z-20 w-56 rounded-xl border border-slate-200 bg-white p-2 text-left shadow-xl">
+                          <div
+                            className="fixed z-50 max-h-[calc(100vh-1rem)] w-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 text-left shadow-xl"
+                            style={actionMenuPosition || undefined}
+                          >
                             <Link
                               to={`/bookings/${booking.id}`}
                               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -1162,6 +1181,16 @@ function BookingsPage() {
                               <Edit size={16} />
                               Edit
                             </Link>
+                            {booking.vehicleId && booking.driverId && (
+                              <Link
+                                to={`/bookings/${booking.id}/duty-slip`}
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                                onClick={() => setOpenActionId("")}
+                              >
+                                <FileCheck size={16} />
+                                Generate Duty Slip
+                              </Link>
+                            )}
                             {booking.status === "Draft" && (
                               <button
                                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
@@ -1217,13 +1246,6 @@ function BookingsPage() {
                                 Complete Duty
                               </button>
                             )}
-                            <button
-                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                              onClick={() => handleGenerateDutySlip(booking)}
-                            >
-                              <ClipboardList size={16} />
-                              Generate Duty Slip
-                            </button>
                             {canCloseBooking(booking) && (
                               <Link
                                 to={`/bookings/${booking.id}/close`}

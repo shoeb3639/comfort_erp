@@ -138,6 +138,23 @@ export const listAuditLogs: RequestHandler = async (_request, response) =>
     'Platform audit logs retrieved',
   )
 
+export const listPlatformUsers: RequestHandler = async (_request, response) =>
+  success(
+    response,
+    await service.listPlatformUsers(),
+    'Platform users retrieved',
+  )
+
+export const listSubscriptionPayments: RequestHandler = async (
+  _request,
+  response,
+) =>
+  success(
+    response,
+    await service.listSubscriptionPayments(),
+    'Subscription payments retrieved',
+  )
+
 export const updateTenantStatus: RequestHandler = async (request, response) => {
   if (!request.auth)
     throw new AppError('Authentication is required', 'UNAUTHORIZED', 401)

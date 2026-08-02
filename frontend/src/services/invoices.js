@@ -23,3 +23,21 @@ export const getInvoice = async (invoiceId) =>
 export const generateInvoice = async (invoiceId) =>
   (await api.patch(`/tenant/invoices/${invoiceId}/generate`, {}, config())).data
     .data;
+
+export const getInvoiceOptions = async () =>
+  (await api.get("/tenant/invoices/options", config())).data.data;
+
+export const createInvoiceDraft = async (payload) =>
+  (await api.post("/tenant/invoices", payload, config())).data.data;
+
+export const updateInvoice = async (invoiceId, payload) =>
+  (await api.put(`/tenant/invoices/${invoiceId}`, payload, config())).data.data;
+
+export const cancelInvoice = async (invoiceId, reason) =>
+  (
+    await api.patch(
+      `/tenant/invoices/${invoiceId}/cancel`,
+      { reason },
+      config(),
+    )
+  ).data.data;

@@ -39,3 +39,43 @@ export const generate: RequestHandler = async (request, response) =>
     data: await service.generate(context(request), invoiceId(request)),
     message: 'Invoice generated',
   })
+
+export const options: RequestHandler = async (request, response) =>
+  response.json({
+    success: true,
+    data: await service.options(context(request)),
+    message: 'Invoice form options retrieved',
+  })
+
+export const create: RequestHandler = async (request, response) =>
+  response.status(201).json({
+    success: true,
+    data: await service.save(
+      context(request),
+      null,
+      request.body as service.InvoiceInput,
+    ),
+    message: 'Invoice draft created',
+  })
+
+export const update: RequestHandler = async (request, response) =>
+  response.json({
+    success: true,
+    data: await service.save(
+      context(request),
+      invoiceId(request),
+      request.body as service.InvoiceInput,
+    ),
+    message: 'Invoice updated',
+  })
+
+export const cancel: RequestHandler = async (request, response) =>
+  response.json({
+    success: true,
+    data: await service.cancel(
+      context(request),
+      invoiceId(request),
+      (request.body as { reason: string }).reason,
+    ),
+    message: 'Invoice cancelled',
+  })

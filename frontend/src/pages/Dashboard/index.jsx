@@ -1,4 +1,14 @@
-import { getMockData } from "../../services/api";
+import { useEffect, useState } from "react";
+import {
+  getAccountsAudit,
+  listAccountTransactions,
+  listCashDeposits,
+  listManagerLedgers,
+} from "../../services/accounts";
+import { listBookings } from "../../services/bookings";
+import { getCustomers } from "../../services/customers";
+import { listDrivers } from "../../services/drivers";
+import { listInvoices } from "../../services/invoices";
 import {
   AlertList,
   AreaChart,
@@ -209,17 +219,17 @@ function metricRecord(label, value) {
   return { label, value };
 }
 
-function buildDashboardData() {
-  const bookings = getMockData("bookings");
-  const customers = getMockData("customers");
-  const invoices = getMockData("invoices");
-  const expenses = getMockData("expenses");
-  const deposits = getMockData("bookingCashDeposits");
-  const transactions = getMockData("accountsTransactions");
-  const managerLedgerEntries = getMockData("managerLedgerEntries");
-  const auditExceptions = getMockData("auditExceptions");
-  const drivers = getMockData("drivers");
-  const partners = getMockData("partners");
+function buildDashboardData(source) {
+  const bookings = source.bookings;
+  const customers = source.customers;
+  const invoices = source.invoices;
+  const expenses = source.expenses;
+  const deposits = source.deposits;
+  const transactions = source.transactions;
+  const managerLedgerEntries = source.managerLedgerEntries;
+  const auditExceptions = source.auditExceptions;
+  const drivers = source.drivers;
+  const partners = [];
 
   const businessDate = latestDateFrom(
     bookings.map((booking) => booking.pickupDate),
@@ -897,13 +907,120 @@ const managerColumns = [
 ];
 
 function DashboardPage() {
-  const dashboard = buildDashboardData();
+  const [state, setState] = useState({
+    loading: true,
+    error: "",
+    data: null,
+  });
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      listBookings(),
+      getCustomers(),
+      listInvoices(),
+      listAccountTransactions(),
+      listCashDeposits(),
+      listManagerLedgers(),
+      getAccountsAudit(),
+      listDrivers(),
+    ])
+      .then(
+        ([
+          bookings,
+          customers,
+          invoices,
+          transactionData,
+          depositData,
+          ledgerData,
+          auditData,
+          drivers,
+        ]) => {
+          if (!active) return;
+          const transactions = transactionData.transactions || [];
+          const expenses = transactions
+            .filter(
+              (transaction) =>
+                transaction.transactionType === "EXPENSE" &&
+                transaction.direction === "DEBIT",
+            )
+            .map((transaction) => ({
+              ...transaction,
+              date: transaction.transactionDate,
+            }));
+          const normalizedInvoices = invoices.map((invoice) => ({
+            ...invoice,
+            dueDate: invoice.invoiceDate,
+            total: invoice.totals?.netPayable || 0,
+            status: invoice.invoiceStatus || invoice.status,
+          }));
+          const managerLedgerEntries = (ledgerData.ledgers || []).map(
+            (ledger) => ({
+              manager: ledger.manager?.name,
+              date: ledger.updatedAt?.slice(0, 10),
+              credit: ledger.currentBalance >= 0 ? ledger.currentBalance : 0,
+              debit: ledger.currentBalance < 0 ? -ledger.currentBalance : 0,
+            }),
+          );
+          setState({
+            loading: false,
+            error: "",
+            data: buildDashboardData({
+              bookings: Array.isArray(bookings)
+                ? bookings
+                : bookings.bookings || [],
+              customers,
+              invoices: normalizedInvoices,
+              expenses,
+              deposits: depositData.deposits || depositData.cashDeposits || [],
+              transactions,
+              managerLedgerEntries,
+              auditExceptions:
+                auditData.exceptions || auditData.auditExceptions || [],
+              drivers: Array.isArray(drivers) ? drivers : drivers.drivers || [],
+            }),
+          });
+        },
+      )
+      .catch((error) => {
+        if (!active) return;
+        setState({
+          loading: false,
+          error:
+            error.response?.data?.message ||
+            "Unable to load the live dashboard.",
+          data: null,
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (state.loading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
+        Loading live business data…
+      </div>
+    );
+  }
+
+  if (state.error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+        <p className="font-semibold">Dashboard unavailable</p>
+        <p className="mt-1">{state.error}</p>
+      </div>
+    );
+  }
+
+  const dashboard = state.data;
 
   return (
     <div className="space-y-7">
       <SectionHeader
         title="Business Control Center"
-        subtitle={`Single-screen operating view from mock records. Business date: ${dashboard.businessDate}`}
+        subtitle={`Single-screen operating view from live tenant records. Business date: ${dashboard.businessDate}`}
       />
 
       <section className="space-y-4">

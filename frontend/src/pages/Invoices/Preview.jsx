@@ -34,7 +34,14 @@ function InvoicePreviewPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end print:hidden">
+      <div className="flex justify-end gap-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+        >
+          Print / Download PDF
+        </button>
         <Link
           to="/invoices"
           className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"

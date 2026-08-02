@@ -111,11 +111,21 @@ export const collectionSchema = Joi.object({
     .required(),
   collectedBy: Joi.string().trim().min(2).max(150).required(),
   receiverName: optionalText(150),
-  referenceNumber: optionalText(150),
+  referenceNumber: Joi.string()
+    .trim()
+    .min(3)
+    .max(150)
+    .pattern(/^[A-Za-z0-9][A-Za-z0-9 /_.:-]*$/)
+    .allow('', null),
   remarks: optionalText(2000),
   depositDate: Joi.date().iso().allow(null),
   depositMode: optionalText(50),
-  depositReferenceNumber: optionalText(150),
+  depositReferenceNumber: Joi.string()
+    .trim()
+    .min(3)
+    .max(150)
+    .pattern(/^[A-Za-z0-9][A-Za-z0-9 /_.:-]*$/)
+    .allow('', null),
   depositedBy: optionalText(150),
   verifiedBy: optionalText(150),
   depositStatus: Joi.string().valid(
