@@ -201,8 +201,8 @@ describe('tenant registration', () => {
       .get('/api/v1/platform/tenants')
       .set('Authorization', `Bearer ${accessToken}`)
     expect(tenantList.status).toBe(200)
-    expect(tenantList.body.data[0].code).toBe('ACME_CABS')
-    expect(tenantList.body.data[0].users[0].email).toBe(
+    expect(tenantList.body.data.items[0].code).toBe('ACME_CABS')
+    expect(tenantList.body.data.items[0].users[0].email).toBe(
       'owner@acme.example.com',
     )
 

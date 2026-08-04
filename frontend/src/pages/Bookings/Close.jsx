@@ -29,6 +29,12 @@ function hasAmount(value) {
   return toNumber(value) !== 0;
 }
 
+function today() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
 function countInclusiveDays(startDate, endDate) {
   if (!startDate) return 1;
   const start = new Date(startDate);
@@ -181,6 +187,11 @@ function CloseBookingPage() {
       vendorPayableAmount: booking?.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
+      paymentAmount: 0,
+      paymentMode: "",
+      paymentDate: today(),
+      paymentReference: "",
+      collectedBy: "",
       remarks: "",
       attachmentName: "",
     },
@@ -208,6 +219,13 @@ function CloseBookingPage() {
     driverAllowance +
     otherRecoverableCharges +
     gst;
+  const receivedAmount = toNumber(values.paymentAmount);
+  const paymentStatus =
+    receivedAmount <= 0
+      ? "Unpaid"
+      : receivedAmount < totalBillAmount
+        ? "Partially Paid"
+        : "Paid";
   const vehicleRevenue = isVendorVehicle ? 0 : baseFare;
   const netVehicleProfit = isVendorVehicle
     ? 0
@@ -215,12 +233,17 @@ function CloseBookingPage() {
       toNumber(values.dieselCost) -
       toNumber(values.directVehicleExpense) -
       toNumber(values.driverCost);
-  const finalVendorPayable =
+  const vendorRecoverableCharges = tollTax + parking + driverAllowance;
+  const vendorBookingRevenue = baseFare + vendorRecoverableCharges;
+  const finalVendorPayable = Math.max(
+    0,
     toNumber(values.vendorPayableAmount) +
-    toNumber(values.vendorExtraCharges) -
-    toNumber(values.vendorDeduction);
+      vendorRecoverableCharges +
+      toNumber(values.vendorExtraCharges) -
+      toNumber(values.vendorDeduction),
+  );
   const vendorBookingProfit = isVendorVehicle
-    ? baseFare - finalVendorPayable
+    ? vendorBookingRevenue - finalVendorPayable
     : 0;
   const fixedBillingLabel =
     booking?.booking_type === "local"
@@ -262,6 +285,11 @@ function CloseBookingPage() {
       vendorPayableAmount: booking.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
+      paymentAmount: 0,
+      paymentMode: "",
+      paymentDate: today(),
+      paymentReference: "",
+      collectedBy: "",
       remarks: "",
       attachmentName: "",
     });
@@ -601,8 +629,8 @@ function CloseBookingPage() {
           {isVendorVehicle && (
             <Section title="Vendor Cost Inputs">
               <div className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
-                Vendor payable is separate from own vehicle profit. Recoverable
-                charges remain pass-through.
+                Toll, parking and driver allowance are automatically added to
+                the vendor payable as pass-through charges.
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 <label>
@@ -756,6 +784,142 @@ function CloseBookingPage() {
             </div>
           </Section>
 
+          <Section title="Payment at Closing">
+            <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+              <span className="text-sm font-medium text-slate-600">
+                Payment Status
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  paymentStatus === "Paid"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : paymentStatus === "Partially Paid"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                {paymentStatus}
+              </span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Received Amount
+                </span>
+                <input
+                  className={fieldClass}
+                  type="number"
+                  min="0"
+                  max={totalBillAmount}
+                  step="0.01"
+                  {...register("paymentAmount", {
+                    min: { value: 0, message: "Amount cannot be negative" },
+                    max: {
+                      value: totalBillAmount,
+                      message: "Amount cannot exceed the final bill",
+                    },
+                  })}
+                />
+                {errors.paymentAmount && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">
+                    {errors.paymentAmount.message}
+                  </p>
+                )}
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Payment Mode
+                </span>
+                <select
+                  className={fieldClass}
+                  disabled={!hasAmount(receivedAmount)}
+                  {...register("paymentMode", {
+                    required: hasAmount(receivedAmount)
+                      ? "Payment mode is required"
+                      : false,
+                  })}
+                >
+                  <option value="">Select payment mode</option>
+                  <option value="CASH">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CARD">Card</option>
+                  <option value="CHEQUE">Cheque</option>
+                </select>
+                {errors.paymentMode && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">
+                    {errors.paymentMode.message}
+                  </p>
+                )}
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Payment Date
+                </span>
+                <input
+                  className={fieldClass}
+                  type="date"
+                  disabled={!hasAmount(receivedAmount)}
+                  {...register("paymentDate", {
+                    required: hasAmount(receivedAmount)
+                      ? "Payment date is required"
+                      : false,
+                  })}
+                />
+                {errors.paymentDate && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">
+                    {errors.paymentDate.message}
+                  </p>
+                )}
+              </label>
+              <label>
+                <span className="text-sm font-medium text-slate-700">
+                  Reference Number
+                </span>
+                <input
+                  className={fieldClass}
+                  disabled={!hasAmount(receivedAmount)}
+                  placeholder="UPI, bank, card or cheque reference"
+                  {...register("paymentReference")}
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Collected By
+                </span>
+                <input
+                  className={fieldClass}
+                  disabled={!hasAmount(receivedAmount)}
+                  placeholder="Name of the person who received payment"
+                  {...register("collectedBy", {
+                    required: hasAmount(receivedAmount)
+                      ? "Collector name is required"
+                      : false,
+                  })}
+                />
+                {errors.collectedBy && (
+                  <p className="mt-1 text-xs font-medium text-rose-600">
+                    {errors.collectedBy.message}
+                  </p>
+                )}
+              </label>
+            </div>
+            {hasAmount(receivedAmount) && (
+              <div className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>Received now</span>
+                  <span>₹ {money(receivedAmount)}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-slate-900">
+                  <span>Balance outstanding</span>
+                  <span>
+                    ₹ {money(Math.max(0, totalBillAmount - receivedAmount))}
+                  </span>
+                </div>
+              </div>
+            )}
+          </Section>
+
           {!isVendorVehicle && (
             <Section title="Vehicle Profit Calculation">
               <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -793,10 +957,17 @@ function CloseBookingPage() {
                 with own vehicle profit.
               </div>
               <div className="mt-3">
-                <SummaryItem label="Customer Base Fare" value={baseFare} />
+                <SummaryItem
+                  label="Customer Revenue for Vendor Settlement"
+                  value={vendorBookingRevenue}
+                />
                 <SummaryItem
                   label="Vendor Payable Amount"
                   value={toNumber(values.vendorPayableAmount)}
+                />
+                <SummaryItem
+                  label="Toll + Parking + Driver Allowance"
+                  value={vendorRecoverableCharges}
                 />
                 <SummaryItem
                   label="Vendor Extra Charges"

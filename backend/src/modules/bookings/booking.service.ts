@@ -11,6 +11,8 @@ import type {
   TripType,
 } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult } from '../../shared/pagination'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
 import {
   normalizeReferenceNumber,
@@ -85,6 +87,11 @@ export interface CloseBookingInput {
   vendorPayableAmount?: number
   vendorExtraCharges?: number
   vendorDeduction?: number
+  paymentAmount?: number
+  paymentMode?: CollectionPaymentMode
+  paymentDate?: Date
+  paymentReference?: string | null
+  collectedBy?: string
   remarks?: string | null
   attachmentName?: string | null
 }
@@ -190,6 +197,12 @@ function map(record: Awaited<ReturnType<typeof repository.find>>) {
     customerPhone: record.traveller?.phone || record.customer.phone,
     booking_type: record.bookingType.toLowerCase(),
     duty_package: record.bookingPackage,
+    dailyMinimumKm: record.bookingPackage?.startsWith('outstation_min_')
+      ? packageKm(record.bookingPackage)
+      : null,
+    includedKm: record.bookingPackage?.startsWith('local_')
+      ? packageKm(record.bookingPackage)
+      : null,
     trip_type: record.tripType.toLowerCase(),
     serviceCity: record.serviceCity,
     startDate: record.startDate.toISOString().slice(0, 10),
@@ -279,6 +292,19 @@ function map(record: Awaited<ReturnType<typeof repository.find>>) {
           vendorPayableAmount: Number(closure.vendorPayableAmount),
           vendorExtraCharges: Number(closure.vendorExtraCharges),
           vendorDeduction: Number(closure.vendorDeduction),
+          vendorRecoverableCharges:
+            record.assignmentSource === 'VENDOR'
+              ? Number(closure.tollTax) +
+                Number(closure.parking) +
+                Number(closure.driverAllowance)
+              : 0,
+          vendorBookingRevenue:
+            record.assignmentSource === 'VENDOR'
+              ? Number(closure.baseFare) +
+                Number(closure.tollTax) +
+                Number(closure.parking) +
+                Number(closure.driverAllowance)
+              : 0,
           finalVendorPayable: Number(closure.finalVendorPayable),
           vendorBookingProfit: Number(closure.vendorBookingProfit),
           assignmentType:
@@ -427,10 +453,14 @@ export async function setPrefix(context: Context, bookingPrefix: string) {
 
 export async function list(
   context: Context,
-  filters: { search?: string; status?: string; view?: string },
+  filters: { search?: string; status?: string; view?: string } & PageRequest,
 ) {
-  const records = await repository.list(context.tenantId, filters)
-  return records.map((record) => map(record)!)
+  const [records, total] = await repository.list(context.tenantId, filters)
+  return pageResult(
+    records.map((record) => map(record)!),
+    total,
+    filters,
+  )
 }
 
 export async function get(context: Context, idOrNumber: string) {
@@ -812,21 +842,51 @@ function inclusiveDays(startDate: Date, endDate: Date) {
   )
 }
 
-function minimumBillingKm(
+function packageKm(bookingPackage: string) {
+  return Number(bookingPackage.match(/\d+/g)?.at(-1) ?? 0)
+}
+
+export function minimumBillingKm(
   bookingPackage: string | null,
   startDate: Date,
   endDate: Date,
 ) {
   if (!bookingPackage) return 0
-  const numbers = bookingPackage.match(/\d+/g)?.map(Number) ?? []
   if (bookingPackage.startsWith('outstation_min_'))
-    return (numbers.at(-1) ?? 0) * inclusiveDays(startDate, endDate)
-  if (bookingPackage.startsWith('local_')) return numbers.at(-1) ?? 0
+    return packageKm(bookingPackage) * inclusiveDays(startDate, endDate)
+  if (bookingPackage.startsWith('local_')) return packageKm(bookingPackage)
   return 0
 }
 
 function nonNegative(value: number | undefined) {
   return Math.max(0, value ?? 0)
+}
+
+export function calculateVendorCost(input: {
+  baseFare: number
+  tollTax: number
+  parking: number
+  driverAllowance: number
+  vendorPayableAmount: number
+  vendorExtraCharges: number
+  vendorDeduction: number
+}) {
+  const recoverableCharges =
+    input.tollTax + input.parking + input.driverAllowance
+  const revenue = input.baseFare + recoverableCharges
+  const finalPayable = Math.max(
+    0,
+    input.vendorPayableAmount +
+      recoverableCharges +
+      input.vendorExtraCharges -
+      input.vendorDeduction,
+  )
+  return {
+    recoverableCharges,
+    revenue,
+    finalPayable,
+    profit: revenue - finalPayable,
+  }
 }
 
 export async function close(
@@ -847,6 +907,12 @@ export async function close(
       'Booking is already closed',
       'BOOKING_ALREADY_CLOSED',
       409,
+    )
+  if (!booking.customer.billingAddress)
+    throw new AppError(
+      'Customer billing address is required before closing the booking and creating its invoice',
+      'CUSTOMER_BILLING_ADDRESS_REQUIRED',
+      400,
     )
 
   const startKm =
@@ -903,6 +969,33 @@ export async function close(
     driverAllowance +
     otherRecoverableCharges +
     gstAmount
+  const paymentAmount = nonNegative(input.paymentAmount)
+  if (paymentAmount > totalBillAmount)
+    throw new AppError(
+      'Received amount cannot exceed the final booking bill',
+      'COLLECTION_EXCEEDS_BALANCE',
+      409,
+    )
+  if (paymentAmount > 0 && (!input.paymentMode || !input.paymentDate))
+    throw new AppError(
+      'Payment mode and payment date are required when an amount is received',
+      'VALIDATION_ERROR',
+      400,
+    )
+  const paymentReference =
+    paymentAmount > 0 ? input.paymentReference?.trim() || null : null
+  if (paymentReference) {
+    const validation = await validateReference(
+      context.tenantId,
+      paymentReference,
+    )
+    if (!validation.available)
+      throw new AppError(
+        `Reference number ${paymentReference} is already in use`,
+        'DUPLICATE_REFERENCE',
+        409,
+      )
+  }
   const isVendor = booking.assignmentSource === 'VENDOR'
   const dieselCost = isVendor ? 0 : nonNegative(input.dieselCost)
   const directVehicleExpense = isVendor
@@ -929,11 +1022,19 @@ export async function close(
     ? nonNegative(input.vendorExtraCharges)
     : 0
   const vendorDeduction = isVendor ? nonNegative(input.vendorDeduction) : 0
-  const finalVendorPayable = Math.max(
-    0,
-    vendorPayableAmount + vendorExtraCharges - vendorDeduction,
-  )
-  const vendorBookingProfit = isVendor ? baseFare - finalVendorPayable : 0
+  const vendorCost = isVendor
+    ? calculateVendorCost({
+        baseFare,
+        tollTax,
+        parking,
+        driverAllowance,
+        vendorPayableAmount,
+        vendorExtraCharges,
+        vendorDeduction,
+      })
+    : { recoverableCharges: 0, revenue: 0, finalPayable: 0, profit: 0 }
+  const finalVendorPayable = vendorCost.finalPayable
+  const vendorBookingProfit = vendorCost.profit
 
   const charges = [
     ['Toll Tax', tollTax],
@@ -1029,6 +1130,21 @@ export async function close(
         updatedById: context.userId,
       },
       invoiceItems,
+      initialCollection:
+        paymentAmount > 0
+          ? {
+              collectionDate: input.paymentDate!,
+              amount: paymentAmount,
+              paymentMode: input.paymentMode!,
+              collectedByName: toTitleCase(input.collectedBy!),
+              referenceNumber: paymentReference,
+              normalizedReferenceNumber: paymentReference
+                ? normalizeReferenceNumber(paymentReference)
+                : null,
+              status:
+                input.paymentMode === 'CASH' ? 'PENDING' : 'DIRECTLY_RECEIVED',
+            }
+          : null,
     },
   )
   if (!closed)

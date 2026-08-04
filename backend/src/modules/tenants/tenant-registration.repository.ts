@@ -1,5 +1,7 @@
 import type { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult, pageWindow } from '../../shared/pagination'
 import { TENANT_SYSTEM_ROLES } from '../auth/auth.constants'
 import { TENANT_ONBOARDING_ITEMS } from './tenant-registration.constants'
 import type {
@@ -26,29 +28,64 @@ export function listActiveSubscriptionPlans() {
   })
 }
 
-export function listTenants() {
-  return prisma.tenant.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      users: {
-        where: { isPrimaryOwner: true, deletedAt: null },
-        take: 1,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          mobile: true,
-          designation: true,
-          status: true,
+export async function listTenants(
+  filters: PageRequest & { search?: string; status?: string },
+) {
+  const where = {
+    ...(filters.status ? { status: filters.status as never } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            {
+              code: { contains: filters.search, mode: 'insensitive' as const },
+            },
+            {
+              legalName: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              tradeName: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              city: { contains: filters.search, mode: 'insensitive' as const },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.TenantWhereInput
+  const [items, total] = await Promise.all([
+    prisma.tenant.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        users: {
+          where: { isPrimaryOwner: true, deletedAt: null },
+          take: 1,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            mobile: true,
+            designation: true,
+            status: true,
+          },
+        },
+        subscriptions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { plan: { select: { id: true, code: true, name: true } } },
         },
       },
-      subscriptions: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        include: { plan: { select: { id: true, code: true, name: true } } },
-      },
-    },
-  })
+      ...pageWindow(filters),
+    }),
+    prisma.tenant.count({ where }),
+  ])
+  return pageResult(items, total, filters)
 }
 
 export function findTenantDetail(tenantId: string) {

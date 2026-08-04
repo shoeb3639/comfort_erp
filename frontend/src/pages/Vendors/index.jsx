@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Pagination from "../../components/Pagination";
 import {
   createVendor,
   createVendorDriver,
@@ -523,14 +524,28 @@ function VendorsPage() {
   const [loading, setLoading] = useState(true);
   const [modalState, setModalState] = useState(null);
   const [notice, setNotice] = useState("");
+  const [pagination, setPagination] = useState({ page: 1, limit: 25 });
 
   async function loadVendors() {
     setLoading(true);
     try {
-      const records = await getVendors();
-      setVendorRecords(records);
-      setVehicleRecords(records.flatMap((vendor) => vendor.vehicles || []));
-      setDriverRecords(records.flatMap((vendor) => vendor.drivers || []));
+      const result = await getVendors({
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(!selectedVendorId && search.trim()
+          ? { search: search.trim() }
+          : {}),
+        ...(statusFilter !== "All"
+          ? { status: statusFilter.toUpperCase() }
+          : {}),
+        ...(ownershipFilter !== "All" ? { recordType: ownershipFilter } : {}),
+      });
+      setVendorRecords(result.items);
+      setPagination(result.pagination);
+      setVehicleRecords(
+        result.items.flatMap((vendor) => vendor.vehicles || []),
+      );
+      setDriverRecords(result.items.flatMap((vendor) => vendor.drivers || []));
     } catch (error) {
       setNotice(getVendorErrorMessage(error));
     } finally {
@@ -539,8 +554,15 @@ function VendorsPage() {
   }
 
   useEffect(() => {
-    loadVendors();
-  }, []);
+    const timer = window.setTimeout(loadVendors, 250);
+    return () => window.clearTimeout(timer);
+  }, [
+    ownershipFilter,
+    pagination.page,
+    pagination.limit,
+    search,
+    statusFilter,
+  ]);
 
   useEffect(() => {
     const createType = new URLSearchParams(location.search).get("create");
@@ -697,7 +719,10 @@ function VendorsPage() {
               />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPagination((current) => ({ ...current, page: 1 }));
+                }}
                 className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
                 placeholder={
                   selectedVendor ? "Search vehicle or driver" : "Search vendor"
@@ -709,7 +734,10 @@ function VendorsPage() {
                 <select
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                   value={ownershipFilter}
-                  onChange={(event) => setOwnershipFilter(event.target.value)}
+                  onChange={(event) => {
+                    setOwnershipFilter(event.target.value);
+                    setPagination((current) => ({ ...current, page: 1 }));
+                  }}
                 >
                   <option value="All">All vendors</option>
                   <option value="external_vendor">External vendor</option>
@@ -717,7 +745,10 @@ function VendorsPage() {
                 <select
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value);
+                    setPagination((current) => ({ ...current, page: 1 }));
+                  }}
                 >
                   <option value="All">All statuses</option>
                   <option value="Active">Active</option>
@@ -841,6 +872,15 @@ function VendorsPage() {
                 })}
               </tbody>
             </table>
+            <Pagination
+              pagination={pagination}
+              onPageChange={(page) =>
+                setPagination((current) => ({ ...current, page }))
+              }
+              onLimitChange={(limit) =>
+                setPagination((current) => ({ ...current, page: 1, limit }))
+              }
+            />
           </div>
         )}
 

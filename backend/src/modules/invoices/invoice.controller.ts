@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import * as service from './invoice.service'
 
 function context(request: Parameters<RequestHandler>[0]) {
@@ -16,11 +17,15 @@ export const list: RequestHandler = async (request, response) =>
   response.json({
     success: true,
     data: await service.list(context(request), {
+      ...pageRequest(request.query),
       ...(typeof request.query.search === 'string'
         ? { search: request.query.search }
         : {}),
       ...(typeof request.query.status === 'string'
         ? { status: request.query.status }
+        : {}),
+      ...(typeof request.query.source === 'string'
+        ? { source: request.query.source }
         : {}),
     }),
     message: 'Invoices retrieved',

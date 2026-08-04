@@ -916,14 +916,14 @@ function DashboardPage() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      listBookings(),
-      getCustomers(),
-      listInvoices(),
+      listBookings({ limit: 100 }),
+      getCustomers({ limit: 100 }),
+      listInvoices({ limit: 100 }),
       listAccountTransactions(),
       listCashDeposits(),
       listManagerLedgers(),
       getAccountsAudit(),
-      listDrivers(),
+      listDrivers({ limit: 100 }),
     ])
       .then(
         ([
@@ -948,7 +948,7 @@ function DashboardPage() {
               ...transaction,
               date: transaction.transactionDate,
             }));
-          const normalizedInvoices = invoices.map((invoice) => ({
+          const normalizedInvoices = invoices.items.map((invoice) => ({
             ...invoice,
             dueDate: invoice.invoiceDate,
             total: invoice.totals?.netPayable || 0,
@@ -966,10 +966,8 @@ function DashboardPage() {
             loading: false,
             error: "",
             data: buildDashboardData({
-              bookings: Array.isArray(bookings)
-                ? bookings
-                : bookings.bookings || [],
-              customers,
+              bookings: bookings.items,
+              customers: customers.items,
               invoices: normalizedInvoices,
               expenses,
               deposits: depositData.deposits || depositData.cashDeposits || [],
@@ -977,7 +975,7 @@ function DashboardPage() {
               managerLedgerEntries,
               auditExceptions:
                 auditData.exceptions || auditData.auditExceptions || [],
-              drivers: Array.isArray(drivers) ? drivers : drivers.drivers || [],
+              drivers: drivers.items,
             }),
           });
         },

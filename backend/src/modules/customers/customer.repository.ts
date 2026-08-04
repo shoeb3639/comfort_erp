@@ -1,6 +1,8 @@
 import type { Prisma } from '../../generated/prisma/client'
 import type { CustomerStatus, CustomerType } from '../../generated/prisma/enums'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 
 type Transaction = Prisma.TransactionClient
 
@@ -32,48 +34,57 @@ function audit(
 
 export function listCustomers(
   tenantId: string,
-  filters: { search?: string; type?: CustomerType; status?: CustomerStatus },
+  filters: {
+    search?: string
+    type?: CustomerType
+    status?: CustomerStatus
+  } & PageRequest,
 ) {
   const search = filters.search
-  return prisma.customer.findMany({
-    where: {
-      tenantId,
-      deletedAt: null,
-      ...(filters.type ? { type: filters.type } : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(search
-        ? {
-            OR: [
-              { customerCode: { contains: search, mode: 'insensitive' } },
-              { name: { contains: search, mode: 'insensitive' } },
-              { billingName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { phone: { contains: search, mode: 'insensitive' } },
-              { city: { contains: search, mode: 'insensitive' } },
-              {
-                travellers: {
-                  some: {
-                    OR: [
-                      { name: { contains: search, mode: 'insensitive' } },
-                      { phone: { contains: search, mode: 'insensitive' } },
-                      { email: { contains: search, mode: 'insensitive' } },
-                      {
-                        employeeId: {
-                          contains: search,
-                          mode: 'insensitive',
-                        },
+  const where = {
+    tenantId,
+    deletedAt: null,
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { customerCode: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { billingName: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+            {
+              travellers: {
+                some: {
+                  OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { phone: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } },
+                    {
+                      employeeId: {
+                        contains: search,
+                        mode: 'insensitive',
                       },
-                    ],
-                  },
+                    },
+                  ],
                 },
               },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    include: customerInclude,
-  })
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.CustomerWhereInput
+  return Promise.all([
+    prisma.customer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: customerInclude,
+      ...pageWindow(filters),
+    }),
+    prisma.customer.count({ where }),
+  ])
 }
 
 export function findCustomer(tenantId: string, customerId: string) {

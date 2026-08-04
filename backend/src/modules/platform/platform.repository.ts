@@ -1,5 +1,7 @@
 import type { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult, pageWindow } from '../../shared/pagination'
 
 export function listPlans() {
   return prisma.subscriptionPlan.findMany({
@@ -70,23 +72,31 @@ export function updatePlan(
   })
 }
 
-export function listSubscriptions(tenantId?: string) {
-  return prisma.tenantSubscription.findMany({
-    ...(tenantId ? { where: { tenantId } } : {}),
-    orderBy: { createdAt: 'desc' },
-    include: {
-      tenant: {
-        select: {
-          id: true,
-          code: true,
-          legalName: true,
-          tradeName: true,
-          status: true,
+export async function listSubscriptions(
+  filters: PageRequest & { tenantId?: string },
+) {
+  const where = filters.tenantId ? { tenantId: filters.tenantId } : {}
+  const [items, total] = await Promise.all([
+    prisma.tenantSubscription.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            code: true,
+            legalName: true,
+            tradeName: true,
+            status: true,
+          },
         },
+        plan: { select: { id: true, code: true, name: true, isActive: true } },
       },
-      plan: { select: { id: true, code: true, name: true, isActive: true } },
-    },
-  })
+      ...pageWindow(filters),
+    }),
+    prisma.tenantSubscription.count({ where }),
+  ])
+  return pageResult(items, total, filters)
 }
 
 export function findSubscription(id: string) {
@@ -109,54 +119,68 @@ export function findTenant(id: string) {
   return prisma.tenant.findUnique({ where: { id } })
 }
 
-export function listAuditLogs() {
-  return prisma.platformAuditLog.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-    include: {
-      actor: { select: { id: true, name: true, email: true } },
-    },
-  })
-}
-
-export function listPlatformUsers() {
-  return prisma.platformUser.findMany({
-    orderBy: [{ status: 'asc' }, { name: 'asc' }],
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      mobile: true,
-      designation: true,
-      status: true,
-      lastLoginAt: true,
-      createdAt: true,
-      role: { select: { id: true, name: true, code: true } },
-    },
-  })
-}
-
-export function listSubscriptionPayments() {
-  return prisma.subscriptionPayment.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      tenantSubscription: {
-        select: {
-          id: true,
-          tenant: {
-            select: {
-              id: true,
-              code: true,
-              legalName: true,
-              tradeName: true,
-            },
-          },
-          plan: { select: { id: true, code: true, name: true } },
-        },
+export async function listAuditLogs(filters: PageRequest) {
+  const [items, total] = await Promise.all([
+    prisma.platformAuditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        actor: { select: { id: true, name: true, email: true } },
       },
-      recordedBy: { select: { id: true, name: true, email: true } },
-    },
-  })
+      ...pageWindow(filters),
+    }),
+    prisma.platformAuditLog.count(),
+  ])
+  return pageResult(items, total, filters)
+}
+
+export async function listPlatformUsers(filters: PageRequest) {
+  const [items, total] = await Promise.all([
+    prisma.platformUser.findMany({
+      orderBy: [{ status: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        mobile: true,
+        designation: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+        role: { select: { id: true, name: true, code: true } },
+      },
+      ...pageWindow(filters),
+    }),
+    prisma.platformUser.count(),
+  ])
+  return pageResult(items, total, filters)
+}
+
+export async function listSubscriptionPayments(filters: PageRequest) {
+  const [items, total] = await Promise.all([
+    prisma.subscriptionPayment.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        tenantSubscription: {
+          select: {
+            id: true,
+            tenant: {
+              select: {
+                id: true,
+                code: true,
+                legalName: true,
+                tradeName: true,
+              },
+            },
+            plan: { select: { id: true, code: true, name: true } },
+          },
+        },
+        recordedBy: { select: { id: true, name: true, email: true } },
+      },
+      ...pageWindow(filters),
+    }),
+    prisma.subscriptionPayment.count(),
+  ])
+  return pageResult(items, total, filters)
 }
 
 export function updateTenant(

@@ -1,6 +1,7 @@
 import { Prisma } from '../../generated/prisma/client'
 import { TENANT_PERMISSIONS } from '../auth/auth.constants'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
 import { hashPassword } from '../../shared/security/password'
 import * as registrationRepository from './tenant-registration.repository'
 import type {
@@ -146,8 +147,13 @@ export function listActiveSubscriptionPlans() {
   return registrationRepository.listActiveSubscriptionPlans()
 }
 
-export function listTenants() {
-  return registrationRepository.listTenants()
+export function listTenants(
+  filters: PageRequest & {
+    search?: string
+    status?: string
+  },
+) {
+  return registrationRepository.listTenants(filters)
 }
 
 export async function getTenantDetail(tenantId: string) {

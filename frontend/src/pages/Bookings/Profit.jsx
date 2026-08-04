@@ -82,15 +82,27 @@ function getProfitValues(booking, billing) {
   );
   const vendorExtraCharges = toNumber(closeDetails.vendorExtraCharges);
   const vendorDeduction = toNumber(closeDetails.vendorDeduction);
+  const vendorRecoverableCharges =
+    toNumber(closeDetails.vendorRecoverableCharges) ||
+    billing.tollTax + billing.parking + billing.driverAllowance;
+  const vendorBookingRevenue =
+    toNumber(closeDetails.vendorBookingRevenue) ||
+    billing.baseFare + vendorRecoverableCharges;
   const finalVendorPayable =
     toNumber(closeDetails.finalVendorPayable) ||
-    vendorPayableAmount + vendorExtraCharges - vendorDeduction;
+    vendorPayableAmount +
+      vendorRecoverableCharges +
+      vendorExtraCharges -
+      vendorDeduction;
   const vendorBookingProfit = isVendorVehicle
-    ? billing.baseFare - finalVendorPayable
+    ? vendorBookingRevenue - finalVendorPayable
     : 0;
   const netProfit = isVendorVehicle ? vendorBookingProfit : netVehicleProfit;
+  const profitRevenue = isVendorVehicle
+    ? vendorBookingRevenue
+    : billing.baseFare;
   const profitMargin =
-    billing.baseFare > 0 ? (netProfit / billing.baseFare) * 100 : 0;
+    profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
 
   return {
     assignmentType,
@@ -103,6 +115,8 @@ function getProfitValues(booking, billing) {
     vendorPayableAmount,
     vendorExtraCharges,
     vendorDeduction,
+    vendorRecoverableCharges,
+    vendorBookingRevenue,
     finalVendorPayable,
     vendorBookingProfit,
     netProfit,
@@ -290,9 +304,15 @@ function BookingProfitPage() {
         <MetricCard label="Total Bill Amount" value={billing.totalBillAmount} />
         <MetricCard
           label={
-            profit.isVendorVehicle ? "Vendor Revenue Base" : "Vehicle Revenue"
+            profit.isVendorVehicle
+              ? "Vendor Settlement Revenue"
+              : "Vehicle Revenue"
           }
-          value={billing.baseFare}
+          value={
+            profit.isVendorVehicle
+              ? profit.vendorBookingRevenue
+              : billing.baseFare
+          }
           tone="success"
         />
         <MetricCard
@@ -429,6 +449,10 @@ function BookingProfitPage() {
             </div>
             <div className="mt-3">
               <AmountLine label="Customer Base Fare" value={billing.baseFare} />
+              <AmountLine
+                label="Toll + Parking + Driver Allowance"
+                value={profit.vendorRecoverableCharges}
+              />
               <AmountLine
                 label="Vendor Payable Amount"
                 value={profit.vendorPayableAmount}

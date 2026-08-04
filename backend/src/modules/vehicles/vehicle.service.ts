@@ -6,6 +6,7 @@ import type {
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
+import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as repository from './vehicle.repository'
 
@@ -155,7 +156,8 @@ export async function listVehicles(
   ) {
     throw new AppError('Vendor was not found', 'NOT_FOUND', 404)
   }
-  return repository.list(context.tenantId, filters)
+  const [records, total] = await repository.list(context.tenantId, filters)
+  return pageResult(records, total, filters)
 }
 
 export async function getVehicle(context: VehicleContext, id: string) {

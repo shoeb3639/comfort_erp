@@ -1,0 +1,4 @@
+ALTER TABLE "customers"
+  ALTER COLUMN "email" DROP NOT NULL,
+  ALTER COLUMN "city" DROP NOT NULL,
+  ALTER COLUMN "billing_address" DROP NOT NULL;

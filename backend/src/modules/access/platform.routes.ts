@@ -7,6 +7,7 @@ import { getPlatformContext } from './access.controller'
 import {
   validateBody,
   validateParams,
+  validateQuery,
 } from '../../middlewares/validate-request.middleware'
 import * as platformController from '../platform/platform.controller'
 import {
@@ -21,6 +22,7 @@ import {
   updatePlanSchema,
   updateSubscriptionSchema,
   updateTenantSchema,
+  platformListQuerySchema,
 } from '../platform/platform.schemas'
 import {
   getTenantDetail,
@@ -44,6 +46,7 @@ platformRouter.get(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('tenant.view'),
+  validateQuery(platformListQuerySchema),
   listTenants,
 )
 
@@ -97,6 +100,7 @@ platformRouter.get(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('platform.dashboard.view'),
+  validateQuery(platformListQuerySchema),
   platformController.listAuditLogs,
 )
 platformRouter.get(
@@ -104,6 +108,7 @@ platformRouter.get(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('platform.dashboard.view'),
+  validateQuery(platformListQuerySchema),
   platformController.listPlatformUsers,
 )
 platformRouter.get(
@@ -111,6 +116,7 @@ platformRouter.get(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('subscription.manage'),
+  validateQuery(platformListQuerySchema),
   platformController.listSubscriptionPayments,
 )
 platformRouter.patch(
@@ -136,6 +142,7 @@ platformRouter.get(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('subscription.manage'),
+  validateQuery(platformListQuerySchema),
   platformController.listSubscriptions,
 )
 platformRouter.post(

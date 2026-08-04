@@ -15,6 +15,7 @@ import {
   listInvoices,
 } from "../../services/invoices";
 import { formatMoney, normalizeInvoice } from "./invoiceUtils";
+import Pagination from "../../components/Pagination";
 
 const statusStyles = {
   Draft: "bg-amber-50 text-amber-700 ring-amber-600/20",
@@ -31,17 +32,47 @@ function InvoicesPage() {
   const [openActionId, setOpenActionId] = useState("");
   const [invoices, setInvoices] = useState([]);
   const [notice, setNotice] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 25,
+    total: 0,
+    pages: 1,
+    hasPrevious: false,
+    hasNext: false,
+  });
   useEffect(() => {
-    listInvoices()
-      .then((rows) => setInvoices(rows.map(normalizeInvoice)))
-      .catch((error) =>
-        setNotice(error.response?.data?.message || "Unable to load invoices."),
-      );
-  }, []);
-  const statusOptions = [
-    "All",
-    ...Array.from(new Set(invoices.map((invoice) => invoice.invoiceStatus))),
-  ];
+    let active = true;
+    const timer = window.setTimeout(
+      () =>
+        listInvoices({
+          page: pagination.page,
+          limit: pagination.limit,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(statusFilter !== "All"
+            ? { status: statusFilter.toUpperCase() }
+            : {}),
+          ...(sourceFilter !== "All"
+            ? { source: sourceFilter.toUpperCase() }
+            : {}),
+        })
+          .then((result) => {
+            if (!active) return;
+            setInvoices(result.items.map(normalizeInvoice));
+            setPagination(result.pagination);
+          })
+          .catch((error) =>
+            setNotice(
+              error.response?.data?.message || "Unable to load invoices.",
+            ),
+          ),
+      250,
+    );
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [pagination.page, pagination.limit, search, sourceFilter, statusFilter]);
+  const statusOptions = ["All", "Draft", "Generated", "Cancelled"];
 
   const filteredInvoices = invoices.filter((invoice) => {
     const query = search.trim().toLowerCase();
@@ -93,14 +124,20 @@ function InvoicesPage() {
               />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPagination((current) => ({ ...current, page: 1 }));
+                }}
                 className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
                 placeholder="Search invoice, booking, customer"
               />
             </label>
             <select
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              }}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               {statusOptions.map((status) => (
@@ -111,7 +148,10 @@ function InvoicesPage() {
             </select>
             <select
               value={sourceFilter}
-              onChange={(event) => setSourceFilter(event.target.value)}
+              onChange={(event) => {
+                setSourceFilter(event.target.value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              }}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               <option value="All">All sources</option>
@@ -321,6 +361,15 @@ function InvoicesPage() {
               No invoices found.
             </div>
           )}
+          <Pagination
+            pagination={pagination}
+            onPageChange={(page) =>
+              setPagination((current) => ({ ...current, page }))
+            }
+            onLimitChange={(limit) =>
+              setPagination((current) => ({ ...current, page: 1, limit }))
+            }
+          />
         </div>
       </section>
     </div>

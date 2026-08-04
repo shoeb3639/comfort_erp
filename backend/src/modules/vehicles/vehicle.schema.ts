@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 
 export const vehicleParamsSchema = Joi.object({
   vehicleId: Joi.string().uuid().required(),
@@ -8,6 +9,7 @@ export const vehicleTypeSchema = Joi.object({
 })
 
 export const vehicleQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200).empty(''),
   ownershipType: Joi.string().valid('OWN', 'VENDOR'),
   vendorId: Joi.string().uuid(),

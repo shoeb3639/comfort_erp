@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import * as service from './accounts.service'
 import * as operations from './accounts.operations'
 import type {
@@ -50,6 +51,7 @@ export const listTransactions: RequestHandler = async (request, response) => {
   response.status(200).json({
     success: true,
     data: await operations.listTransactions(tenantId, {
+      ...pageRequest(request.query),
       ...(ledgerId ? { ledgerId } : {}),
       ...(dateFrom ? { dateFrom: new Date(dateFrom) } : {}),
       ...(dateTo ? { dateTo: new Date(dateTo) } : {}),
@@ -84,11 +86,7 @@ export const getDailyClosing: RequestHandler = async (request, response) => {
     )
   response.status(200).json({
     success: true,
-    data: await operations.getDailyClosing(
-      tenantId,
-      ledgerId,
-      new Date(date),
-    ),
+    data: await operations.getDailyClosing(tenantId, ledgerId, new Date(date)),
     message: 'Daily closing retrieved',
   })
 }

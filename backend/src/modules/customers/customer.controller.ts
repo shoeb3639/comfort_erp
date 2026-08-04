@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express'
 import type { CustomerStatus, CustomerType } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import * as service from './customer.service'
 import type { CustomerInput, TravellerInput } from './customer.service'
 
@@ -40,6 +41,7 @@ export const listCustomers: RequestHandler = async (request, response) =>
   send(
     response,
     await service.listCustomers(context(request), {
+      ...pageRequest(request.query),
       ...(typeof request.query.search === 'string'
         ? { search: request.query.search }
         : {}),

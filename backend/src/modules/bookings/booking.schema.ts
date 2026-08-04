@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 
 const optionalText = (max: number) =>
   Joi.string().trim().max(max).empty('').allow(null)
@@ -99,6 +100,33 @@ export const closeBookingSchema = Joi.object({
   vendorPayableAmount: money.default(0),
   vendorExtraCharges: money.default(0),
   vendorDeduction: money.default(0),
+  paymentAmount: money.default(0),
+  paymentMode: Joi.string()
+    .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
+  paymentDate: Joi.date()
+    .iso()
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
+  paymentReference: Joi.string()
+    .trim()
+    .min(3)
+    .max(150)
+    .pattern(/^[A-Za-z0-9][A-Za-z0-9 /_.:-]*$/)
+    .allow('', null),
+  collectedBy: Joi.string()
+    .trim()
+    .min(2)
+    .max(150)
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
   remarks: optionalText(5000),
   attachmentName: optionalText(255),
 })
@@ -153,6 +181,7 @@ export const bookingCollectionParamsSchema = bookingParamsSchema.keys({
 })
 
 export const bookingQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200),
   status: Joi.string().valid(
     'DRAFT',

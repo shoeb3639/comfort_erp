@@ -182,6 +182,11 @@ Gender can be used to prefix traveller display name with Mr or Ms where applicab
 
 Corporate employees should be linked under the company. If a booking request comes for a new employee of an existing company, the employee should be addable under that company.
 
+Customer email, city, and billing address are optional on the customer master so
+legacy and walk-in records can be retained without fabricated placeholder data.
+A valid billing address must be completed before a booking can be closed and its
+invoice draft created.
+
 ## Duty Assignment
 
 Booking can be assigned to:

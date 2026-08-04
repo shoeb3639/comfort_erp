@@ -161,8 +161,8 @@ describe('vendor module', () => {
 
     const list = await api('get', '?search=Prime&status=ACTIVE')
     expect(list.status).toBe(200)
-    expect(list.body.data[0].vehicles).toHaveLength(1)
-    expect(list.body.data[0].drivers).toHaveLength(1)
+    expect(list.body.data.items[0].vehicles).toHaveLength(1)
+    expect(list.body.data.items[0].drivers).toHaveLength(1)
 
     expect(
       (

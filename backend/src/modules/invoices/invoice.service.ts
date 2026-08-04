@@ -1,5 +1,7 @@
 import { Prisma } from '../../generated/prisma/client'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import type { Context } from '../bookings/booking.service'
 import * as repository from './invoice.repository'
@@ -76,7 +78,8 @@ export function mapInvoice(invoice: InvoiceRecord) {
     traveller: invoice.billingContact,
     mobileNumber: invoice.billingMobile,
     email: invoice.billingEmail,
-    vehicle: invoice.vehicleDescription || invoice.booking?.requestedVehicleType || '',
+    vehicle:
+      invoice.vehicleDescription || invoice.booking?.requestedVehicleType || '',
     serviceCity: invoice.serviceCity || invoice.booking?.serviceCity || '',
     placeOfSupply: invoice.placeOfSupply,
     hsnCode: invoice.hsnCode,
@@ -145,9 +148,10 @@ export function mapInvoice(invoice: InvoiceRecord) {
 
 export async function list(
   context: Context,
-  filters: { search?: string; status?: string },
+  filters: { search?: string; status?: string; source?: string } & PageRequest,
 ) {
-  return (await repository.list(context.tenantId, filters)).map(mapInvoice)
+  const [records, total] = await repository.list(context.tenantId, filters)
+  return pageResult(records.map(mapInvoice), total, filters)
 }
 
 export async function get(context: Context, invoiceId: string) {
@@ -200,8 +204,7 @@ export async function save(
       ? repository.findBooking(context.tenantId, input.bookingId)
       : null,
   ])
-  if (!customer)
-    throw new AppError('Customer was not found', 'NOT_FOUND', 404)
+  if (!customer) throw new AppError('Customer was not found', 'NOT_FOUND', 404)
   if (input.bookingId && !booking)
     throw new AppError('Booking was not found', 'NOT_FOUND', 404)
   if (booking && booking.customerId !== input.customerId)

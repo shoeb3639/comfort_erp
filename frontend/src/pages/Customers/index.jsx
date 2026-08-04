@@ -10,6 +10,7 @@ import {
 } from "../../services/customers";
 import CustomerTypeBadge from "./components/CustomerTypeBadge";
 import ActionNotice from "../../components/ActionNotice";
+import Pagination from "../../components/Pagination";
 
 const fieldClass =
   "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
@@ -479,25 +480,56 @@ function CustomersPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [notice, setNotice] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 25,
+    total: 0,
+    pages: 1,
+    hasPrevious: false,
+    hasNext: false,
+  });
 
   useEffect(() => {
     let active = true;
-    getCustomers()
-      .then((records) => {
-        if (!active) return;
-        setCustomers(records);
-        setTravellers(records.flatMap((customer) => customer.travellers || []));
-      })
-      .catch((requestError) => {
-        if (active) setNotice(getCustomerErrorMessage(requestError));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    setLoading(true);
+    const timer = window.setTimeout(
+      () =>
+        getCustomers({
+          page: pagination.page,
+          limit: pagination.limit,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(typeFilter !== "All"
+            ? {
+                type:
+                  typeFilter === "Individuals"
+                    ? "RETAIL"
+                    : typeFilter === "Travel Agent"
+                      ? "TRAVEL_AGENT"
+                      : "CORPORATE",
+              }
+            : {}),
+        })
+          .then((result) => {
+            if (!active) return;
+            setCustomers(result.items);
+            setPagination(result.pagination);
+            setTravellers(
+              result.items.flatMap((customer) => customer.travellers || []),
+            );
+          })
+          .catch((requestError) => {
+            if (active) setNotice(getCustomerErrorMessage(requestError));
+          })
+          .finally(() => {
+            if (active) setLoading(false);
+          }),
+      250,
+    );
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [pagination.page, pagination.limit, search, typeFilter]);
 
   const travellersByCustomerId = useMemo(() => {
     return travellers.reduce((groups, traveller) => {
@@ -507,32 +539,6 @@ function CustomersPage() {
       return groups;
     }, new Map());
   }, [travellers]);
-
-  const filteredCustomers = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return customers.filter((customer) => {
-      const linkedTravellers = travellersByCustomerId.get(customer.id) || [];
-      const matchesType = typeFilter === "All" || customer.type === typeFilter;
-      const searchableText = [
-        customer.name,
-        customer.billingName,
-        customer.email,
-        customer.phone,
-        customer.city,
-        ...linkedTravellers.flatMap((traveller) => [
-          traveller.name,
-          traveller.phone,
-          traveller.email,
-          traveller.employee_id,
-        ]),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return matchesType && (!query || searchableText.includes(query));
-    });
-  }, [customers, search, travellersByCustomerId, typeFilter]);
 
   async function handleAddEmployee(employee) {
     try {
@@ -622,7 +628,10 @@ function CustomersPage() {
               />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPagination((current) => ({ ...current, page: 1 }));
+                }}
                 className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
                 placeholder="Search name, billing name, email, city"
               />
@@ -630,7 +639,10 @@ function CustomersPage() {
 
             <select
               value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
+              onChange={(event) => {
+                setTypeFilter(event.target.value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              }}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
               <option value="All">All customer types</option>
@@ -667,7 +679,7 @@ function CustomersPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {!loading &&
-                filteredCustomers.map((customer) => (
+                customers.map((customer) => (
                   <tr
                     key={customer.id}
                     className="cursor-pointer hover:bg-slate-50"
@@ -736,11 +748,20 @@ function CustomersPage() {
               Loading customers...
             </div>
           )}
-          {!loading && filteredCustomers.length === 0 && (
+          {!loading && customers.length === 0 && (
             <div className="bg-white px-4 py-10 text-center text-sm text-slate-500">
               No customers found.
             </div>
           )}
+          <Pagination
+            pagination={pagination}
+            onPageChange={(page) =>
+              setPagination((current) => ({ ...current, page }))
+            }
+            onLimitChange={(limit) =>
+              setPagination((current) => ({ ...current, page: 1, limit }))
+            }
+          />
         </div>
       </section>
 

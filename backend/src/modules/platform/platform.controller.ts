@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import * as service from './platform.service'
 import type {
   CreatePlanInput,
@@ -71,7 +72,10 @@ export const listSubscriptions: RequestHandler = async (request, response) => {
       : undefined
   success(
     response,
-    await service.listSubscriptions(tenantId),
+    await service.listSubscriptions({
+      ...pageRequest(request.query),
+      ...(tenantId ? { tenantId } : {}),
+    }),
     'Tenant subscriptions retrieved',
   )
 }
@@ -131,27 +135,27 @@ export const updateOwner: RequestHandler = async (request, response) =>
     'Tenant owner updated',
   )
 
-export const listAuditLogs: RequestHandler = async (_request, response) =>
+export const listAuditLogs: RequestHandler = async (request, response) =>
   success(
     response,
-    await service.listAuditLogs(),
+    await service.listAuditLogs(pageRequest(request.query)),
     'Platform audit logs retrieved',
   )
 
-export const listPlatformUsers: RequestHandler = async (_request, response) =>
+export const listPlatformUsers: RequestHandler = async (request, response) =>
   success(
     response,
-    await service.listPlatformUsers(),
+    await service.listPlatformUsers(pageRequest(request.query)),
     'Platform users retrieved',
   )
 
 export const listSubscriptionPayments: RequestHandler = async (
-  _request,
+  request,
   response,
 ) =>
   success(
     response,
-    await service.listSubscriptionPayments(),
+    await service.listSubscriptionPayments(pageRequest(request.query)),
     'Subscription payments retrieved',
   )
 

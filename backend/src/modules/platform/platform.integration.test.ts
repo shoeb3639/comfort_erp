@@ -206,7 +206,7 @@ describe('platform phase-one APIs', () => {
       `/api/v1/platform/tenant-subscriptions?tenantId=${tenantId}`,
     )
     expect(listed.status).toBe(200)
-    expect(listed.body.data).toHaveLength(1)
+    expect(listed.body.data.items).toHaveLength(1)
   })
 
   it('creates the missing primary owner and prevents a second primary owner', async () => {

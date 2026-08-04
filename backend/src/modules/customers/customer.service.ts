@@ -6,6 +6,8 @@ import type {
   Salutation,
 } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult } from '../../shared/pagination'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
 import * as repository from './customer.repository'
 
@@ -28,11 +30,11 @@ export interface CustomerInput {
   salutation?: Salutation | null
   name?: string
   billingName?: string
-  email?: string
+  email?: string | null
   phone?: string
-  city?: string
+  city?: string | null
   gstin?: string | null
-  billingAddress?: string
+  billingAddress?: string | null
   creditLimit?: number
   status?: CustomerStatus
   contacts?: CustomerContactInput[]
@@ -126,19 +128,32 @@ function normalizeCustomer(input: CustomerInput): CustomerInput {
     ...(input.billingName !== undefined
       ? { billingName: toTitleCase(input.billingName) }
       : {}),
-    ...(input.city !== undefined ? { city: toTitleCase(input.city) } : {}),
+    ...(input.city !== undefined
+      ? { city: input.city ? toTitleCase(input.city) : null }
+      : {}),
     ...(input.billingAddress !== undefined
-      ? { billingAddress: toTitleCase(input.billingAddress) }
+      ? {
+          billingAddress: input.billingAddress
+            ? toTitleCase(input.billingAddress)
+            : null,
+        }
       : {}),
   }
 }
 
 export async function listCustomers(
   context: CustomerContext,
-  filters: { search?: string; type?: CustomerType; status?: CustomerStatus },
+  filters: {
+    search?: string
+    type?: CustomerType
+    status?: CustomerStatus
+  } & PageRequest,
 ) {
-  const records = await repository.listCustomers(context.tenantId, filters)
-  return records.map(mapCustomer)
+  const [records, total] = await repository.listCustomers(
+    context.tenantId,
+    filters,
+  )
+  return pageResult(records.map(mapCustomer), total, filters)
 }
 
 export async function getCustomer(
@@ -153,16 +168,7 @@ export async function getCustomer(
 export async function createCustomer(
   context: CustomerContext,
   input: Required<
-    Pick<
-      CustomerInput,
-      | 'type'
-      | 'name'
-      | 'billingName'
-      | 'email'
-      | 'phone'
-      | 'city'
-      | 'billingAddress'
-    >
+    Pick<CustomerInput, 'type' | 'name' | 'billingName' | 'phone'>
   > &
     CustomerInput,
 ) {
@@ -177,11 +183,11 @@ export async function createCustomer(
         salutation: data.salutation ?? null,
         name: normalized.name ?? input.name,
         billingName: normalized.billingName ?? input.billingName,
-        email: input.email,
+        email: input.email ?? null,
         phone: input.phone,
-        city: normalized.city ?? input.city,
+        city: normalized.city ?? null,
         gstin: data.gstin ?? null,
-        billingAddress: normalized.billingAddress ?? input.billingAddress,
+        billingAddress: normalized.billingAddress ?? null,
         customerCode: `CUST-${randomUUID().slice(0, 8).toUpperCase()}`,
         creditLimit: data.creditLimit ?? 0,
         status: data.status ?? 'ACTIVE',

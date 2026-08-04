@@ -147,9 +147,8 @@ function CustomerForm({ customer, mode = "create" }) {
           <input
             className={fieldClass}
             type="email"
-            placeholder="billing@example.com"
+            placeholder="Optional billing email"
             {...register("email", {
-              required: "Email is required",
               pattern: {
                 value: /^\S+@\S+\.\S+$/,
                 message: "Enter a valid email",
@@ -176,8 +175,8 @@ function CustomerForm({ customer, mode = "create" }) {
           <span className="text-sm font-medium text-slate-700">City</span>
           <input
             className={fieldClass}
-            placeholder="Delhi"
-            {...register("city", { required: "City is required" })}
+            placeholder="Optional city"
+            {...register("city")}
           />
           <FieldError message={errors.city?.message} />
         </label>
@@ -213,10 +212,8 @@ function CustomerForm({ customer, mode = "create" }) {
           </span>
           <textarea
             className={`${fieldClass} min-h-24 resize-y`}
-            placeholder="Full billing address"
-            {...register("address", {
-              required: "Billing address is required",
-            })}
+            placeholder="Optional billing address"
+            {...register("address")}
           />
           <FieldError message={errors.address?.message} />
         </label>

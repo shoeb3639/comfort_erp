@@ -38,15 +38,15 @@ function PlatformDashboardPage() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      getTenants(),
-      getTenantSubscriptions(),
-      getPlatformAuditLogs(),
+      getTenants({ limit: 100 }),
+      getTenantSubscriptions(undefined, { limit: 100 }),
+      getPlatformAuditLogs({ limit: 100 }),
     ])
       .then(([tenantRecords, subscriptionRecords, activityRecords]) => {
         if (!active) return;
-        setTenants(tenantRecords);
-        setSubscriptions(subscriptionRecords);
-        setAuditLogs(activityRecords);
+        setTenants(tenantRecords.items);
+        setSubscriptions(subscriptionRecords.items);
+        setAuditLogs(activityRecords.items);
       })
       .catch(
         (requestError) =>

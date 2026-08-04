@@ -4,8 +4,10 @@ import type {
   SetupRecordStatus,
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 
-export interface DriverFilters {
+export interface DriverFilters extends PageRequest {
   search?: string
   engagementType?: DriverEngagementType
   vendorId?: string
@@ -17,33 +19,38 @@ const include = {
 } satisfies Prisma.DriverInclude
 
 export function list(tenantId: string, filters: DriverFilters) {
-  return prisma.driver.findMany({
-    where: {
-      tenantId,
-      deletedAt: null,
-      ...(filters.engagementType
-        ? { engagementType: filters.engagementType }
-        : {}),
-      ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              { name: { contains: filters.search, mode: 'insensitive' } },
-              { mobile: { contains: filters.search, mode: 'insensitive' } },
-              {
-                licenceNumber: {
-                  contains: filters.search,
-                  mode: 'insensitive',
-                },
+  const where = {
+    tenantId,
+    deletedAt: null,
+    ...(filters.engagementType
+      ? { engagementType: filters.engagementType }
+      : {}),
+    ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { name: { contains: filters.search, mode: 'insensitive' } },
+            { mobile: { contains: filters.search, mode: 'insensitive' } },
+            {
+              licenceNumber: {
+                contains: filters.search,
+                mode: 'insensitive',
               },
-            ],
-          }
-        : {}),
-    },
-    include,
-    orderBy: { createdAt: 'desc' },
-  })
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.DriverWhereInput
+  return Promise.all([
+    prisma.driver.findMany({
+      where,
+      include,
+      orderBy: { createdAt: 'desc' },
+      ...pageWindow(filters),
+    }),
+    prisma.driver.count({ where }),
+  ])
 }
 export function find(tenantId: string, id: string) {
   return prisma.driver.findFirst({

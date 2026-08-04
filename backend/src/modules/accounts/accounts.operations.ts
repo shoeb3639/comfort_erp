@@ -5,11 +5,11 @@ import type {
   AccountReferenceSource,
   AccountTransactionType,
 } from '../../generated/prisma/client'
-import {
-  Prisma,
-} from '../../generated/prisma/client'
+import { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 import { normalizeReferenceNumber } from './accounts.service'
 
 export interface TransactionInput {
@@ -33,7 +33,9 @@ export interface TransactionInput {
 }
 
 const creditTypes = new Set<AccountTransactionType>(['DRIVER_RECOVERY'])
-const sourceByType: Partial<Record<AccountTransactionType, AccountReferenceSource>> = {
+const sourceByType: Partial<
+  Record<AccountTransactionType, AccountReferenceSource>
+> = {
   EXPENSE: 'EXPENSE',
   ADJUSTMENT: 'ADJUSTMENT',
   FUND_RETURN: 'FUND_RETURN',
@@ -109,52 +111,67 @@ async function validateLinks(tenantId: string, input: TransactionInput) {
 
 export async function listTransactions(
   tenantId: string,
-  filters: { ledgerId?: string; dateFrom?: Date; dateTo?: Date; search?: string },
+  filters: {
+    ledgerId?: string
+    dateFrom?: Date
+    dateTo?: Date
+    search?: string
+  } & PageRequest,
 ) {
-  const transactions = await prisma.accountTransaction.findMany({
-    where: {
-      tenantId,
-      ...(filters.ledgerId ? { ledgerId: filters.ledgerId } : {}),
-      ...(filters.dateFrom || filters.dateTo
-        ? {
-            transactionDate: {
-              ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
-              ...(filters.dateTo ? { lte: filters.dateTo } : {}),
-            },
-          }
-        : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              { description: { contains: filters.search, mode: 'insensitive' } },
-              {
-                referenceNumber: {
-                  contains: filters.search,
-                  mode: 'insensitive',
-                },
+  const where = {
+    tenantId,
+    ...(filters.ledgerId ? { ledgerId: filters.ledgerId } : {}),
+    ...(filters.dateFrom || filters.dateTo
+      ? {
+          transactionDate: {
+            ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+            ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+          },
+        }
+      : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { description: { contains: filters.search, mode: 'insensitive' } },
+            {
+              referenceNumber: {
+                contains: filters.search,
+                mode: 'insensitive',
               },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      ledger: {
-        include: {
-          manager: { select: { id: true, name: true } },
-          location: { select: { id: true, name: true } },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.AccountTransactionWhereInput
+  const [transactions, total, totals, options] = await Promise.all([
+    prisma.accountTransaction.findMany({
+      where,
+      include: {
+        ledger: {
+          include: {
+            manager: { select: { id: true, name: true } },
+            location: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-    orderBy: [{ transactionDate: 'desc' }, { createdAt: 'desc' }],
-  })
-  const options = await prisma.managerLedger.findMany({
-    where: { tenantId, status: 'ACTIVE', deletedAt: null },
-    include: {
-      manager: { select: { id: true, name: true } },
-      location: { select: { id: true, name: true } },
-    },
-    orderBy: { manager: { name: 'asc' } },
-  })
+      orderBy: [{ transactionDate: 'desc' }, { createdAt: 'desc' }],
+      ...pageWindow(filters),
+    }),
+    prisma.accountTransaction.count({ where }),
+    prisma.accountTransaction.groupBy({
+      by: ['direction'],
+      where,
+      _sum: { amount: true },
+    }),
+    prisma.managerLedger.findMany({
+      where: { tenantId, status: 'ACTIVE', deletedAt: null },
+      include: {
+        manager: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true } },
+      },
+      orderBy: { manager: { name: 'asc' } },
+    }),
+  ])
   return {
     transactions: transactions.map((row) => ({
       ...row,
@@ -168,12 +185,20 @@ export async function listTransactions(
       currentBalance: Number(row.currentBalance),
     })),
     summary: {
-      credits: transactions
-        .filter((row) => row.direction === 'CREDIT')
-        .reduce((sum, row) => sum + Number(row.amount), 0),
-      debits: transactions
-        .filter((row) => row.direction === 'DEBIT')
-        .reduce((sum, row) => sum + Number(row.amount), 0),
+      credits: Number(
+        totals.find((row) => row.direction === 'CREDIT')?._sum.amount ?? 0,
+      ),
+      debits: Number(
+        totals.find((row) => row.direction === 'DEBIT')?._sum.amount ?? 0,
+      ),
+    },
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      total,
+      pages: Math.max(1, Math.ceil(total / filters.limit)),
+      hasPrevious: filters.page > 1,
+      hasNext: filters.page * filters.limit < total,
     },
   }
 }
@@ -310,7 +335,11 @@ export async function createTransaction(
       )
     throw error
   }
-  return listTransactions(tenantId, { ledgerId: input.ledgerId })
+  return listTransactions(tenantId, {
+    ledgerId: input.ledgerId,
+    page: 1,
+    limit: 25,
+  })
 }
 
 export async function getDailyClosing(
@@ -350,7 +379,9 @@ export async function getDailyClosing(
         status: { not: 'VOID' },
       },
       include: {
-        collection: { include: { booking: { select: { bookingNumber: true } } } },
+        collection: {
+          include: { booking: { select: { bookingNumber: true } } },
+        },
       },
     }),
     prisma.dailyClosing.findUnique({
@@ -359,9 +390,7 @@ export async function getDailyClosing(
       },
     }),
   ])
-  const openingBalance = Number(
-    prior?.runningBalance ?? ledger.openingBalance,
-  )
+  const openingBalance = Number(prior?.runningBalance ?? ledger.openingBalance)
   const operationalEntries = entries.filter(
     (row) => row.entryType !== 'OPENING_BALANCE',
   )
@@ -477,7 +506,9 @@ export async function getAudit(tenantId: string) {
       prisma.bookingCashDeposit.findMany({
         where: { tenantId, status: { not: 'VOID' } },
         include: {
-          collection: { include: { booking: { select: { bookingNumber: true } } } },
+          collection: {
+            include: { booking: { select: { bookingNumber: true } } },
+          },
         },
       }),
       prisma.accountTransaction.findMany({ where: { tenantId } }),

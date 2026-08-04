@@ -138,6 +138,7 @@ export async function cancelBooking(id, reason) {
 }
 
 export async function closeBooking(id, values) {
+  const paymentAmount = Number(values.paymentAmount || 0);
   const payload = {
     billingTripType:
       values.billingTripType === "KM Based" ? "KM_BASED" : "PACKAGE_BASED",
@@ -158,6 +159,11 @@ export async function closeBooking(id, values) {
     vendorPayableAmount: Number(values.vendorPayableAmount || 0),
     vendorExtraCharges: Number(values.vendorExtraCharges || 0),
     vendorDeduction: Number(values.vendorDeduction || 0),
+    paymentAmount,
+    paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
+    paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
+    paymentReference: values.paymentReference || null,
+    collectedBy: paymentAmount > 0 ? values.collectedBy : undefined,
     remarks: values.remarks || null,
     attachmentName: values.attachmentName || null,
   };

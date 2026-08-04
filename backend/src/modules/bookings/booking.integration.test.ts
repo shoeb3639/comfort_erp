@@ -316,8 +316,8 @@ describe('booking and duty assignment APIs', () => {
 
     const invoices = await authorized('get', '/api/v1/tenant/invoices')
     expect(invoices.status).toBe(200)
-    expect(invoices.body.data).toHaveLength(1)
-    const invoiceId = invoices.body.data[0].id as string
+    expect(invoices.body.data.items).toHaveLength(1)
+    const invoiceId = invoices.body.data.items[0].id as string
 
     const generated = await authorized(
       'patch',
@@ -497,9 +497,7 @@ describe('booking and duty assignment APIs', () => {
     expect(mismatchVerification.status).toBe(200)
     expect(mismatchVerification.body.data.status).toBe('MISMATCH')
     expect(mismatchVerification.body.data.mismatchAmount).toBe(50)
-    expect(mismatchVerification.body.data.auditTrail[0].action).toBe(
-      'MISMATCH',
-    )
+    expect(mismatchVerification.body.data.auditTrail[0].action).toBe('MISMATCH')
 
     const excessiveCollection = await authorized(
       'post',

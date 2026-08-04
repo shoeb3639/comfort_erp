@@ -547,11 +547,11 @@ model Customer {
   salutation     Salutation?
   name           String         @db.VarChar(200)
   billingName    String         @map("billing_name") @db.VarChar(200)
-  email          String         @db.VarChar(255)
+  email          String?        @db.VarChar(255)
   phone          String         @db.VarChar(30)
-  city           String         @db.VarChar(100)
+  city           String?        @db.VarChar(100)
   gstin          String?        @db.VarChar(20)
-  billingAddress String         @map("billing_address") @db.Text
+  billingAddress String?        @map("billing_address") @db.Text
   creditLimit    Decimal        @default(0) @map("credit_limit") @db.Decimal(14, 2)
   outstanding    Decimal        @default(0) @db.Decimal(14, 2)
   status         CustomerStatus @default(ACTIVE)
@@ -1146,12 +1146,12 @@ model ManagerLedger {
   updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(6)
 
-  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  manager      TenantUser           @relation("ManagerLedgerManager", fields: [tenantId, managerId], references: [tenantId, id], onDelete: Restrict)
-  location     TenantLocation       @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Restrict)
-  entries      ManagerLedgerEntry[]
-  fundReleases CompanyFundRelease[]
-  transactions AccountTransaction[]
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  manager       TenantUser           @relation("ManagerLedgerManager", fields: [tenantId, managerId], references: [tenantId, id], onDelete: Restrict)
+  location      TenantLocation       @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Restrict)
+  entries       ManagerLedgerEntry[]
+  fundReleases  CompanyFundRelease[]
+  transactions  AccountTransaction[]
   dailyClosings DailyClosing[]
 
   @@unique([tenantId, id], map: "manager_ledgers_tenant_id_id_key")
@@ -1223,30 +1223,30 @@ model ManagerLedgerEntry {
 }
 
 model AccountTransaction {
-  id              String                 @id @default(uuid()) @db.Uuid
-  tenantId        String                 @map("tenant_id") @db.Uuid
-  ledgerId        String                 @map("ledger_id") @db.Uuid
-  ledgerEntryId   String                 @unique(map: "account_transactions_ledger_entry_key") @map("ledger_entry_id") @db.Uuid
-  transactionDate DateTime               @map("transaction_date") @db.Date
-  transactionType AccountTransactionType @map("transaction_type")
+  id              String                  @id @default(uuid()) @db.Uuid
+  tenantId        String                  @map("tenant_id") @db.Uuid
+  ledgerId        String                  @map("ledger_id") @db.Uuid
+  ledgerEntryId   String                  @unique(map: "account_transactions_ledger_entry_key") @map("ledger_entry_id") @db.Uuid
+  transactionDate DateTime                @map("transaction_date") @db.Date
+  transactionType AccountTransactionType  @map("transaction_type")
   direction       AccountEntryDirection
   category        AccountExpenseCategory?
-  paymentMode     AccountPaymentMode     @map("payment_mode")
-  amount          Decimal                @db.Decimal(14, 2)
-  description     String                 @db.VarChar(500)
-  referenceNumber String                 @map("reference_number") @db.VarChar(150)
-  vehicleId       String?                @map("vehicle_id") @db.Uuid
-  bookingId       String?                @map("booking_id") @db.Uuid
-  driverId        String?                @map("driver_id") @db.Uuid
-  employeeId      String?                @map("employee_id") @db.Uuid
-  partnerId       String?                @map("partner_id") @db.Uuid
+  paymentMode     AccountPaymentMode      @map("payment_mode")
+  amount          Decimal                 @db.Decimal(14, 2)
+  description     String                  @db.VarChar(500)
+  referenceNumber String                  @map("reference_number") @db.VarChar(150)
+  vehicleId       String?                 @map("vehicle_id") @db.Uuid
+  bookingId       String?                 @map("booking_id") @db.Uuid
+  driverId        String?                 @map("driver_id") @db.Uuid
+  employeeId      String?                 @map("employee_id") @db.Uuid
+  partnerId       String?                 @map("partner_id") @db.Uuid
   details         Json?
-  attachmentName  String?                @map("attachment_name") @db.VarChar(255)
-  remarks         String?                @db.Text
-  createdById     String                 @map("created_by") @db.Uuid
-  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  attachmentName  String?                 @map("attachment_name") @db.VarChar(255)
+  remarks         String?                 @db.Text
+  createdById     String                  @map("created_by") @db.Uuid
+  createdAt       DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   ledger ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([tenantId, id], map: "account_transactions_tenant_id_id_key")
@@ -1257,25 +1257,25 @@ model AccountTransaction {
 }
 
 model DailyClosing {
-  id                   String             @id @default(uuid()) @db.Uuid
-  tenantId             String             @map("tenant_id") @db.Uuid
-  ledgerId             String             @map("ledger_id") @db.Uuid
-  closingDate          DateTime           @map("closing_date") @db.Date
-  openingBalance       Decimal            @map("opening_balance") @db.Decimal(14, 2)
-  credits              Decimal            @default(0) @db.Decimal(14, 2)
-  debits               Decimal            @default(0) @db.Decimal(14, 2)
-  closingBalance       Decimal            @map("closing_balance") @db.Decimal(14, 2)
-  pendingCashDeposit   Decimal            @default(0) @map("pending_cash_deposit") @db.Decimal(14, 2)
-  status               DailyClosingStatus @default(OPEN)
-  closedById           String?            @map("closed_by") @db.Uuid
-  closedAt             DateTime?          @map("closed_at") @db.Timestamptz(6)
-  reopenedById         String?            @map("reopened_by") @db.Uuid
-  reopenedAt           DateTime?          @map("reopened_at") @db.Timestamptz(6)
-  remarks              String?            @db.Text
-  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String             @id @default(uuid()) @db.Uuid
+  tenantId           String             @map("tenant_id") @db.Uuid
+  ledgerId           String             @map("ledger_id") @db.Uuid
+  closingDate        DateTime           @map("closing_date") @db.Date
+  openingBalance     Decimal            @map("opening_balance") @db.Decimal(14, 2)
+  credits            Decimal            @default(0) @db.Decimal(14, 2)
+  debits             Decimal            @default(0) @db.Decimal(14, 2)
+  closingBalance     Decimal            @map("closing_balance") @db.Decimal(14, 2)
+  pendingCashDeposit Decimal            @default(0) @map("pending_cash_deposit") @db.Decimal(14, 2)
+  status             DailyClosingStatus @default(OPEN)
+  closedById         String?            @map("closed_by") @db.Uuid
+  closedAt           DateTime?          @map("closed_at") @db.Timestamptz(6)
+  reopenedById       String?            @map("reopened_by") @db.Uuid
+  reopenedAt         DateTime?          @map("reopened_at") @db.Timestamptz(6)
+  remarks            String?            @db.Text
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   ledger ManagerLedger @relation(fields: [tenantId, ledgerId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([tenantId, ledgerId, closingDate], map: "daily_closings_tenant_ledger_date_key")

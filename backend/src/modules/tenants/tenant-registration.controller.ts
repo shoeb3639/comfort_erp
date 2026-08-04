@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import * as registrationService from './tenant-registration.service'
 import type { RegisterTenantInput } from './tenant-registration.types'
 
@@ -35,8 +36,16 @@ export const listSubscriptionPlans: RequestHandler = async (
   })
 }
 
-export const listTenants: RequestHandler = async (_request, response) => {
-  const tenants = await registrationService.listTenants()
+export const listTenants: RequestHandler = async (request, response) => {
+  const tenants = await registrationService.listTenants({
+    ...pageRequest(request.query),
+    ...(typeof request.query.search === 'string'
+      ? { search: request.query.search }
+      : {}),
+    ...(typeof request.query.status === 'string'
+      ? { status: request.query.status }
+      : {}),
+  })
   response.status(200).json({
     success: true,
     data: tenants,

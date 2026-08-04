@@ -1,4 +1,18 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
+
+export const platformListQuerySchema = Joi.object({
+  ...paginationQueryFields,
+  tenantId: Joi.string().uuid(),
+  search: Joi.string().trim().max(200).empty(''),
+  status: Joi.string().valid(
+    'PENDING_SETUP',
+    'ACTIVE',
+    'SUSPENDED',
+    'EXPIRED',
+    'CANCELLED',
+  ),
+})
 
 export const planParamsSchema = Joi.object({
   planId: Joi.string().uuid().required(),

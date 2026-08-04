@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
+import { pageRequest } from '../../shared/pagination'
 import type { VehicleInput } from './vehicle.service'
 import * as service from './vehicle.service'
 
@@ -25,6 +26,7 @@ export const list: RequestHandler = async (request, response) =>
   send(
     response,
     await service.listVehicles(context(request), {
+      ...pageRequest(request.query),
       ...(typeof request.query.search === 'string'
         ? { search: request.query.search }
         : {}),

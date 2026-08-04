@@ -200,6 +200,24 @@ function BookingViewPage() {
               label="Closing Status"
               value={booking.closeDetails ? "Closed" : "Open"}
             />
+            {booking.closeDetails && (
+              <ReadOnlyField
+                label="Payment Status"
+                value={booking.collectionSummary?.paymentStatus || "Unpaid"}
+              />
+            )}
+            {booking.closeDetails && (
+              <ReadOnlyField
+                label="Amount Received"
+                value={`₹ ${money(booking.collectionSummary?.totalCollected)}`}
+              />
+            )}
+            {booking.closeDetails && (
+              <ReadOnlyField
+                label="Balance Outstanding"
+                value={`₹ ${money(booking.collectionSummary?.pendingBalance)}`}
+              />
+            )}
           </div>
         </Section>
       </div>

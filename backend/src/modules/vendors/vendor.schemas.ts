@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 
 export const vendorParamsSchema = Joi.object({
   vendorId: Joi.string().uuid().required(),
@@ -8,6 +9,7 @@ export const childParamsSchema = Joi.object({
   childId: Joi.string().uuid().required(),
 })
 export const vendorQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200).empty(''),
   recordType: Joi.string().valid('external_vendor'),
   status: Joi.string().valid('ACTIVE', 'INACTIVE'),

@@ -4,8 +4,10 @@ import type {
   VehicleOwnershipType,
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 
-export interface VehicleFilters {
+export interface VehicleFilters extends PageRequest {
   search?: string
   ownershipType?: VehicleOwnershipType
   vendorId?: string
@@ -19,46 +21,47 @@ const include = {
 } satisfies Prisma.VehicleInclude
 
 export function list(tenantId: string, filters: VehicleFilters) {
-  return prisma.vehicle.findMany({
-    where: {
-      tenantId,
-      deletedAt: null,
-      ...(filters.ownershipType
-        ? { ownershipType: filters.ownershipType }
-        : {}),
-      ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
-      ...(filters.vehicleTypeId
-        ? { vehicleTypeId: filters.vehicleTypeId }
-        : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              {
-                registrationNumber: {
-                  contains: filters.search,
-                  mode: 'insensitive' as const,
-                },
+  const where = {
+    tenantId,
+    deletedAt: null,
+    ...(filters.ownershipType ? { ownershipType: filters.ownershipType } : {}),
+    ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
+    ...(filters.vehicleTypeId ? { vehicleTypeId: filters.vehicleTypeId } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            {
+              registrationNumber: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
               },
-              {
-                make: {
-                  contains: filters.search,
-                  mode: 'insensitive' as const,
-                },
+            },
+            {
+              make: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
               },
-              {
-                model: {
-                  contains: filters.search,
-                  mode: 'insensitive' as const,
-                },
+            },
+            {
+              model: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
               },
-            ],
-          }
-        : {}),
-    },
-    include,
-    orderBy: { createdAt: 'desc' },
-  })
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.VehicleWhereInput
+  return Promise.all([
+    prisma.vehicle.findMany({
+      where,
+      include,
+      orderBy: { createdAt: 'desc' },
+      ...pageWindow(filters),
+    }),
+    prisma.vehicle.count({ where }),
+  ])
 }
 
 export function find(tenantId: string, id: string) {

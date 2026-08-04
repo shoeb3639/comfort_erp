@@ -20,6 +20,7 @@ import {
   formatDate,
   getEffectiveSubscriptionStatus,
 } from "./platformUtils";
+import Pagination from "../../components/Pagination";
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -690,13 +691,34 @@ function TenantsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [updatingTenantId, setUpdatingTenantId] = useState("");
   const [editingTenant, setEditingTenant] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25 });
+
+  async function refreshTenants() {
+    const result = await getTenants({
+      page: pagination.page,
+      limit: pagination.limit,
+      ...(search.trim() ? { search: search.trim() } : {}),
+      ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+    });
+    setTenants(result.items);
+    setPagination(result.pagination);
+  }
 
   useEffect(() => {
     let active = true;
-    Promise.all([getTenants(), getSubscriptionPlans()])
-      .then(([tenantRecords, planRecords]) => {
+    Promise.all([
+      getTenants({
+        page: pagination.page,
+        limit: pagination.limit,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+      }),
+      getSubscriptionPlans(),
+    ])
+      .then(([tenantResult, planRecords]) => {
         if (active) {
-          setTenants(tenantRecords);
+          setTenants(tenantResult.items);
+          setPagination(tenantResult.pagination);
           setPlans(planRecords);
         }
       })
@@ -708,7 +730,7 @@ function TenantsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pagination.page, pagination.limit, search, statusFilter]);
 
   const rows = useMemo(
     () =>
@@ -732,8 +754,7 @@ function TenantsPage() {
 
   async function createTenant(payload) {
     await registerTenant(payload);
-    const tenantRecords = await getTenants();
-    setTenants(tenantRecords);
+    await refreshTenants();
     setShowCreate(false);
   }
 
@@ -745,7 +766,7 @@ function TenantsPage() {
     setUpdatingTenantId(tenant.id);
     try {
       await updateTenantStatus(tenant.id, status, reason.trim());
-      setTenants(await getTenants());
+      await refreshTenants();
     } catch (requestError) {
       setError(getPlatformErrorMessage(requestError));
     } finally {
@@ -786,7 +807,7 @@ function TenantsPage() {
         status: values.ownerStatus,
       });
     }
-    setTenants(await getTenants());
+    await refreshTenants();
     setEditingTenant(null);
   }
 
@@ -827,25 +848,29 @@ function TenantsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <FilterBar
               search={search}
-              onSearch={setSearch}
+              onSearch={(value) => {
+                setSearch(value);
+                setPagination((current) => ({ ...current, page: 1 }));
+              }}
               placeholder="Search tenant"
             >
               <select
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
                 value={statusFilter}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setPagination((current) => ({ ...current, page: 1 }));
                   setSearchParams(
                     event.target.value === "ALL"
                       ? {}
                       : { status: event.target.value },
-                  )
-                }
+                  );
+                }}
               >
                 <option value="ALL">All tenant statuses</option>
                 <option value="ACTIVE">Active</option>
                 <option value="PENDING_SETUP">Pending setup</option>
                 <option value="SUSPENDED">Suspended</option>
-                <option value="CLOSED">Closed</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
             </FilterBar>
             <button
@@ -950,6 +975,15 @@ function TenantsPage() {
             );
           })}
         </TableShell>
+        <Pagination
+          pagination={pagination}
+          onPageChange={(page) =>
+            setPagination((current) => ({ ...current, page }))
+          }
+          onLimitChange={(limit) =>
+            setPagination((current) => ({ ...current, page: 1, limit }))
+          }
+        />
       </Section>
       {showCreate && (
         <TenantModal

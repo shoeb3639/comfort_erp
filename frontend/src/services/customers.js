@@ -55,11 +55,11 @@ function customerPayload(values) {
     salutation: values.salutation || null,
     name: values.name,
     billingName: values.billingName,
-    email: values.email,
+    email: values.email || null,
     phone: values.phone,
-    city: values.city,
+    city: values.city || null,
     gstin: values.gstin || null,
-    billingAddress: values.address,
+    billingAddress: values.address || null,
     creditLimit: Number(values.creditLimit || 0),
     ...(values.contacts
       ? {
@@ -79,9 +79,12 @@ function customerPayload(values) {
   };
 }
 
-export async function getCustomers() {
-  const response = await api.get("/tenant/customers", config());
-  return response.data.data.map(mapCustomer);
+export async function getCustomers(params = {}) {
+  const response = await api.get("/tenant/customers", { ...config(), params });
+  return {
+    ...response.data.data,
+    items: response.data.data.items.map(mapCustomer),
+  };
 }
 
 export async function getCustomer(id) {

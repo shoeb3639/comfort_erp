@@ -612,8 +612,12 @@ function BookingFormPage() {
   });
 
   useEffect(() => {
-    Promise.all([getCustomers(), isEditMode ? getBooking(bookingId) : null])
-      .then(([customers, booking]) => {
+    Promise.all([
+      getCustomers({ limit: 100 }),
+      isEditMode ? getBooking(bookingId) : null,
+    ])
+      .then(([customerResult, booking]) => {
+        const customers = customerResult.items;
         setCustomerOptions(customers);
         setTravellerOptions(
           customers.flatMap((customer) => customer.travellers || []),

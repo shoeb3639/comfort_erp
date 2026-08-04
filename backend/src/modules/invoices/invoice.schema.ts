@@ -1,23 +1,40 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 
 export const invoiceParamsSchema = Joi.object({
   invoiceId: Joi.string().uuid().required(),
 })
 
 export const invoiceQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200).empty(''),
   status: Joi.string().valid('DRAFT', 'GENERATED', 'CANCELLED'),
+  source: Joi.string().valid('BOOKING', 'DIRECT'),
 })
 
 const itemSchema = Joi.object({
   dateType: Joi.string().valid('single', 'range', 'blank').default('single'),
   serviceDate: Joi.date().iso().allow('', null),
   serviceStartDate: Joi.date().iso().allow('', null),
-  serviceEndDate: Joi.date().iso().min(Joi.ref('serviceStartDate')).allow('', null),
+  serviceEndDate: Joi.date()
+    .iso()
+    .min(Joi.ref('serviceStartDate'))
+    .allow('', null),
   description: Joi.string().trim().min(1).max(500).required(),
   quantity: Joi.number().precision(2).greater(0).required(),
   unit: Joi.string()
-    .valid('KM', 'Day', 'Days', 'Hour', 'Hours', 'Package', 'Trip', 'Night', 'Actual', 'Discount')
+    .valid(
+      'KM',
+      'Day',
+      'Days',
+      'Hour',
+      'Hours',
+      'Package',
+      'Trip',
+      'Night',
+      'Actual',
+      'Discount',
+    )
     .required(),
   rate: Joi.number().precision(2).required(),
   amount: Joi.number().precision(2),

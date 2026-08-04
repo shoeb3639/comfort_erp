@@ -687,6 +687,7 @@ function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [pagination, setPagination] = useState(null);
   const [openActionId, setOpenActionId] = useState("");
   const [actionMenuPosition, setActionMenuPosition] = useState(null);
   const [assignmentBooking, setAssignmentBooking] = useState(null);
@@ -695,34 +696,55 @@ function BookingsPage() {
 
   useEffect(() => {
     Promise.all([
-      listBookings(),
-      getCustomers(),
-      listDrivers({ status: "ACTIVE" }),
-      listVehicles({ status: "ACTIVE" }),
-      getVendors(),
+      getCustomers({ limit: 100 }),
+      listDrivers({ status: "ACTIVE", limit: 100 }),
+      listVehicles({ status: "ACTIVE", limit: 100 }),
+      getVendors({ limit: 100 }),
     ])
-      .then(
-        ([bookingRows, customerRows, driverRows, vehicleRows, vendorRows]) => {
-          setBookings(bookingRows);
-          setCustomers(customerRows);
-          setTravellers(
-            customerRows.flatMap((customer) => customer.travellers || []),
-          );
-          setDrivers(driverRows);
-          setVehicles(
-            vehicleRows.map((vehicle) => ({
-              ...vehicle,
-              plate: vehicle.registrationNumber,
-              type: vehicle.vehicleType?.name,
-            })),
-          );
-          setVendors(
-            vendorRows.filter((vendor) => vendor.recordType !== "own_company"),
-          );
-        },
-      )
+      .then(([customerResult, driverResult, vehicleResult, vendorResult]) => {
+        setCustomers(customerResult.items);
+        setTravellers(
+          customerResult.items.flatMap((customer) => customer.travellers || []),
+        );
+        setDrivers(driverResult.items);
+        setVehicles(
+          vehicleResult.items.map((vehicle) => ({
+            ...vehicle,
+            plate: vehicle.registrationNumber,
+            type: vehicle.vehicleType?.name,
+          })),
+        );
+        setVendors(
+          vendorResult.items.filter(
+            (vendor) => vendor.recordType !== "own_company",
+          ),
+        );
+      })
       .catch((error) => setNotice(getBookingErrorMessage(error)));
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      listBookings({
+        page,
+        limit: pageSize,
+        view: listView === "closed" ? "CLOSED" : "ACTIVE",
+        ...(statusFilter !== "All" ? { status: statusFilter } : {}),
+        ...(search.trim() ? { search: search.trim() } : {}),
+      })
+        .then((result) => {
+          if (!active) return;
+          setBookings(result.items);
+          setPagination(result.pagination);
+        })
+        .catch((error) => setNotice(getBookingErrorMessage(error)));
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [listView, page, pageSize, search, statusFilter]);
 
   const statusOptions = useMemo(() => {
     const visibleBookings = bookings.filter((booking) =>
@@ -789,12 +811,9 @@ function BookingsPage() {
     });
   }, [bookings, customerById, listView, search, statusFilter, travellerById]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedBookings = filteredBookings.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
+  const totalPages = pagination?.pages || 1;
+  const currentPage = pagination?.page || page;
+  const paginatedBookings = filteredBookings;
 
   async function handleDeleteBooking(id) {
     try {
@@ -1334,7 +1353,7 @@ function BookingsPage() {
 
         <div className="mt-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            Showing {paginatedBookings.length} of {filteredBookings.length}{" "}
+            Showing {paginatedBookings.length} of {pagination?.total || 0}{" "}
             bookings
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

@@ -135,7 +135,8 @@ describe('customer APIs', () => {
 
     const list = await authenticated('get', '?search=Acme&type=CORPORATE')
     expect(list.status).toBe(200)
-    expect(list.body.data).toHaveLength(1)
+    expect(list.body.data.items).toHaveLength(1)
+    expect(list.body.data.pagination.total).toBe(1)
 
     const updated = await authenticated('patch', `/${customerId}`).send({
       city: 'Mumbai',

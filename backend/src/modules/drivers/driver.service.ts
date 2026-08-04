@@ -7,6 +7,7 @@ import type {
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
+import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as repository from './driver.repository'
 
@@ -107,7 +108,8 @@ export async function listDrivers(
     !(await repository.findVendor(context.tenantId, filters.vendorId))
   )
     throw new AppError('Vendor was not found', 'NOT_FOUND', 404)
-  return (await repository.list(context.tenantId, filters)).map(display)
+  const [records, total] = await repository.list(context.tenantId, filters)
+  return pageResult(records.map(display), total, filters)
 }
 export async function getDriver(context: DriverContext, id: string) {
   const record = await repository.find(context.tenantId, id)

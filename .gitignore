@@ -4,6 +4,7 @@ coverage/
 .vite/
 backend/src/generated/prisma/
 .local/
+backend/prisma/customer-migration-output/
 .DS_Store
 
 *.log

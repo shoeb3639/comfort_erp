@@ -1,4 +1,5 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 
 export const referenceValidationSchema = Joi.object({
   referenceNumber: Joi.string()
@@ -95,6 +96,7 @@ export const verifyCashSchema = Joi.object({
 })
 
 export const managerLedgerListQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200),
   status: Joi.string().valid('ACTIVE', 'INACTIVE'),
   managerId: Joi.string().uuid(),
@@ -118,6 +120,7 @@ export const managerLedgerStatusSchema = Joi.object({
 })
 
 export const fundReleaseListQuerySchema = Joi.object({
+  ...paginationQueryFields,
   ledgerId: Joi.string().uuid(),
   status: Joi.string().valid('PENDING', 'APPROVED', 'VERIFIED', 'REJECTED'),
   paymentMode: Joi.string().valid(
@@ -155,6 +158,7 @@ export const createFundReleaseSchema = Joi.object({
 })
 
 export const transactionListQuerySchema = Joi.object({
+  ...paginationQueryFields,
   ledgerId: Joi.string().uuid(),
   dateFrom: Joi.date().iso(),
   dateTo: Joi.date().iso().min(Joi.ref('dateFrom')),

@@ -5,9 +5,12 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1",
   headers: { "Content-Type": "application/json" },
 });
-const config = () => {
+const config = (params) => {
   const token = readStoredSession()?.accessToken;
-  return { headers: token ? { Authorization: `Bearer ${token}` } : {} };
+  return {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    ...(params ? { params } : {}),
+  };
 };
 const statusFromApi = (status) =>
   status === "ACTIVE" ? "Active" : status === "INACTIVE" ? "Inactive" : status;
@@ -94,8 +97,9 @@ function driverPayload(record) {
     status: record.status,
   };
 }
-export async function getVendors() {
-  return (await api.get("/tenant/vendors", config())).data.data.map(mapVendor);
+export async function getVendors(params = {}) {
+  const result = (await api.get("/tenant/vendors", config(params))).data.data;
+  return { ...result, items: result.items.map(mapVendor) };
 }
 export async function createVendor(record) {
   return mapVendor(

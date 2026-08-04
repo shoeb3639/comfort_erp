@@ -3,6 +3,8 @@ import { Prisma } from '../../generated/prisma/client'
 import type { Salutation } from '../../generated/prisma/enums'
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
+import type { PageRequest } from '../../shared/pagination'
+import { pageResult, pageWindow } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as driverService from '../drivers/driver.service'
 import * as vehicleService from '../vehicles/vehicle.service'
@@ -119,52 +121,61 @@ export async function listVendors(
     search?: string
     recordType?: string
     status?: 'ACTIVE' | 'INACTIVE'
-  },
+  } & PageRequest,
 ) {
-  const records = await prisma.vendor.findMany({
-    where: {
-      tenantId: context.tenantId,
-      deletedAt: null,
-      ...(filters.recordType ? { recordType: filters.recordType } : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              { name: { contains: filters.search, mode: 'insensitive' } },
-              { category: { contains: filters.search, mode: 'insensitive' } },
-              { city: { contains: filters.search, mode: 'insensitive' } },
-              { phone: { contains: filters.search, mode: 'insensitive' } },
-              {
-                vehicles: {
-                  some: {
-                    registrationNumber: {
-                      contains: filters.search,
-                      mode: 'insensitive',
-                    },
-                    deletedAt: null,
+  const where = {
+    tenantId: context.tenantId,
+    deletedAt: null,
+    ...(filters.recordType ? { recordType: filters.recordType } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { name: { contains: filters.search, mode: 'insensitive' } },
+            { category: { contains: filters.search, mode: 'insensitive' } },
+            { city: { contains: filters.search, mode: 'insensitive' } },
+            { phone: { contains: filters.search, mode: 'insensitive' } },
+            {
+              vehicles: {
+                some: {
+                  registrationNumber: {
+                    contains: filters.search,
+                    mode: 'insensitive',
                   },
+                  deletedAt: null,
                 },
               },
-              {
-                drivers: {
-                  some: {
-                    name: { contains: filters.search, mode: 'insensitive' },
-                    deletedAt: null,
-                  },
+            },
+            {
+              drivers: {
+                some: {
+                  name: { contains: filters.search, mode: 'insensitive' },
+                  deletedAt: null,
                 },
               },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    include,
-  })
-  return records.map((vendor) => ({
-    ...mapVendor(vendor),
-    vehicles: vendor.vehicles.map(displayVehicle),
-    drivers: vendor.drivers.map(displayDriver),
-  }))
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.VendorWhereInput
+  const [records, total] = await Promise.all([
+    prisma.vendor.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include,
+      ...pageWindow(filters),
+    }),
+    prisma.vendor.count({ where }),
+  ])
+  return pageResult(
+    records.map((vendor) => ({
+      ...mapVendor(vendor),
+      vehicles: vendor.vehicles.map(displayVehicle),
+      drivers: vendor.drivers.map(displayDriver),
+    })),
+    total,
+    filters,
+  )
 }
 export async function getVendor(context: VendorContext, vendorId: string) {
   const vendor = await prisma.vendor.findFirst({

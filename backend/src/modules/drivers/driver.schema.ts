@@ -1,8 +1,10 @@
 import Joi from 'joi'
+import { paginationQueryFields } from '../../shared/pagination'
 export const driverParamsSchema = Joi.object({
   driverId: Joi.string().uuid().required(),
 })
 export const driverQuerySchema = Joi.object({
+  ...paginationQueryFields,
   search: Joi.string().trim().max(200).empty(''),
   engagementType: Joi.string().valid('OWN', 'VENDOR'),
   vendorId: Joi.string().uuid(),

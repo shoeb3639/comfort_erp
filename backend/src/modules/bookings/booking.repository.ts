@@ -1,5 +1,7 @@
 import type { BookingStatus, Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 
 const include = {
   customer: true,
@@ -36,48 +38,53 @@ export function updateTenantPrefix(tenantId: string, bookingPrefix: string) {
 
 export function list(
   tenantId: string,
-  filters: { search?: string; status?: string; view?: string },
+  filters: { search?: string; status?: string; view?: string } & PageRequest,
 ) {
-  return prisma.booking.findMany({
-    where: {
-      tenantId,
-      deletedAt: null,
-      ...(filters.status ? { status: filters.status as never } : {}),
-      ...(filters.view === 'CLOSED'
-        ? { status: 'CLOSED' }
-        : filters.view === 'ACTIVE'
-          ? { status: { notIn: ['CLOSED', 'CANCELLED'] } }
-          : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              {
-                bookingNumber: {
-                  contains: filters.search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                serviceCity: { contains: filters.search, mode: 'insensitive' },
-              },
-              {
-                pickupReportingAddress: {
-                  contains: filters.search,
-                  mode: 'insensitive',
-                },
-              },
-              {
-                customer: {
-                  name: { contains: filters.search, mode: 'insensitive' },
-                },
-              },
-            ],
-          }
+  const where = {
+    tenantId,
+    deletedAt: null,
+    ...(filters.status ? { status: filters.status as never } : {}),
+    ...(filters.view === 'CLOSED'
+      ? { status: 'CLOSED' }
+      : filters.view === 'ACTIVE'
+        ? { status: { notIn: ['CLOSED', 'CANCELLED'] } }
         : {}),
-    },
-    include,
-    orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
-  })
+    ...(filters.search
+      ? {
+          OR: [
+            {
+              bookingNumber: {
+                contains: filters.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              serviceCity: { contains: filters.search, mode: 'insensitive' },
+            },
+            {
+              pickupReportingAddress: {
+                contains: filters.search,
+                mode: 'insensitive',
+              },
+            },
+            {
+              customer: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.BookingWhereInput
+  return Promise.all([
+    prisma.booking.findMany({
+      where,
+      include,
+      orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
+      ...pageWindow(filters),
+    }),
+    prisma.booking.count({ where }),
+  ])
 }
 
 export function find(tenantId: string, idOrNumber: string) {
@@ -241,6 +248,15 @@ export interface CloseBookingData {
   closure: Prisma.BookingClosureUncheckedCreateWithoutBookingInput
   invoice: Omit<Prisma.InvoiceUncheckedCreateInput, 'tenantId' | 'bookingId'>
   invoiceItems: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[]
+  initialCollection: {
+    collectionDate: Date
+    amount: number
+    paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'CHEQUE'
+    collectedByName: string
+    referenceNumber: string | null
+    normalizedReferenceNumber: string | null
+    status: 'PENDING' | 'DIRECTLY_RECEIVED'
+  } | null
 }
 
 export function closeBooking(
@@ -282,6 +298,62 @@ export function closeBooking(
         invoiceId: invoice.id,
       })),
     })
+    if (data.initialCollection) {
+      const collection = await transaction.bookingCollection.create({
+        data: {
+          collectionDate: data.initialCollection.collectionDate,
+          amount: data.initialCollection.amount,
+          paymentMode: data.initialCollection.paymentMode,
+          collectedByName: data.initialCollection.collectedByName,
+          referenceNumber: data.initialCollection.referenceNumber,
+          status: data.initialCollection.status,
+          tenantId,
+          bookingId,
+          invoiceId: invoice.id,
+          recordedById: userId,
+        },
+      })
+      if (collection.paymentMode === 'CASH')
+        await transaction.bookingCashDeposit.create({
+          data: {
+            tenantId,
+            collectionId: collection.id,
+            amountCollected: collection.amount,
+            receiverManagerName: collection.collectedByName,
+            status: 'COLLECTED',
+            createdById: userId,
+            updatedById: userId,
+          },
+        })
+      if (collection.referenceNumber)
+        await transaction.accountReference.create({
+          data: {
+            tenantId,
+            referenceNumber: collection.referenceNumber,
+            normalizedReferenceNumber:
+              data.initialCollection.normalizedReferenceNumber!,
+            source: 'COLLECTION',
+            sourceId: collection.id,
+            createdById: userId,
+            updatedById: userId,
+          },
+        })
+      await transaction.tenantAuditLog.create({
+        data: {
+          tenantId,
+          actorUserId: userId,
+          module: 'BOOKING_COLLECTION',
+          action: 'CREATE',
+          referenceId: collection.id,
+          newValues: {
+            bookingId,
+            status: collection.status,
+            paymentMode: collection.paymentMode,
+            referenceNumber: collection.referenceNumber,
+          },
+        },
+      })
+    }
     await transaction.tenantAuditLog.create({
       data: {
         tenantId,

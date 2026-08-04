@@ -1,5 +1,7 @@
 import { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import type { PageRequest } from '../../shared/pagination'
+import { pageWindow } from '../../shared/pagination'
 
 export const invoiceInclude = {
   booking: true,
@@ -29,42 +31,52 @@ export const invoiceInclude = {
 
 export function list(
   tenantId: string,
-  filters: { search?: string; status?: string },
+  filters: { search?: string; status?: string; source?: string } & PageRequest,
 ) {
-  return prisma.invoice.findMany({
-    where: {
-      tenantId,
-      ...(filters.status ? { status: filters.status as never } : {}),
-      ...(filters.search
-        ? {
-            OR: [
-              {
-                invoiceNumber: {
-                  contains: filters.search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                billingName: {
-                  contains: filters.search,
-                  mode: 'insensitive' as const,
-                },
-              },
-              {
-                booking: {
-                  bookingNumber: {
-                    contains: filters.search,
-                    mode: 'insensitive' as const,
-                  },
-                },
-              },
-            ],
-          }
+  const where = {
+    tenantId,
+    ...(filters.status ? { status: filters.status as never } : {}),
+    ...(filters.source === 'BOOKING'
+      ? { bookingId: { not: null } }
+      : filters.source === 'DIRECT'
+        ? { bookingId: null }
         : {}),
-    },
-    include: invoiceInclude,
-    orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
-  })
+    ...(filters.search
+      ? {
+          OR: [
+            {
+              invoiceNumber: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              billingName: {
+                contains: filters.search,
+                mode: 'insensitive' as const,
+              },
+            },
+            {
+              booking: {
+                bookingNumber: {
+                  contains: filters.search,
+                  mode: 'insensitive' as const,
+                },
+              },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.InvoiceWhereInput
+  return Promise.all([
+    prisma.invoice.findMany({
+      where,
+      include: invoiceInclude,
+      orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
+      ...pageWindow(filters),
+    }),
+    prisma.invoice.count({ where }),
+  ])
 }
 
 export function find(tenantId: string, invoiceId: string) {
@@ -305,8 +317,7 @@ export function generate(
                     .join(', '),
                   website: tenant.website,
                   mobile: tenant.mobile,
-                  gstNumber:
-                    tenant.gstRegistrations[0]?.gstin || tenant.gstin,
+                  gstNumber: tenant.gstRegistrations[0]?.gstin || tenant.gstin,
                   category: tenant.businessType,
                 }
               : null,

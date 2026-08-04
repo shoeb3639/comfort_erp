@@ -11,9 +11,10 @@ function authorizationHeaders() {
   return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 }
 
-export async function getTenants() {
+export async function getTenants(params = {}) {
   const response = await api.get("/platform/tenants", {
     headers: authorizationHeaders(),
+    params,
   });
   return response.data.data;
 }
@@ -94,10 +95,10 @@ export async function updateTenantOwner(tenantId, ownerId, payload) {
   return response.data.data;
 }
 
-export async function getTenantSubscriptions(tenantId) {
+export async function getTenantSubscriptions(tenantId, params = {}) {
   const response = await api.get("/platform/tenant-subscriptions", {
     headers: authorizationHeaders(),
-    params: tenantId ? { tenantId } : undefined,
+    params: { ...(tenantId ? { tenantId } : {}), ...params },
   });
   return response.data.data;
 }
@@ -118,23 +119,26 @@ export async function updateTenantSubscription(subscriptionId, payload) {
   return response.data.data;
 }
 
-export async function getPlatformAuditLogs() {
+export async function getPlatformAuditLogs(params = {}) {
   const response = await api.get("/platform/audit-logs", {
     headers: authorizationHeaders(),
+    params,
   });
   return response.data.data;
 }
 
-export async function getPlatformUsers() {
+export async function getPlatformUsers(params = {}) {
   const response = await api.get("/platform/users", {
     headers: authorizationHeaders(),
+    params,
   });
   return response.data.data;
 }
 
-export async function getSubscriptionPayments() {
+export async function getSubscriptionPayments(params = {}) {
   const response = await api.get("/platform/subscription-payments", {
     headers: authorizationHeaders(),
+    params,
   });
   return response.data.data;
 }

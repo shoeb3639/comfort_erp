@@ -18,6 +18,7 @@ import {
   money,
   fieldClass,
 } from "./platformUtils";
+import Pagination from "../../components/Pagination";
 
 const statusOptions = [
   "TRIAL",
@@ -320,13 +321,18 @@ function SubscriptionsPage() {
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState("");
   const [editing, setEditing] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25 });
 
   async function loadSubscriptions() {
     const [subscriptionRecords, planRecords] = await Promise.all([
-      getTenantSubscriptions(),
+      getTenantSubscriptions(undefined, {
+        page: pagination.page,
+        limit: pagination.limit,
+      }),
       getAllSubscriptionPlans(),
     ]);
-    setSubscriptions(subscriptionRecords);
+    setSubscriptions(subscriptionRecords.items);
+    setPagination(subscriptionRecords.pagination);
     setPlans(planRecords);
   }
 
@@ -340,7 +346,7 @@ function SubscriptionsPage() {
     loadSubscriptions().catch((requestError) =>
       setError(getPlatformErrorMessage(requestError)),
     );
-  }, []);
+  }, [pagination.page, pagination.limit]);
 
   const rows = useMemo(() => {
     const now = new Date();
@@ -523,6 +529,15 @@ function SubscriptionsPage() {
             </tr>
           ))}
         </TableShell>
+        <Pagination
+          pagination={pagination}
+          onPageChange={(page) =>
+            setPagination((current) => ({ ...current, page }))
+          }
+          onLimitChange={(limit) =>
+            setPagination((current) => ({ ...current, page: 1, limit }))
+          }
+        />
       </Section>
       {editing && (
         <SubscriptionModal
