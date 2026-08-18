@@ -1,11 +1,13 @@
 import 'dotenv/config'
 import Joi from 'joi'
+import { RATE_LIMIT_DEFAULTS } from '../shared/security/rate-limit.constants'
 
 interface EnvironmentVariables {
   NODE_ENV: 'development' | 'test' | 'production'
   PORT: number
   CORS_ORIGIN: string
   LOG_LEVEL: string
+  TRUST_PROXY_HOPS: number
   DATABASE_URL: string
   JWT_ACCESS_SECRET: string
   JWT_REFRESH_SECRET: string
@@ -13,6 +15,10 @@ interface EnvironmentVariables {
   REFRESH_TOKEN_TTL: number
   JWT_ISSUER: string
   JWT_AUDIENCE: string
+  RATE_LIMIT_GLOBAL_WINDOW_MS: number
+  RATE_LIMIT_GLOBAL_MAX: number
+  RATE_LIMIT_AUTH_WINDOW_MS: number
+  RATE_LIMIT_AUTH_MAX: number
 }
 
 const envSchema = Joi.object<EnvironmentVariables>({
@@ -24,6 +30,7 @@ const envSchema = Joi.object<EnvironmentVariables>({
   LOG_LEVEL: Joi.string()
     .valid('error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly')
     .default('info'),
+  TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
@@ -33,6 +40,26 @@ const envSchema = Joi.object<EnvironmentVariables>({
   REFRESH_TOKEN_TTL: Joi.number().integer().positive().default(604800),
   JWT_ISSUER: Joi.string().default('cablix-api'),
   JWT_AUDIENCE: Joi.string().default('cablix-app'),
+  RATE_LIMIT_GLOBAL_WINDOW_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(24 * 60 * 60 * 1000)
+    .default(RATE_LIMIT_DEFAULTS.global.windowMs),
+  RATE_LIMIT_GLOBAL_MAX: Joi.number()
+    .integer()
+    .min(1)
+    .max(100_000)
+    .default(RATE_LIMIT_DEFAULTS.global.limit),
+  RATE_LIMIT_AUTH_WINDOW_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(24 * 60 * 60 * 1000)
+    .default(RATE_LIMIT_DEFAULTS.authentication.windowMs),
+  RATE_LIMIT_AUTH_MAX: Joi.number()
+    .integer()
+    .min(1)
+    .max(10_000)
+    .default(RATE_LIMIT_DEFAULTS.authentication.limit),
 })
   .unknown(true)
   .required()
@@ -76,6 +103,7 @@ interface Environment {
   port: number
   corsOrigin: string
   logLevel: string
+  trustProxyHops: number
   databaseUrl: string
   jwtAccessSecret: string
   jwtRefreshSecret: string
@@ -83,6 +111,10 @@ interface Environment {
   refreshTokenTtlSeconds: number
   jwtIssuer: string
   jwtAudience: string
+  rateLimit: {
+    global: { windowMs: number; limit: number }
+    authentication: { windowMs: number; limit: number }
+  }
 }
 
 export const env: Environment = Object.freeze({
@@ -90,6 +122,7 @@ export const env: Environment = Object.freeze({
   port: validatedEnvironment.PORT,
   corsOrigin: validatedEnvironment.CORS_ORIGIN,
   logLevel: validatedEnvironment.LOG_LEVEL,
+  trustProxyHops: validatedEnvironment.TRUST_PROXY_HOPS,
   databaseUrl: validatedEnvironment.DATABASE_URL,
   jwtAccessSecret: validatedEnvironment.JWT_ACCESS_SECRET,
   jwtRefreshSecret: validatedEnvironment.JWT_REFRESH_SECRET,
@@ -97,4 +130,14 @@ export const env: Environment = Object.freeze({
   refreshTokenTtlSeconds: validatedEnvironment.REFRESH_TOKEN_TTL,
   jwtIssuer: validatedEnvironment.JWT_ISSUER,
   jwtAudience: validatedEnvironment.JWT_AUDIENCE,
+  rateLimit: Object.freeze({
+    global: Object.freeze({
+      windowMs: validatedEnvironment.RATE_LIMIT_GLOBAL_WINDOW_MS,
+      limit: validatedEnvironment.RATE_LIMIT_GLOBAL_MAX,
+    }),
+    authentication: Object.freeze({
+      windowMs: validatedEnvironment.RATE_LIMIT_AUTH_WINDOW_MS,
+      limit: validatedEnvironment.RATE_LIMIT_AUTH_MAX,
+    }),
+  }),
 })

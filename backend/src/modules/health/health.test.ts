@@ -14,6 +14,7 @@ describe('health endpoint', () => {
       },
       message: 'Service is healthy',
     })
+    expect(response.headers.ratelimit).toBeUndefined()
   })
 
   it('returns a standardized error for an unknown route', async () => {
@@ -25,5 +26,6 @@ describe('health endpoint', () => {
       code: 'NOT_FOUND',
       details: [],
     })
+    expect(response.headers.ratelimit).toBeDefined()
   })
 })
