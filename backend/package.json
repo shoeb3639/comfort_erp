@@ -28,7 +28,8 @@
     "customers:migrate:old": "node --import tsx prisma/import-old-customers.ts",
     "db:backup": "node scripts/backup-database.mjs",
     "db:backup:verify": "node scripts/verify-database-backup.mjs",
-    "db:provision-runtime-role": "node scripts/provision-runtime-database-role.mjs"
+    "db:provision-runtime-role": "node scripts/provision-runtime-database-role.mjs",
+    "db:separate-credentials": "node scripts/separate-database-environment.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

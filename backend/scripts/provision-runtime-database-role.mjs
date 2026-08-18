@@ -1,20 +1,27 @@
-import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+import {
+  databaseOperationsEnvironmentPath,
+  loadDatabaseOperationsEnvironment,
+} from './database-operations-environment.mjs'
+
+loadDatabaseOperationsEnvironment()
 
 const { Client } = pg
 const backendRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const envPath = join(backendRoot, '.env')
+const operationsEnvPath = databaseOperationsEnvironmentPath()
 const expectedDatabase = 'cablix_erp'
 const runtimeRole = 'cablix_app'
-const adminConnectionString =
-  process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+const adminConnectionString = process.env.MIGRATION_DATABASE_URL
 
 if (!adminConnectionString)
-  throw new Error('DATABASE_URL or MIGRATION_DATABASE_URL is required')
+  throw new Error(
+    'MIGRATION_DATABASE_URL is required in the operations environment',
+  )
 const adminUrl = new URL(adminConnectionString)
 const databaseName = decodeURIComponent(adminUrl.pathname.replace(/^\//, ''))
 if (databaseName !== expectedDatabase)
@@ -93,20 +100,45 @@ const replaceOrAppend = (contents, name, value) => {
     ? contents.replace(pattern, line)
     : `${contents.trimEnd()}\n${line}\n`
 }
-let updatedEnv = replaceOrAppend(
-  originalEnv,
+const operationalKeys = new Set([
+  'DATABASE_BACKUP_URL',
   'MIGRATION_DATABASE_URL',
-  adminUrl.toString(),
-)
-updatedEnv = replaceOrAppend(updatedEnv, 'DATABASE_URL', runtimeUrl.toString())
-updatedEnv = replaceOrAppend(
-  updatedEnv,
+  'SHADOW_DATABASE_URL',
   'TEST_DATABASE_URL',
-  testUrl.toString(),
+])
+const sanitizedRuntimeEnv = `${originalEnv
+  .split(/\r?\n/)
+  .filter((line) => {
+    const match = line.match(/^([A-Z][A-Z0-9_]*)=/)
+    return !match || !operationalKeys.has(match[1])
+  })
+  .join('\n')
+  .trimEnd()}\n`
+const updatedEnv = replaceOrAppend(
+  sanitizedRuntimeEnv,
+  'DATABASE_URL',
+  runtimeUrl.toString(),
 )
 const temporaryEnvPath = `${envPath}.runtime-role-${process.pid}`
 await writeFile(temporaryEnvPath, updatedEnv, { mode: 0o600 })
 await rename(temporaryEnvPath, envPath)
+
+const originalOperationsEnv = await readFile(operationsEnvPath, 'utf8')
+let updatedOperationsEnv = replaceOrAppend(
+  originalOperationsEnv,
+  'MIGRATION_DATABASE_URL',
+  adminUrl.toString(),
+)
+updatedOperationsEnv = replaceOrAppend(
+  updatedOperationsEnv,
+  'TEST_DATABASE_URL',
+  testUrl.toString(),
+)
+const temporaryOperationsEnvPath = `${operationsEnvPath}.runtime-role-${process.pid}`
+await writeFile(temporaryOperationsEnvPath, updatedOperationsEnv, {
+  mode: 0o600,
+})
+await rename(temporaryOperationsEnvPath, operationsEnvPath)
 
 console.log(
   JSON.stringify({
@@ -114,6 +146,7 @@ console.log(
     database: expectedDatabase,
     runtimeRole,
     administrativeRole: adminUrl.username,
-    environmentUpdated: true,
+    runtimeEnvironmentUpdated: true,
+    operationsEnvironmentUpdated: true,
   }),
 )

@@ -1,5 +1,9 @@
-import 'dotenv/config'
+import { config } from 'dotenv'
 import { defineConfig, env } from 'prisma/config'
+import { loadDatabaseOperationsEnvironment } from './scripts/database-operations-environment.mjs'
+
+loadDatabaseOperationsEnvironment()
+config({ path: '.env', quiet: true })
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -7,7 +11,7 @@ export default defineConfig({
     path: 'prisma/migrations',
   },
   datasource: {
-    url: process.env.MIGRATION_DATABASE_URL ?? env('DATABASE_URL'),
+    url: env('MIGRATION_DATABASE_URL'),
     shadowDatabaseUrl: env('SHADOW_DATABASE_URL'),
   },
 })

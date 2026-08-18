@@ -24,6 +24,8 @@
       <string>/Library/PostgreSQL/18/bin/pg_restore</string>
       <key>DATABASE_BACKUP_MIRROR_DIR</key>
       <string>/Users/syedshoeb/CablixDatabaseBackups</string>
+      <key>DATABASE_OPERATIONS_ENV</key>
+      <string>/Users/syedshoeb/booking-admin-panel/backend/.local/secrets/database-operations.env</string>
     </dict>
 
     <key>StartCalendarInterval</key>

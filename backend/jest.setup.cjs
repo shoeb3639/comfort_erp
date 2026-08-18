@@ -1,7 +1,28 @@
+/* global __dirname */
+
+const path = require('node:path')
+const { statSync } = require('node:fs')
+const { config } = require('dotenv')
+
+const operationsEnvironmentPath =
+  process.env.DATABASE_OPERATIONS_ENV ??
+  path.join(__dirname, '.local', 'secrets', 'database-operations.env')
+const operationsEnvironment = statSync(operationsEnvironmentPath)
+if ((operationsEnvironment.mode & 0o077) !== 0) {
+  throw new Error(
+    `Database operations environment must have 0600 permissions: ${operationsEnvironmentPath}`,
+  )
+}
+config({ path: operationsEnvironmentPath, quiet: true })
+config({ path: path.join(__dirname, '.env'), quiet: true })
+
 process.env.NODE_ENV = 'test'
-const testDatabaseUrl =
-  process.env.TEST_DATABASE_URL ??
-  'postgresql://postgres@127.0.0.1:5432/cablix_erp_test?schema=public'
+const testDatabaseUrl = process.env.TEST_DATABASE_URL
+if (!testDatabaseUrl) {
+  throw new Error(
+    'TEST_DATABASE_URL is required in the database operations environment',
+  )
+}
 const testDatabaseName = decodeURIComponent(
   new URL(testDatabaseUrl).pathname.replace(/^\//, ''),
 )

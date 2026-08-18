@@ -1,7 +1,4 @@
-import {
-  getFoundation,
-  normalizeReferenceNumber,
-} from './accounts.service'
+import { getFoundation, normalizeReferenceNumber } from './accounts.service'
 
 describe('Accounts foundation service', () => {
   it('normalizes references consistently for tenant-scoped duplicate checks', () => {

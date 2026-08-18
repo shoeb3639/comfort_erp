@@ -1,9 +1,11 @@
-import 'dotenv/config'
 import { spawn } from 'node:child_process'
-import { readdir } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+import { loadDatabaseOperationsEnvironment } from './database-operations-environment.mjs'
+
+loadDatabaseOperationsEnvironment()
 
 const { Client } = pg
 const backendRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -12,24 +14,31 @@ const backupDirectory =
 const requestedBackup = process.argv[2]
 const expectedDatabase = process.env.DATABASE_BACKUP_NAME ?? 'cablix_erp'
 const pgRestoreBinary = process.env.PG_RESTORE_BIN ?? 'pg_restore'
-const adminConnectionString =
-  process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+const adminConnectionString = process.env.MIGRATION_DATABASE_URL
 
 if (!adminConnectionString)
-  throw new Error('MIGRATION_DATABASE_URL or DATABASE_URL is required')
+  throw new Error(
+    'MIGRATION_DATABASE_URL is required in the operations environment',
+  )
 const sourceUrl = new URL(adminConnectionString)
 if (
   decodeURIComponent(sourceUrl.pathname.replace(/^\//, '')) !== expectedDatabase
 )
   throw new Error(`Restore verification is locked to ${expectedDatabase}`)
 
-const backups = (await readdir(backupDirectory))
-  .filter(
-    (name) => name.startsWith(`${expectedDatabase}_`) && name.endsWith('.dump'),
-  )
-  .sort()
-const backupPath =
-  requestedBackup ?? join(backupDirectory, backups.at(-1) ?? '')
+const backups = await Promise.all(
+  (await readdir(backupDirectory))
+    .filter(
+      (name) =>
+        name.startsWith(`${expectedDatabase}_`) && name.endsWith('.dump'),
+    )
+    .map(async (name) => {
+      const path = join(backupDirectory, name)
+      return { path, modifiedAt: (await stat(path)).mtimeMs }
+    }),
+)
+backups.sort((left, right) => left.modifiedAt - right.modifiedAt)
+const backupPath = requestedBackup ?? backups.at(-1)?.path ?? ''
 if (!backupPath || !basename(backupPath).endsWith('.dump'))
   throw new Error('A PostgreSQL custom-format backup is required')
 

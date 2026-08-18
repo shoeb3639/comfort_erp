@@ -1,4 +1,3 @@
-import 'dotenv/config'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import {
@@ -13,6 +12,9 @@ import {
 } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loadDatabaseOperationsEnvironment } from './database-operations-environment.mjs'
+
+loadDatabaseOperationsEnvironment()
 
 const backendRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const backupDirectory =
@@ -22,12 +24,12 @@ const retentionCount = Number(process.env.DATABASE_BACKUP_RETENTION ?? 30)
 const expectedDatabase = process.env.DATABASE_BACKUP_NAME ?? 'cablix_erp'
 const pgDumpBinary = process.env.PG_DUMP_BIN ?? 'pg_dump'
 const pgRestoreBinary = process.env.PG_RESTORE_BIN ?? 'pg_restore'
-const connectionString =
-  process.env.DATABASE_BACKUP_URL ??
-  process.env.MIGRATION_DATABASE_URL ??
-  process.env.DATABASE_URL
+const connectionString = process.env.DATABASE_BACKUP_URL
 
-if (!connectionString) throw new Error('A database backup URL is required')
+if (!connectionString)
+  throw new Error(
+    'DATABASE_BACKUP_URL is required in the operations environment',
+  )
 if (!Number.isInteger(retentionCount) || retentionCount < 7)
   throw new Error('DATABASE_BACKUP_RETENTION must be an integer of at least 7')
 
