@@ -4,6 +4,10 @@ import { pageRequest } from '../../shared/pagination'
 import * as service from './accounts.service'
 import * as operations from './accounts.operations'
 import type {
+  CreateFundReleaseInput,
+  CreateManagerLedgerInput,
+} from './accounts.types'
+import type {
   AccountPaymentMode,
   CashDepositMode,
   CashDepositStatus,
@@ -329,7 +333,7 @@ export const createManagerLedger: RequestHandler = async (
   response,
 ) => {
   const { tenantId, userId } = context(request)
-  const body = request.body as service.CreateManagerLedgerInput
+  const body = request.body as CreateManagerLedgerInput
   response.status(201).json({
     success: true,
     data: await service.createManagerLedger(tenantId, userId, body),
@@ -401,7 +405,7 @@ export const getFundRelease: RequestHandler = async (request, response) => {
 
 export const createFundRelease: RequestHandler = async (request, response) => {
   const { tenantId, userId } = context(request)
-  const body = request.body as service.CreateFundReleaseInput
+  const body = request.body as CreateFundReleaseInput
   response.status(201).json({
     success: true,
     data: await service.createFundRelease(tenantId, userId, body),

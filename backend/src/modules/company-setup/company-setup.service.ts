@@ -1,140 +1,23 @@
 import { Prisma } from '../../generated/prisma/client'
-import type {
-  SetupRecordStatus,
-  UserStatus,
-} from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
 import { hashPassword } from '../../shared/security/password'
+import {
+  GST_REGISTRATION_TYPES_REQUIRING_GSTIN,
+  GSTIN_PATTERN,
+} from './company-setup.constants'
+import { mapCompanySetupConflict } from './company-setup.mapper'
 import * as repository from './company-setup.repository'
-
-export interface SetupContext {
-  tenantId: string
-  userId: string
-}
-
-export interface CompanyProfileInput {
-  legalName?: string
-  tradeName?: string | null
-  businessType?: string | null
-  email?: string
-  mobile?: string
-  alternateNumber?: string | null
-  website?: string | null
-  logoUrl?: string | null
-  addressLine1?: string | null
-  addressLine2?: string | null
-  city?: string | null
-  state?: string | null
-  pinCode?: string | null
-  country?: string
-  billingAddress?: Record<string, unknown> | null
-  defaultCurrency?: string
-  timeZone?: string
-  financialYearStartMonth?: number
-  dateFormat?: string
-  bookingPrefix?: string | null
-  invoicePrefix?: string | null
-  smsPrefix?: string | null
-}
-
-export interface TaxSettingsInput {
-  gstin?: string | null
-  pan?: string | null
-  companyRegistrationNumber?: string | null
-  stateCode?: string | null
-  taxRegistrationType?: string | null
-  taxSettings: Record<string, unknown>
-}
-
-export interface InvoiceSettingsInput {
-  invoicePrefix?: string | null
-  invoiceNumberLength?: number
-  invoiceSettings: Record<string, unknown>
-}
-
-export interface LocationInput {
-  name?: string
-  code?: string | null
-  addressLine1?: string | null
-  addressLine2?: string | null
-  city?: string | null
-  state?: string | null
-  pinCode?: string | null
-  country?: string
-  phone?: string | null
-  email?: string | null
-  isPrimary?: boolean
-  status?: SetupRecordStatus
-}
-
-export interface BankAccountInput {
-  accountName?: string
-  bankName?: string
-  branchName?: string | null
-  accountNumber?: string
-  ifscCode?: string
-  accountType?: string | null
-  upiId?: string | null
-  isDefault?: boolean
-  status?: SetupRecordStatus
-}
-
-export interface GstRegistrationInput {
-  registrationName?: string
-  legalName?: string
-  tradeName?: string | null
-  registrationType?: string
-  gstin?: string | null
-  pan?: string | null
-  registeredAddress?: string | null
-  addressLine1?: string | null
-  addressLine2?: string | null
-  city?: string | null
-  district?: string | null
-  state?: string
-  stateCode?: string
-  pinCode?: string | null
-  country?: string
-  effectiveFrom?: Date | null
-  effectiveTo?: Date | null
-  isDefault?: boolean
-  status?: SetupRecordStatus
-  notes?: string | null
-  locationIds?: string[]
-}
-
-export interface TenantUserInput {
-  name?: string
-  email?: string
-  mobile?: string | null
-  designation?: string | null
-  password?: string
-  roleId?: string
-  locationIds?: string[]
-  status?: UserStatus
-}
-
-export interface RoleInput {
-  name?: string
-  code?: string
-  description?: string | null
-  permissionIds?: string[]
-  status?: UserStatus
-}
-
-function mapConflict(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  ) {
-    throw new AppError(
-      'A record with the same unique value already exists',
-      'CONFLICT',
-      409,
-    )
-  }
-  throw error
-}
+import type {
+  BankAccountInput,
+  CompanyProfileInput,
+  GstRegistrationInput,
+  InvoiceSettingsInput,
+  LocationInput,
+  RoleInput,
+  SetupContext,
+  TaxSettingsInput,
+  TenantUserInput,
+} from './company-setup.types'
 
 async function validateLocationIds(tenantId: string, ids: string[]) {
   if (ids.length === 0) return
@@ -191,7 +74,7 @@ export async function updateCompanyProfile(
       'COMPANY_PROFILE',
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -271,7 +154,7 @@ export async function createLocation(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -291,7 +174,7 @@ export async function updateLocation(
     return record
   } catch (error) {
     if (error instanceof AppError) throw error
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -320,7 +203,7 @@ export async function createBankAccount(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -342,7 +225,7 @@ export async function updateBankAccount(
     return record
   } catch (error) {
     if (error instanceof AppError) throw error
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -352,7 +235,7 @@ export function listGstRegistrations(context: SetupContext) {
 
 function validateGstin(input: GstRegistrationInput) {
   if (
-    ['Regular', 'Composition'].includes(input.registrationType ?? '') &&
+    GST_REGISTRATION_TYPES_REQUIRING_GSTIN.has(input.registrationType ?? '') &&
     !input.gstin
   ) {
     throw new AppError(
@@ -361,10 +244,7 @@ function validateGstin(input: GstRegistrationInput) {
       400,
     )
   }
-  if (
-    input.gstin &&
-    !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/.test(input.gstin)
-  ) {
+  if (input.gstin && !GSTIN_PATTERN.test(input.gstin)) {
     throw new AppError('GSTIN format is invalid', 'VALIDATION_ERROR', 400)
   }
   if (
@@ -411,7 +291,7 @@ export async function createGstRegistration(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -439,7 +319,7 @@ export async function updateGstRegistration(
     return record
   } catch (error) {
     if (error instanceof AppError) throw error
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -492,7 +372,7 @@ export async function createUser(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -542,7 +422,7 @@ export async function updateUser(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 
@@ -578,7 +458,7 @@ export async function createRole(
       context.userId,
     )
   } catch (error) {
-    return mapConflict(error)
+    return mapCompanySetupConflict(error)
   }
 }
 

@@ -1,14 +1,10 @@
-import { randomInt } from 'node:crypto'
+import { randomInt, randomUUID } from 'node:crypto'
+import { mkdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { basename, join, resolve, sep } from 'node:path'
 import { Prisma } from '../../generated/prisma/client'
 import type {
-  AssignmentSource,
-  BillingTripType,
   BookingStatus,
-  BookingType,
-  CollectionPaymentMode,
   CollectionStatus,
-  PricingBasis,
-  TripType,
 } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
 import type { PageRequest } from '../../shared/pagination'
@@ -18,383 +14,25 @@ import {
   normalizeReferenceNumber,
   validateReference,
 } from '../accounts/accounts.service'
+import {
+  DUTY_EVIDENCE_FIELDS,
+  DUTY_EVIDENCE_IMAGE_EXTENSIONS,
+  DUTY_EVIDENCE_ROOT,
+} from './booking.constants'
+import { asDutyEvidence, mapBooking } from './booking.mapper'
 import * as repository from './booking.repository'
-
-export interface Context {
-  tenantId: string
-  userId: string
-}
-
-export interface BookingInput {
-  customerId?: string
-  travellerId?: string | null
-  bookingType?: BookingType
-  bookingPackage?: string | null
-  tripType?: TripType
-  serviceCity?: string
-  startDate?: Date
-  endDate?: Date
-  pickupTime?: string
-  travellingFrom?: string
-  travellingTo?: string
-  pickupReportingAddress?: string
-  routeStops?: string | null
-  packageDetails?: string | null
-  requestedVehicleType?: string
-  assignmentSource?: AssignmentSource
-  pricingBasis?: PricingBasis
-  customerRate?: number
-  notes?: string | null
-  status?: BookingStatus
-}
-
-export interface AssignmentInput {
-  assignmentSource: AssignmentSource
-  vendorId: string | null
-  vehicleId: string
-  driverId: string
-  vendorRateType?: string | null
-  vendorRate?: number | null
-  vendorPayableAmount?: number | null
-  vendorNotes?: string | null
-}
-
-export interface DutyStartInput {
-  openingOdometer?: number | null
-  remarks?: string | null
-}
-
-export interface DutyCompleteInput {
-  closingOdometer?: number | null
-  remarks?: string | null
-}
-
-export interface CloseBookingInput {
-  billingTripType: BillingTripType
-  startKm?: number | null
-  endKm?: number | null
-  ratePerKm?: number | null
-  packageAmount?: number | null
-  tollTax?: number
-  parking?: number
-  driverAllowance?: number
-  otherRecoverableCharges?: number
-  gst?: number
-  dieselCost?: number
-  directVehicleExpense?: number
-  driverCost?: number
-  allocatedOfficeExpense?: number
-  vendorPayableAmount?: number
-  vendorExtraCharges?: number
-  vendorDeduction?: number
-  paymentAmount?: number
-  paymentMode?: CollectionPaymentMode
-  paymentDate?: Date
-  paymentReference?: string | null
-  collectedBy?: string
-  remarks?: string | null
-  attachmentName?: string | null
-}
-
-export interface CollectionInput {
-  collectionDate: Date
-  amount: number
-  paymentMode: CollectionPaymentMode
-  collectedBy: string
-  receiverName?: string | null
-  referenceNumber?: string | null
-  remarks?: string | null
-  depositDate?: Date | null
-  depositMode?: string | null
-  depositReferenceNumber?: string | null
-  depositedBy?: string | null
-  verifiedBy?: string | null
-  depositStatus?: CollectionStatus
-}
-
-export type CreateBookingInput = Required<
-  Pick<
-    BookingInput,
-    | 'customerId'
-    | 'bookingType'
-    | 'serviceCity'
-    | 'startDate'
-    | 'endDate'
-    | 'pickupTime'
-    | 'travellingFrom'
-    | 'travellingTo'
-    | 'pickupReportingAddress'
-    | 'requestedVehicleType'
-    | 'assignmentSource'
-    | 'pricingBasis'
-    | 'customerRate'
-  >
-> &
-  BookingInput
-
-const statusLabel: Record<BookingStatus, string> = {
-  DRAFT: 'Draft',
-  CONFIRMED: 'Confirmed',
-  ASSIGNED: 'Assigned',
-  RUNNING: 'In Transit',
-  COMPLETED: 'Completed',
-  CLOSED: 'Closed',
-  CANCELLED: 'Cancelled',
-}
-
-function map(record: Awaited<ReturnType<typeof repository.find>>) {
-  if (!record) return null
-  const closure = record.closure
-  const invoice = record.invoices[0] ?? null
-  const collections = record.collections.map((collection) => ({
-    id: collection.id,
-    collectionDate: collection.collectionDate.toISOString().slice(0, 10),
-    amount: Number(collection.amount),
-    paymentMode: collection.paymentMode.split('_').map(toTitleCase).join(' '),
-    collectedBy: collection.collectedByName,
-    receiverName: collection.receiverName,
-    referenceNumber: collection.referenceNumber,
-    remarks: collection.remarks,
-    depositDate: collection.depositDate?.toISOString().slice(0, 10) ?? '',
-    depositMode: collection.depositMode,
-    depositReferenceNumber: collection.depositReferenceNumber,
-    depositedBy: collection.depositedByName,
-    verifiedBy: collection.verifiedByName,
-    depositStatus: collection.status.split('_').map(toTitleCase).join(' '),
-    verifiedAt: collection.verifiedAt?.toISOString() ?? null,
-    createdAt: collection.createdAt.toISOString(),
-  }))
-  const totalBillAmount = closure ? Number(closure.totalBillAmount) : 0
-  const totalCollected = collections.reduce(
-    (total, collection) => total + collection.amount,
-    0,
-  )
-  const verifiedAmount = record.collections
-    .filter((collection) =>
-      ['VERIFIED', 'DIRECTLY_RECEIVED'].includes(collection.status),
-    )
-    .reduce((total, collection) => total + Number(collection.amount), 0)
-  const cashPendingDeposit = record.collections
-    .filter(
-      (collection) =>
-        collection.paymentMode === 'CASH' &&
-        ['PENDING', 'WITH_MANAGER'].includes(collection.status),
-    )
-    .reduce((total, collection) => total + Number(collection.amount), 0)
-  return {
-    ...record,
-    databaseId: record.id,
-    id: record.bookingNumber,
-    bookingId: record.id,
-    customer_type: record.customer.type
-      .split('_')
-      .map((part) => toTitleCase(part))
-      .join(' '),
-    billing_customer_id: record.customerId,
-    traveller_id: record.travellerId,
-    customer: record.customer.billingName,
-    travellerName: record.traveller?.name,
-    customerPhone: record.traveller?.phone || record.customer.phone,
-    booking_type: record.bookingType.toLowerCase(),
-    duty_package: record.bookingPackage,
-    dailyMinimumKm: record.bookingPackage?.startsWith('outstation_min_')
-      ? packageKm(record.bookingPackage)
-      : null,
-    includedKm: record.bookingPackage?.startsWith('local_')
-      ? packageKm(record.bookingPackage)
-      : null,
-    trip_type: record.tripType.toLowerCase(),
-    serviceCity: record.serviceCity,
-    startDate: record.startDate.toISOString().slice(0, 10),
-    endDate: record.endDate.toISOString().slice(0, 10),
-    pickupDate: record.startDate.toISOString().slice(0, 10),
-    pickupTime: record.pickupTime,
-    reportingTime: record.pickupTime,
-    travellingFrom: record.travellingFrom,
-    travellingTo: record.travellingTo,
-    pickupReportingAddress: record.pickupReportingAddress,
-    routeStops: record.routeStops,
-    packageDetails: record.packageDetails,
-    requestedVehicleType: record.requestedVehicleType,
-    assignmentType:
-      record.assignmentSource === 'VENDOR' ? 'vendor_vehicle' : 'own_vehicle',
-    assignment_type:
-      record.assignmentSource === 'VENDOR' ? 'vendor_vehicle' : 'own_vehicle',
-    vendorId: record.vendorId,
-    vendor: record.vendor?.name || 'Unassigned',
-    vehicleId: record.vehicleId,
-    vehicleType:
-      record.vehicle?.vehicleType.name || record.requestedVehicleType,
-    vehicleRegistrationNo: record.vehicle?.registrationNumber || '',
-    driverId: record.driverId,
-    driver: record.driver?.name || 'Unassigned',
-    driverNumber: record.driver?.mobile || '',
-    billing_model: record.pricingBasis.toLowerCase(),
-    pricing_basis: record.pricingBasis.toLowerCase(),
-    customerRate: Number(record.customerRate),
-    fixedAmount:
-      record.pricingBasis === 'FIXED' ? Number(record.customerRate) : '',
-    ratePerKm:
-      record.pricingBasis === 'RATE_PER_KM' ? Number(record.customerRate) : '',
-    amount: Number(record.customerRate),
-    vendorRate: record.vendorRate === null ? '' : Number(record.vendorRate),
-    vendorPayableAmount:
-      record.vendorPayableAmount === null
-        ? ''
-        : Number(record.vendorPayableAmount),
-    confirmedAt: record.confirmedAt?.toISOString() ?? null,
-    assignedAt: record.assignedAt?.toISOString() ?? null,
-    dutyStartedAt: record.dutyStartedAt?.toISOString() ?? null,
-    dutyCompletedAt: record.dutyCompletedAt?.toISOString() ?? null,
-    openingOdometer:
-      record.openingOdometer === null ? null : Number(record.openingOdometer),
-    closingOdometer:
-      record.closingOdometer === null ? null : Number(record.closingOdometer),
-    actualDistance:
-      record.openingOdometer !== null && record.closingOdometer !== null
-        ? Number(record.closingOdometer) - Number(record.openingOdometer)
-        : null,
-    dutyStartRemarks: record.dutyStartRemarks,
-    dutyCompletionRemarks: record.dutyCompletionRemarks,
-    cancelledAt: record.cancelledAt?.toISOString() ?? null,
-    cancellationReason: record.cancellationReason,
-    closeDetails: closure
-      ? {
-          billingTripType:
-            closure.billingTripType === 'KM_BASED'
-              ? 'KM Based'
-              : 'Package Based',
-          startKm: closure.startKm === null ? null : Number(closure.startKm),
-          endKm: closure.endKm === null ? null : Number(closure.endKm),
-          actualRunningKm: Number(closure.actualRunningKm),
-          minimumKm: Number(closure.minimumBillingKm),
-          billingKm: Number(closure.billingKm),
-          totalKm: Number(closure.actualRunningKm),
-          ratePerKm:
-            closure.ratePerKm === null ? null : Number(closure.ratePerKm),
-          packageAmount:
-            closure.packageAmount === null
-              ? null
-              : Number(closure.packageAmount),
-          baseFare: Number(closure.baseFare),
-          tollTax: Number(closure.tollTax),
-          parking: Number(closure.parking),
-          driverAllowance: Number(closure.driverAllowance),
-          otherRecoverableCharges: Number(closure.otherRecoverableCharges),
-          gst: Number(closure.gstAmount),
-          totalBillAmount,
-          dieselCost: Number(closure.dieselCost),
-          directVehicleExpense: Number(closure.directVehicleExpense),
-          driverCost: Number(closure.driverCost),
-          allocatedOfficeExpense: Number(closure.allocatedOfficeExpense),
-          vehicleRevenue: Number(closure.vehicleRevenue),
-          netVehicleProfit: Number(closure.netVehicleProfit),
-          vendorPayableAmount: Number(closure.vendorPayableAmount),
-          vendorExtraCharges: Number(closure.vendorExtraCharges),
-          vendorDeduction: Number(closure.vendorDeduction),
-          vendorRecoverableCharges:
-            record.assignmentSource === 'VENDOR'
-              ? Number(closure.tollTax) +
-                Number(closure.parking) +
-                Number(closure.driverAllowance)
-              : 0,
-          vendorBookingRevenue:
-            record.assignmentSource === 'VENDOR'
-              ? Number(closure.baseFare) +
-                Number(closure.tollTax) +
-                Number(closure.parking) +
-                Number(closure.driverAllowance)
-              : 0,
-          finalVendorPayable: Number(closure.finalVendorPayable),
-          vendorBookingProfit: Number(closure.vendorBookingProfit),
-          assignmentType:
-            record.assignmentSource === 'VENDOR'
-              ? 'vendor_vehicle'
-              : 'own_vehicle',
-          profitType:
-            record.assignmentSource === 'VENDOR'
-              ? 'vendor_vehicle'
-              : 'own_vehicle',
-          remarks: closure.remarks,
-          attachmentName: closure.attachmentName,
-          closedAt: closure.closedAt.toISOString(),
-        }
-      : null,
-    collections,
-    collectionSummary: {
-      totalBillAmount,
-      totalCollected,
-      pendingBalance: Math.max(0, totalBillAmount - totalCollected),
-      cashPendingDeposit,
-      verifiedAmount,
-      paymentStatus:
-        totalCollected <= 0
-          ? 'Unpaid'
-          : totalCollected < totalBillAmount
-            ? 'Partially Paid'
-            : cashPendingDeposit > 0
-              ? 'Cash With Manager'
-              : verifiedAmount >= totalBillAmount
-                ? 'Verified'
-                : 'Paid',
-    },
-    invoice: invoice ? mapInvoice(invoice, record) : null,
-    assignment_status: record.vehicleId ? 'Assigned' : 'Unassigned',
-    status: statusLabel[record.status],
-  }
-}
-
-function mapInvoice(
-  invoice: NonNullable<
-    Awaited<ReturnType<typeof repository.find>>
-  >['invoices'][number],
-  booking?: NonNullable<Awaited<ReturnType<typeof repository.find>>>,
-) {
-  return {
-    id: invoice.id,
-    invoice_source: 'booking',
-    invoiceSource: 'booking',
-    invoiceNumber: invoice.invoiceNumber || `Draft • ${booking?.bookingNumber}`,
-    invoiceDate: invoice.invoiceDate.toISOString().slice(0, 10),
-    bookingId: booking?.bookingNumber || '',
-    billingCustomer: invoice.billingName,
-    billingName: invoice.billingName,
-    billingAddress: invoice.billingAddress,
-    customerGstin: invoice.customerGstin,
-    invoiceStatus: toTitleCase(invoice.status),
-    status: toTitleCase(invoice.status),
-    gstType:
-      invoice.gstType === 'CGST_SGST'
-        ? 'CGST + SGST'
-        : invoice.gstType === 'IGST'
-          ? 'IGST'
-          : 'No GST',
-    items: invoice.items.map((item) => ({
-      id: item.id,
-      dateType: item.dateType,
-      serviceDate: item.serviceDate?.toISOString().slice(0, 10) || '',
-      serviceStartDate: item.serviceStartDate?.toISOString().slice(0, 10) || '',
-      serviceEndDate: item.serviceEndDate?.toISOString().slice(0, 10) || '',
-      description: item.description,
-      qty: Number(item.quantity),
-      quantity: Number(item.quantity),
-      unit: item.unit,
-      rate: Number(item.rate),
-      amount: Number(item.amount),
-    })),
-    totals: {
-      subtotal: Number(invoice.subtotal),
-      taxableAmount: Number(invoice.taxableAmount),
-      cgst: Number(invoice.cgstAmount),
-      sgst: Number(invoice.sgstAmount),
-      igst: Number(invoice.igstAmount),
-      totalTax: Number(invoice.totalGst),
-      totalGst: Number(invoice.totalGst),
-      netPayable: Number(invoice.netPayable),
-    },
-    generatedAt: invoice.generatedAt?.toISOString() ?? null,
-  }
-}
+import type {
+  AssignmentInput,
+  BookingInput,
+  CloseBookingInput,
+  CollectionInput,
+  Context,
+  CreateBookingInput,
+  DutyCompleteInput,
+  DutyEvidenceFile,
+  DutyEvidenceType,
+  DutyStartInput,
+} from './booking.types'
 
 async function validateCustomer(
   context: Context,
@@ -457,7 +95,7 @@ export async function list(
 ) {
   const [records, total] = await repository.list(context.tenantId, filters)
   return pageResult(
-    records.map((record) => map(record)!),
+    records.map((record) => mapBooking(record)!),
     total,
     filters,
   )
@@ -466,7 +104,103 @@ export async function list(
 export async function get(context: Context, idOrNumber: string) {
   const booking = await repository.find(context.tenantId, idOrNumber)
   if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
-  return map(booking)
+  return mapBooking(booking)
+}
+
+export async function uploadDutyEvidence(
+  context: Context,
+  idOrNumber: string,
+  type: DutyEvidenceType,
+  file: { data: Buffer; mimeType: string; originalName: string },
+) {
+  const booking = await repository.find(context.tenantId, idOrNumber)
+  if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  const expectedStatus = type === 'opening-meter' ? 'ASSIGNED' : 'RUNNING'
+  if (booking.status !== expectedStatus)
+    throw new AppError(
+      type === 'opening-meter'
+        ? 'Opening meter evidence can only be uploaded for an assigned booking'
+        : 'Completion evidence can only be uploaded for a running duty',
+      'INVALID_BOOKING_TRANSITION',
+      409,
+    )
+
+  const supportsPdf = type === 'duty-slip' || type === 'toll-parking'
+  const extension =
+    DUTY_EVIDENCE_IMAGE_EXTENSIONS[file.mimeType] ||
+    (supportsPdf && file.mimeType === 'application/pdf' ? 'pdf' : null)
+  if (!extension)
+    throw new AppError(
+      supportsPdf
+        ? 'Supporting document must be a JPEG, PNG, WebP, HEIC, or PDF file'
+        : 'Meter evidence must be a JPEG, PNG, WebP, or HEIC image',
+      'UNSUPPORTED_FILE_TYPE',
+      415,
+    )
+  if (file.data.length === 0)
+    throw new AppError('Uploaded file is empty', 'VALIDATION_ERROR', 400)
+
+  const storageDirectory = join(context.tenantId, booking.id)
+  const storedName = `${randomUUID()}.${extension}`
+  const storageKey = join(storageDirectory, storedName)
+  const absolutePath = resolve(DUTY_EVIDENCE_ROOT, storageKey)
+  await mkdir(resolve(DUTY_EVIDENCE_ROOT, storageDirectory), {
+    recursive: true,
+  })
+  await writeFile(absolutePath, file.data, { flag: 'wx' })
+
+  const field = DUTY_EVIDENCE_FIELDS[type]
+  const current = asDutyEvidence(booking.dutyEvidence)
+  const previous = current[field]
+  const metadata: DutyEvidenceFile = {
+    originalName: basename(file.originalName).slice(0, 255) || storedName,
+    storageKey,
+    mimeType: file.mimeType,
+    size: file.data.length,
+    uploadedAt: new Date().toISOString(),
+    uploadedByUserId: context.userId,
+  }
+  try {
+    const updated = await repository.updateDutyEvidence(
+      context.tenantId,
+      booking.id,
+      { ...current, [field]: metadata } as Prisma.InputJsonValue,
+    )
+    if (previous?.storageKey) {
+      const previousPath = resolve(DUTY_EVIDENCE_ROOT, previous.storageKey)
+      if (previousPath.startsWith(`${DUTY_EVIDENCE_ROOT}${sep}`))
+        await unlink(previousPath).catch(() => undefined)
+    }
+    return mapBooking(updated)
+  } catch (error) {
+    await unlink(absolutePath).catch(() => undefined)
+    throw error
+  }
+}
+
+export async function getDutyEvidenceFile(
+  context: Context,
+  idOrNumber: string,
+  type: DutyEvidenceType,
+) {
+  const booking = await repository.find(context.tenantId, idOrNumber)
+  if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  const metadata = asDutyEvidence(booking.dutyEvidence)[
+    DUTY_EVIDENCE_FIELDS[type]
+  ]
+  if (!metadata)
+    throw new AppError('Duty evidence was not found', 'NOT_FOUND', 404)
+  const absolutePath = resolve(DUTY_EVIDENCE_ROOT, metadata.storageKey)
+  if (!absolutePath.startsWith(`${DUTY_EVIDENCE_ROOT}${sep}`))
+    throw new AppError(
+      'Duty evidence path is invalid',
+      'INTERNAL_SERVER_ERROR',
+      500,
+    )
+  await stat(absolutePath).catch(() => {
+    throw new AppError('Duty evidence file is missing', 'NOT_FOUND', 404)
+  })
+  return { ...metadata, absolutePath }
 }
 
 export async function create(context: Context, input: CreateBookingInput) {
@@ -504,13 +238,14 @@ export async function create(context: Context, input: CreateBookingInput) {
         assignmentSource: input.assignmentSource,
         pricingBasis: input.pricingBasis,
         customerRate: input.customerRate,
+        requiredDutyDocuments: input.requiredDutyDocuments ?? [],
         notes: titleCaseOptional(input.notes) ?? null,
         status: input.status ?? 'CONFIRMED',
         confirmedAt: input.status === 'DRAFT' ? null : new Date(),
         createdById: context.userId,
         updatedById: context.userId,
       })
-      return map(booking)
+      return mapBooking(booking)
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -635,12 +370,6 @@ export async function assign(
       'INVALID_VENDOR_ASSIGNMENT',
       409,
     )
-  if (input.assignmentSource === 'VENDOR' && input.vendorPayableAmount === null)
-    throw new AppError(
-      'Vendor payable amount is required',
-      'VALIDATION_ERROR',
-      400,
-    )
   const conflict = await repository.hasResourceConflict(
     context.tenantId,
     booking.id,
@@ -655,7 +384,7 @@ export async function assign(
       'DUTY_ASSIGNMENT_CONFLICT',
       409,
     )
-  return map(
+  return mapBooking(
     await repository.assign(
       context.tenantId,
       booking.id,
@@ -666,8 +395,6 @@ export async function assign(
         driverId: input.driverId,
         vendorRateType: input.vendorRateType ?? null,
         vendorRate: input.vendorRate ?? null,
-        vendorPayableAmount: input.vendorPayableAmount ?? null,
-        vendorNotes: titleCaseOptional(input.vendorNotes) ?? null,
         status: 'ASSIGNED',
         assignedAt: new Date(),
         updatedById: context.userId,
@@ -703,7 +430,7 @@ async function transition(
       'BOOKING_TRANSITION_CONFLICT',
       409,
     )
-  return map(updated)
+  return mapBooking(updated)
 }
 
 export function confirm(context: Context, idOrNumber: string) {
@@ -745,6 +472,12 @@ export async function startDuty(
       'OPENING_ODOMETER_REQUIRED',
       400,
     )
+  if (!asDutyEvidence(booking.dutyEvidence).openingMeter)
+    throw new AppError(
+      'Opening meter photo is required before duty start',
+      'OPENING_METER_PHOTO_REQUIRED',
+      400,
+    )
   return transition(
     context,
     idOrNumber,
@@ -772,6 +505,29 @@ export async function completeDuty(
       'Only a running booking can complete duty',
       'INVALID_BOOKING_TRANSITION',
       409,
+    )
+  const evidence = asDutyEvidence(booking.dutyEvidence)
+  const requiredDocuments = new Set(booking.requiredDutyDocuments)
+  if (requiredDocuments.has('CLOSING_METER_PHOTO') && !evidence.closingMeter)
+    throw new AppError(
+      'Closing meter photo is required before duty completion',
+      'CLOSING_METER_PHOTO_REQUIRED',
+      400,
+    )
+  if (requiredDocuments.has('SIGNED_DUTY_SLIP') && !evidence.dutySlip)
+    throw new AppError(
+      'Signed duty slip is required before duty completion',
+      'DUTY_SLIP_REQUIRED',
+      400,
+    )
+  if (
+    requiredDocuments.has('TOLL_PARKING_RECEIPTS') &&
+    !evidence.tollParkingReceipts
+  )
+    throw new AppError(
+      'Toll and parking supporting document is required before duty completion',
+      'TOLL_PARKING_DOCUMENT_REQUIRED',
+      400,
     )
   if (
     booking.assignmentSource === 'OWN' &&
@@ -802,6 +558,17 @@ export async function completeDuty(
       dutyCompletedAt: new Date(),
       closingOdometer: input.closingOdometer ?? null,
       dutyCompletionRemarks: titleCaseOptional(input.remarks) ?? null,
+      dutyCompletionDetails: {
+        tollTax: input.tollTax,
+        parking: input.parking,
+        driverAllowance: input.driverAllowance,
+        otherRecoverableCharges: input.otherRecoverableCharges,
+        paymentAmount: input.paymentAmount,
+        paymentMode: input.paymentMode ?? null,
+        paymentDate: input.paymentDate?.toISOString() ?? null,
+        paymentReference: input.paymentReference?.trim() || null,
+        collectedBy: input.collectedBy ? toTitleCase(input.collectedBy) : null,
+      },
     },
     'COMPLETE_DUTY',
     'Only a running booking can complete duty',
@@ -1153,7 +920,7 @@ export async function close(
       'BOOKING_CLOSE_CONFLICT',
       409,
     )
-  return map(closed)
+  return mapBooking(closed)
 }
 
 export async function getProfit(context: Context, idOrNumber: string) {
@@ -1165,7 +932,7 @@ export async function getProfit(context: Context, idOrNumber: string) {
       'BOOKING_NOT_CLOSED',
       409,
     )
-  return map(booking)
+  return mapBooking(booking)
 }
 
 function resolvedCollectionStatus(input: CollectionInput): CollectionStatus {

@@ -131,7 +131,6 @@ describe('company setup APIs', () => {
   it('persists the profile, tax, invoice, location, bank, and GST setup and completes onboarding', async () => {
     const profile = await tenantRequest('patch', '/company-profile').send({
       tradeName: 'Phase 3 Cabs',
-      businessType: 'Private Limited',
       city: 'Bengaluru',
       state: 'Karnataka',
       pinCode: '560001',

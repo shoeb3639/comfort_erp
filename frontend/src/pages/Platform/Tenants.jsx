@@ -36,8 +36,6 @@ function initialValues() {
   return {
     legalName: "",
     tradeName: "",
-    code: "",
-    businessType: "Car Rental",
     email: "",
     mobile: "",
     alternateNumber: "",
@@ -107,10 +105,8 @@ function TenantModal({ plans, onClose, onSave }) {
     try {
       await onSave({
         tenant: {
-          code: values.code,
           legalName: values.legalName,
           tradeName: values.tradeName,
-          businessType: values.businessType,
           email: values.email,
           mobile: values.mobile,
           alternateNumber: values.alternateNumber,
@@ -210,17 +206,14 @@ function TenantModal({ plans, onClose, onSave }) {
                 value={values.tradeName}
                 onChange={(value) => updateField("tradeName", value)}
               />
-              <Field
-                label="Tenant Code"
-                required
-                value={values.code}
-                onChange={(value) => updateField("code", value.toUpperCase())}
-              />
-              <Field
-                label="Business Type"
-                value={values.businessType}
-                onChange={(value) => updateField("businessType", value)}
-              />
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  Tenant Code
+                </p>
+                <p className="mt-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                  Generated automatically after registration
+                </p>
+              </div>
               <Field
                 label="Company Email"
                 type="email"
@@ -325,7 +318,7 @@ function TenantModal({ plans, onClose, onSave }) {
                 value={values.ownerMobile}
                 onChange={(value) => updateField("ownerMobile", value)}
               />
-              <Field
+              <DesignationSelect
                 label="Designation"
                 value={values.ownerDesignation}
                 onChange={(value) => updateField("ownerDesignation", value)}
@@ -499,12 +492,39 @@ function Field({ label, onChange, ...inputProps }) {
   );
 }
 
+const ownerDesignations = [
+  "Owner",
+  "Proprietor",
+  "Partner",
+  "Director",
+  "Managing Director",
+  "Authorized Signatory",
+];
+
+function DesignationSelect({ label, value, onChange }) {
+  return (
+    <label>
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <select
+        className={fieldClass}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {ownerDesignations.map((designation) => (
+          <option key={designation} value={designation}>
+            {designation}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function EditTenantModal({ tenant, onClose, onSave }) {
   const owner = tenant.users[0];
   const [values, setValues] = useState({
     legalName: tenant.legalName || "",
     tradeName: tenant.tradeName || "",
-    businessType: tenant.businessType || "",
     email: tenant.email || "",
     mobile: tenant.mobile || "",
     alternateNumber: tenant.alternateNumber || "",
@@ -525,7 +545,9 @@ function EditTenantModal({ tenant, onClose, onSave }) {
     ownerName: owner?.name || "",
     ownerEmail: owner?.email || "",
     ownerMobile: owner?.mobile || "",
-    ownerDesignation: owner?.designation || "",
+    ownerDesignation: ownerDesignations.includes(owner?.designation)
+      ? owner.designation
+      : "Owner",
     ownerStatus: owner?.status || "ACTIVE",
   });
   const [error, setError] = useState("");
@@ -572,7 +594,6 @@ function EditTenantModal({ tenant, onClose, onSave }) {
               {[
                 ["legalName", "Legal Name", "text", true],
                 ["tradeName", "Trade Name"],
-                ["businessType", "Business Type"],
                 ["email", "Company Email", "email", true],
                 ["mobile", "Mobile", "text", true],
                 ["alternateNumber", "Alternate Number"],
@@ -624,7 +645,7 @@ function EditTenantModal({ tenant, onClose, onSave }) {
                   value={values.ownerMobile}
                   onChange={(value) => set("ownerMobile", value)}
                 />
-                <Field
+                <DesignationSelect
                   label="Designation"
                   value={values.ownerDesignation}
                   onChange={(value) => set("ownerDesignation", value)}
@@ -778,7 +799,6 @@ function TenantsPage() {
     const companyPayload = {
       legalName: values.legalName,
       tradeName: values.tradeName || null,
-      businessType: values.businessType || null,
       email: values.email,
       mobile: values.mobile,
       alternateNumber: values.alternateNumber || null,

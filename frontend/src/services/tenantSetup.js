@@ -1,26 +1,85 @@
 import axios from "axios";
-import { readStoredSession } from "./auth";
+import {
+  clearSession,
+  readStoredSession,
+  refreshSession,
+  storeSession,
+} from "./auth";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1",
   headers: { "Content-Type": "application/json" },
 });
 
-function config() {
-  const token = readStoredSession()?.accessToken;
+let refreshPromise = null;
+
+function config(token = readStoredSession()?.accessToken) {
   return { headers: token ? { Authorization: `Bearer ${token}` } : {} };
 }
 
+async function getFreshSession(staleSession) {
+  const currentSession = readStoredSession();
+  if (
+    currentSession?.accessToken &&
+    currentSession.accessToken !== staleSession.accessToken
+  ) {
+    return currentSession;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = refreshSession(staleSession.refreshToken)
+      .then((refreshed) => {
+        storeSession(refreshed);
+        return refreshed;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+async function request(method, path, body) {
+  const session = readStoredSession();
+  try {
+    return (
+      await api.request({
+        method,
+        url: `/tenant/setup${path}`,
+        ...(body === undefined ? {} : { data: body }),
+        ...config(session?.accessToken),
+      })
+    ).data.data;
+  } catch (error) {
+    if (error.response?.status !== 401 || !session?.refreshToken) throw error;
+
+    try {
+      const refreshed = await getFreshSession(session);
+      return (
+        await api.request({
+          method,
+          url: `/tenant/setup${path}`,
+          ...(body === undefined ? {} : { data: body }),
+          ...config(refreshed.accessToken),
+        })
+      ).data.data;
+    } catch (refreshError) {
+      clearSession();
+      throw refreshError;
+    }
+  }
+}
+
 async function get(path) {
-  return (await api.get(`/tenant/setup${path}`, config())).data.data;
+  return request("get", path);
 }
 
 async function post(path, body) {
-  return (await api.post(`/tenant/setup${path}`, body, config())).data.data;
+  return request("post", path, body);
 }
 
 async function patch(path, body) {
-  return (await api.patch(`/tenant/setup${path}`, body, config())).data.data;
+  return request("patch", path, body);
 }
 
 export const getCompanyProfile = () => get("/company-profile");

@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import { healthRouter } from '../modules/health/health.routes'
 import { authRouter } from '../modules/auth/auth.routes'
-import { platformRouter } from '../modules/access/platform.routes'
-import { tenantRouter } from '../modules/access/tenant.routes'
+import { platformRouter } from '../modules/platform/platform.routes'
+import { tenantRouter } from '../modules/tenants/tenant.routes'
 
 export const apiRouter = Router()
 

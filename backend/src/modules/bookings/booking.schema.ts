@@ -4,6 +4,17 @@ import { paginationQueryFields } from '../../shared/pagination'
 const optionalText = (max: number) =>
   Joi.string().trim().max(max).empty('').allow(null)
 
+const requiredDutyDocuments = Joi.array()
+  .items(
+    Joi.string().valid(
+      'CLOSING_METER_PHOTO',
+      'SIGNED_DUTY_SLIP',
+      'TOLL_PARKING_RECEIPTS',
+    ),
+  )
+  .unique()
+  .max(3)
+
 const fields = {
   customerId: Joi.string().uuid(),
   travellerId: Joi.string().uuid().allow(null),
@@ -30,6 +41,7 @@ const fields = {
   pricingBasis: Joi.string().valid('FIXED', 'RATE_PER_KM'),
   customerRate: Joi.number().precision(2).min(0),
   notes: optionalText(5000),
+  requiredDutyDocuments,
   status: Joi.string().valid('DRAFT', 'CONFIRMED'),
 }
 
@@ -62,8 +74,6 @@ export const assignmentSchema = Joi.object({
   driverId: Joi.string().uuid().required(),
   vendorRateType: optionalText(50),
   vendorRate: Joi.number().precision(2).min(0).allow(null),
-  vendorPayableAmount: Joi.number().precision(2).min(0).allow(null),
-  vendorNotes: optionalText(5000),
 })
 
 export const dutyStartSchema = Joi.object({
@@ -71,16 +81,47 @@ export const dutyStartSchema = Joi.object({
   remarks: optionalText(2000),
 })
 
+const money = Joi.number().precision(2).min(0)
+
 export const dutyCompleteSchema = Joi.object({
   closingOdometer: Joi.number().precision(2).min(0).allow(null),
+  tollTax: money.default(0),
+  parking: money.default(0),
+  driverAllowance: money.default(0),
+  otherRecoverableCharges: money.default(0),
+  paymentAmount: money.default(0),
+  paymentMode: Joi.string()
+    .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
+  paymentDate: Joi.date()
+    .iso()
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
+  paymentReference: Joi.string()
+    .trim()
+    .min(3)
+    .max(150)
+    .pattern(/^[A-Za-z0-9][A-Za-z0-9 /_.:-]*$/)
+    .allow('', null),
+  collectedBy: Joi.string()
+    .trim()
+    .min(2)
+    .max(150)
+    .when('paymentAmount', {
+      is: Joi.number().greater(0),
+      then: Joi.required(),
+    }),
   remarks: optionalText(2000),
 })
 
 export const cancellationSchema = Joi.object({
   reason: Joi.string().trim().min(3).max(2000).required(),
 })
-
-const money = Joi.number().precision(2).min(0)
 
 export const closeBookingSchema = Joi.object({
   billingTripType: Joi.string().valid('KM_BASED', 'PACKAGE_BASED').required(),
@@ -173,6 +214,12 @@ export const bookingParamsSchema = Joi.object({
   bookingId: Joi.string()
     .trim()
     .pattern(/^(?:[0-9a-f-]{36}|[A-Z0-9]{4}-\d{6})$/i)
+    .required(),
+})
+
+export const dutyEvidenceParamsSchema = bookingParamsSchema.keys({
+  evidenceType: Joi.string()
+    .valid('opening-meter', 'closing-meter', 'duty-slip', 'toll-parking')
     .required(),
 })
 

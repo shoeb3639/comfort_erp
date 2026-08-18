@@ -57,7 +57,6 @@ export interface OwnerInput {
 export interface TenantUpdateInput {
   legalName?: string
   tradeName?: string | null
-  businessType?: string | null
   email?: string
   mobile?: string
   alternateNumber?: string | null

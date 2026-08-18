@@ -25,7 +25,7 @@ import {
   updateLocationSchema,
   updateRoleSchema,
   updateTenantUserSchema,
-} from './company-setup.schemas'
+} from './company-setup.schema'
 
 export const companySetupRouter = Router()
 

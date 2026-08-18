@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './vendor.service'
-import type { DriverInput, VehicleInput, VendorInput } from './vendor.service'
+import type { DriverInput, VehicleInput, VendorInput } from './vendor.types'
 
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant) {

@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const DEFAULT_TENANT_ID = '458c5bb8-352f-4ffc-9963-2464c31f380c'
+const PRAYAGRAJ_TENANT_ID = '1bf92e04-a9a5-445d-bad5-e889604feb05'
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const defaultSource = join(scriptDirectory, 'old_customer_records.csv')
 const defaultOutput = join(scriptDirectory, 'customer-migration-output')
@@ -15,9 +15,6 @@ interface CompanyOverride {
   gstin: string | null
   aliases: string[]
   groupKey?: string
-  customerId?: string
-  customerCode?: string
-  existingCustomer?: boolean
 }
 
 const companyOverrides: CompanyOverride[] = [
@@ -73,9 +70,6 @@ const companyOverrides: CompanyOverride[] = [
     gstin: null,
     aliases: ['SWAPNODEEP TRAVEL', 'SWAPNODEEP TRAVELS'],
     groupKey: 'NAME:SWAPNODEEP TRAVELS',
-    customerId: '73738b3a-4958-425f-9b8c-0a76277bd342',
-    customerCode: 'CUST-F79C04D8',
-    existingCustomer: true,
   },
 ]
 
@@ -86,11 +80,6 @@ const excludedCompanyNames = new Set([
   'HOTEL WELCOME ITC',
 ])
 const excludedIndividualNames = new Set(['SHARIQUE VENDOR'])
-const existingTravellerByLegacyId = new Map([
-  ['2779', '4a1d934c-2949-451b-887d-7dca9dea6ced'],
-  ['2780', '486bab69-2605-4d1b-8a06-a687529a7b8f'],
-])
-
 interface LegacyRow {
   id: string
   customer_id: string
@@ -113,6 +102,7 @@ interface PreparedRow extends LegacyRow {
   salutation: 'MR' | 'MS' | null
   personName: string
   companyKey: string | null
+  associationMethod: 'EXPLICIT_COMPANY' | 'LEGACY_CUSTOMER_ID' | null
 }
 
 function parseCsv(source: string): string[][] {
@@ -310,12 +300,22 @@ async function prepare() {
   const allowRejected = args.includes('--allow-rejected')
   const sourcePath = resolve(option('--source') ?? defaultSource)
   const outputPath = resolve(option('--output') ?? defaultOutput)
-  const tenantId = option('--tenant-id') ?? DEFAULT_TENANT_ID
+  const tenantId = option('--tenant-id')
+  if (!tenantId)
+    throw new Error(
+      `Pass --tenant-id ${PRAYAGRAJ_TENANT_ID} to target the Prayagraj tenant`,
+    )
+  if (tenantId !== PRAYAGRAJ_TENANT_ID)
+    throw new Error(
+      `This CSV is approved only for Prayagraj tenant ${PRAYAGRAJ_TENANT_ID}`,
+    )
   if (apply && option('--confirm-tenant') !== tenantId) {
     throw new Error(`Apply requires --confirm-tenant ${tenantId}`)
   }
 
-  const rawRecords = parseCsv(await readFile(sourcePath, 'utf8'))
+  const source = await readFile(sourcePath, 'utf8')
+  const sourceSha256 = createHash('sha256').update(source).digest('hex')
+  const rawRecords = parseCsv(source)
   const headers = rawRecords.shift()
   const expected = [
     'id',
@@ -384,6 +384,7 @@ async function prepare() {
       salutation: parsedPerson.salutation,
       personName: parsedPerson.name,
       companyKey,
+      associationMethod: companyKey ? 'EXPLICIT_COMPANY' : null,
     }
   })
 
@@ -400,8 +401,36 @@ async function prepare() {
       ? excludedCompanyNames.has(company)
       : excludedIndividualNames.has(normalizedName(row.personName))
   })
-  const validRows = prepared.filter(
+  const eligibleRows = prepared.filter(
     (row) => !rejected.includes(row) && !excluded.includes(row),
+  )
+  const companyKeysByLegacyCustomerId = new Map<string, Set<string>>()
+  for (const row of eligibleRows) {
+    if (!row.companyKey) continue
+    const keys =
+      companyKeysByLegacyCustomerId.get(row.customer_id) ?? new Set<string>()
+    keys.add(row.companyKey)
+    companyKeysByLegacyCustomerId.set(row.customer_id, keys)
+  }
+  const conflictingLegacyCustomerIds = new Map<string, string[]>(
+    [...companyKeysByLegacyCustomerId.entries()]
+      .filter(([, keys]) => keys.size > 1)
+      .map(([legacyCustomerId, keys]) => [legacyCustomerId, [...keys]]),
+  )
+  for (const row of eligibleRows) {
+    if (row.companyKey || conflictingLegacyCustomerIds.has(row.customer_id))
+      continue
+    const keys = companyKeysByLegacyCustomerId.get(row.customer_id)
+    if (keys?.size === 1) {
+      row.companyKey = [...keys][0] as string
+      row.associationMethod = 'LEGACY_CUSTOMER_ID'
+    }
+  }
+  const validRows = eligibleRows.filter(
+    (row) => !conflictingLegacyCustomerIds.has(row.customer_id),
+  )
+  const associatedCorporateRows = validRows.filter(
+    (row) => row.associationMethod === 'LEGACY_CUSTOMER_ID',
   )
   const companyGroups = new Map<string, PreparedRow[]>()
   for (const row of validRows.filter((item) => item.companyKey)) {
@@ -423,10 +452,8 @@ async function prepare() {
     const companyName =
       override?.name ??
       (preferred(group.map((row) => row.company_name)) as string)
-    const customerId =
-      override?.customerId ??
-      deterministicUuid(`${migrationKey}:company:${groupKey}`)
-    const code = override?.customerCode ?? customerCode('company', groupKey)
+    const customerId = deterministicUuid(`${migrationKey}:company:${groupKey}`)
+    const code = customerCode('company', groupKey)
     const deduplicated = deduplicatePeople(group)
     const primary = deduplicated.unique[0] as PreparedRow
     customers.push({
@@ -447,40 +474,35 @@ async function prepare() {
       outstanding: 0,
       status: 'ACTIVE',
     })
-    if (!override?.existingCustomer) {
-      contacts.push({
-        id: deterministicUuid(`${migrationKey}:contact:${customerId}`),
-        tenantId,
-        customerId,
-        salutation: primary.salutation,
-        name: primary.personName,
-        role: 'Primary',
-        phone: primary.normalizedPhone,
-        email: primary.normalizedEmail,
-        isPrimary: true,
-      })
-    }
+    contacts.push({
+      id: deterministicUuid(`${migrationKey}:contact:${customerId}`),
+      tenantId,
+      customerId,
+      salutation: primary.salutation,
+      name: primary.personName,
+      role: 'Primary',
+      phone: primary.normalizedPhone,
+      email: primary.normalizedEmail,
+      isPrimary: true,
+    })
     const travellerIdByLegacyId = new Map<string, string>()
     for (const row of deduplicated.unique) {
-      const existingTravellerId = existingTravellerByLegacyId.get(row.id)
-      const travellerId =
-        existingTravellerId ??
-        deterministicUuid(`${migrationKey}:traveller:${row.id}`)
+      const travellerId = deterministicUuid(
+        `${migrationKey}:traveller:${row.id}`,
+      )
       travellerIdByLegacyId.set(row.id, travellerId)
-      if (!existingTravellerId) {
-        travellers.push({
-          id: travellerId,
-          tenantId,
-          customerId,
-          travellerType: 'Employee',
-          salutation: row.salutation,
-          name: row.personName,
-          phone: row.normalizedPhone,
-          email: row.normalizedEmail,
-          notes: `Migrated from legacy customer row ${row.id}`,
-          status: 'ACTIVE',
-        })
-      }
+      travellers.push({
+        id: travellerId,
+        tenantId,
+        customerId,
+        travellerType: 'Employee',
+        salutation: row.salutation,
+        name: row.personName,
+        phone: row.normalizedPhone,
+        email: row.normalizedEmail,
+        notes: `Migrated from legacy customer row ${row.id}`,
+        status: 'ACTIVE',
+      })
     }
     for (const row of group) {
       const canonical = deduplicated.canonicalByLegacyId.get(
@@ -494,6 +516,7 @@ async function prepare() {
         travellerIdByLegacyId.get(canonical.id) as string,
         'CORPORATE',
         canonical.id === row.id ? '' : canonical.id,
+        row.associationMethod,
       ])
     }
   }
@@ -537,11 +560,14 @@ async function prepare() {
       null,
       'RETAIL',
       '',
+      'INDIVIDUAL',
     ])
   }
 
   const reviews = [...companyGroups.entries()].map(([key, group]) => {
-    const variants = [...new Set(group.map((row) => clean(row.company_name)))]
+    const variants = [
+      ...new Set(group.map((row) => clean(row.company_name)).filter(Boolean)),
+    ]
     const invalidGstins = [
       ...new Set(
         group
@@ -600,8 +626,50 @@ async function prepare() {
         'new_traveller_uuid',
         'customer_type',
         'deduplicated_to_legacy_id',
+        'association_method',
       ],
       ...mappings,
+    ]),
+  )
+  await writeFile(
+    join(outputPath, 'corporate-associations.csv'),
+    csv([
+      [
+        'legacy_id',
+        'legacy_customer_id',
+        'person_name',
+        'company_group_key',
+        'selected_company_name',
+        'association_method',
+      ],
+      ...associatedCorporateRows.map((row) => {
+        const group = companyGroups.get(row.companyKey as string) ?? []
+        const override = companyOverrides.find(
+          (candidate) => overrideGroupKey(candidate) === row.companyKey,
+        )
+        return [
+          row.id,
+          row.customer_id,
+          row.personName,
+          row.companyKey,
+          override?.name ?? preferred(group.map((item) => item.company_name)),
+          row.associationMethod,
+        ]
+      }),
+    ]),
+  )
+  await writeFile(
+    join(outputPath, 'association-conflicts.csv'),
+    csv([
+      ['legacy_customer_id', 'company_group_keys', 'source_row_count'],
+      ...[...conflictingLegacyCustomerIds.entries()].map(
+        ([legacyCustomerId, keys]) => [
+          legacyCustomerId,
+          keys.join(' | '),
+          eligibleRows.filter((row) => row.customer_id === legacyCustomerId)
+            .length,
+        ],
+      ),
     ]),
   )
   await writeFile(
@@ -643,15 +711,37 @@ async function prepare() {
       ]),
     ]),
   )
+  if (mappings.length !== validRows.length)
+    throw new Error(
+      `Mapping coverage mismatch: ${mappings.length}/${validRows.length}`,
+    )
+  const mappedLegacyIds = mappings.map((row) => row[0] as string)
+  if (new Set(mappedLegacyIds).size !== mappedLegacyIds.length)
+    throw new Error('A legacy row was mapped more than once')
+  const corporateMappingByLegacyId = new Map(
+    mappings.map((row) => [row[0] as string, row[5] as string]),
+  )
+  if (
+    associatedCorporateRows.some(
+      (row) => corporateMappingByLegacyId.get(row.id) !== 'CORPORATE',
+    )
+  )
+    throw new Error('A company-associated person was mapped as retail')
+
   const summary = {
     mode: apply ? 'apply' : 'dry-run',
     sourcePath,
+    sourceSha256,
     outputPath,
     tenantId,
     sourceRows: prepared.length,
     acceptedRows: validRows.length,
     rejectedRows: rejected.length,
     excludedRows: excluded.length,
+    associationConflictRows: eligibleRows.length - validRows.length,
+    legacyCustomerIdsWithAssociationConflicts:
+      conflictingLegacyCustomerIds.size,
+    individualsPromotedToCorporate: associatedCorporateRows.length,
     proposedCustomers: customers.length,
     corporateCustomers: companyGroups.size,
     retailCustomers: customers.length - companyGroups.size,
@@ -663,6 +753,7 @@ async function prepare() {
     ),
     companyGroupsNeedingReview: reviews.filter((row) => row[8] !== 'READY')
       .length,
+    mappingCoverage: `${mappings.length}/${validRows.length}`,
   }
   await writeFile(
     join(outputPath, 'summary.json'),
@@ -671,6 +762,10 @@ async function prepare() {
   console.log(JSON.stringify(summary, null, 2))
 
   if (!apply) return
+  if (conflictingLegacyCustomerIds.size)
+    throw new Error(
+      'Apply refused: association-conflicts.csv must be resolved first',
+    )
   if (rejected.length && !allowRejected)
     throw new Error(
       'Apply refused: rejected-records.csv is not empty; review it and pass --allow-rejected to skip those rows',
@@ -681,8 +776,12 @@ async function prepare() {
     import('@prisma/adapter-pg'),
     import('../src/generated/prisma/client'),
   ])
+  const databaseConfig = new URL(databaseUrl)
   const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: databaseUrl }),
+    adapter: new PrismaPg({
+      connectionString: databaseUrl,
+      password: databaseConfig.password,
+    }),
   })
   try {
     const tenant = await prisma.tenant.findUnique({
@@ -692,7 +791,11 @@ async function prepare() {
     if (!tenant) throw new Error(`Tenant ${tenantId} does not exist`)
     const tenantName =
       `${tenant.tradeName ?? ''} ${tenant.legalName}`.toLowerCase()
-    if (!tenantName.includes('comfort') || !tenantName.includes('car')) {
+    if (
+      !tenantName.includes('comfort') ||
+      !tenantName.includes('car') ||
+      !tenantName.includes('prayagraj')
+    ) {
       throw new Error(
         `Tenant identity check failed for ${tenant.tradeName ?? tenant.legalName}`,
       )

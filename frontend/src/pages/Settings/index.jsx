@@ -299,7 +299,6 @@ function SettingsPage() {
                 updateCompanyProfile({
                   legalName: profile.legalName,
                   tradeName: profile.tradeName,
-                  businessType: profile.businessType,
                   email: profile.email,
                   mobile: profile.mobile,
                   alternateNumber: profile.alternateNumber,
@@ -332,13 +331,6 @@ function SettingsPage() {
             label="Trade Name"
             value={profile.tradeName || ""}
             onChange={(value) => setProfile({ ...profile, tradeName: value })}
-          />
-          <TextField
-            label="Business Type"
-            value={profile.businessType || ""}
-            onChange={(value) =>
-              setProfile({ ...profile, businessType: value })
-            }
           />
           <TextField
             label="Email"

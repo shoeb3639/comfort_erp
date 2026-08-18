@@ -5,16 +5,8 @@ const optionalText = (maximum: number) =>
 
 export const registerTenantSchema = Joi.object({
   tenant: Joi.object({
-    code: Joi.string()
-      .trim()
-      .uppercase()
-      .pattern(/^[A-Z0-9_-]+$/)
-      .min(2)
-      .max(50)
-      .required(),
     legalName: Joi.string().trim().min(2).max(200).required(),
     tradeName: optionalText(200),
-    businessType: optionalText(100),
     email: Joi.string().trim().lowercase().email().max(255).required(),
     mobile: Joi.string().trim().min(6).max(30).required(),
     alternateNumber: optionalText(30),

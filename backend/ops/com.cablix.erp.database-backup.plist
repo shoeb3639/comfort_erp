@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.cablix.erp.database-backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/opt/homebrew/bin/node</string>
+      <string>/Users/syedshoeb/booking-admin-panel/backend/scripts/backup-database.mjs</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/syedshoeb/booking-admin-panel/backend</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/Library/PostgreSQL/18/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+      <key>PG_DUMP_BIN</key>
+      <string>/Library/PostgreSQL/18/bin/pg_dump</string>
+      <key>PG_RESTORE_BIN</key>
+      <string>/Library/PostgreSQL/18/bin/pg_restore</string>
+      <key>DATABASE_BACKUP_MIRROR_DIR</key>
+      <string>/Users/syedshoeb/CablixDatabaseBackups</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>2</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/syedshoeb/booking-admin-panel/backend/.local/logs/database-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/syedshoeb/booking-admin-panel/backend/.local/logs/database-backup-error.log</string>
+  </dict>
+</plist>

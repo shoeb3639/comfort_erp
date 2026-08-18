@@ -132,7 +132,6 @@ const optionalText = (maximum: number) =>
 export const updateTenantSchema = Joi.object({
   legalName: Joi.string().trim().min(2).max(200),
   tradeName: optionalText(200),
-  businessType: optionalText(100),
   email: Joi.string().trim().lowercase().email().max(255),
   mobile: Joi.string().trim().min(5).max(30),
   alternateNumber: optionalText(30),

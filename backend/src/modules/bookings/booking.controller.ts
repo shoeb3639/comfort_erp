@@ -9,8 +9,9 @@ import type {
   CollectionInput,
   CreateBookingInput,
   DutyCompleteInput,
+  DutyEvidenceType,
   DutyStartInput,
-} from './booking.service'
+} from './booking.types'
 
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant)
@@ -21,6 +22,9 @@ function id(request: Parameters<RequestHandler>[0]) {
   if (typeof request.params.bookingId !== 'string')
     throw new AppError('Invalid booking ID', 'VALIDATION_ERROR', 400)
   return request.params.bookingId
+}
+function evidenceType(request: Parameters<RequestHandler>[0]) {
+  return request.params.evidenceType as DutyEvidenceType
 }
 function send(
   response: Parameters<RequestHandler>[1],
@@ -107,6 +111,48 @@ export const completeDuty: RequestHandler = async (request, response) =>
     ),
     'Duty completed',
   )
+export const uploadDutyEvidence: RequestHandler = async (request, response) => {
+  if (!Buffer.isBuffer(request.body))
+    throw new AppError(
+      'Unsupported or missing duty evidence file',
+      'UNSUPPORTED_FILE_TYPE',
+      415,
+    )
+  const encodedName = request.get('x-file-name') || 'duty-evidence'
+  let originalName = encodedName
+  try {
+    originalName = decodeURIComponent(encodedName)
+  } catch {
+    // Keep the safe header value if it is not URI encoded.
+  }
+  send(
+    response,
+    await service.uploadDutyEvidence(
+      context(request),
+      id(request),
+      evidenceType(request),
+      {
+        data: request.body,
+        mimeType: request.get('content-type') || 'application/octet-stream',
+        originalName,
+      },
+    ),
+    'Duty evidence uploaded',
+  )
+}
+export const getDutyEvidence: RequestHandler = async (request, response) => {
+  const file = await service.getDutyEvidenceFile(
+    context(request),
+    id(request),
+    evidenceType(request),
+  )
+  response.type(file.mimeType)
+  response.set(
+    'Content-Disposition',
+    `inline; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+  )
+  response.sendFile(file.absolutePath)
+}
 export const cancel: RequestHandler = async (request, response) =>
   send(
     response,

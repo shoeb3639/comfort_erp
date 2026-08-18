@@ -48,6 +48,9 @@ export function bookingPayload(values) {
         ? values.ratePerKm
         : values.fixedAmount,
     ),
+    requiredDutyDocuments: values.supportingDocumentsRequired
+      ? values.requiredDutyDocuments || []
+      : [],
     notes: values.notes || null,
   };
 }
@@ -87,11 +90,6 @@ export async function assignBooking(id, values) {
         driverId: values.driverId,
         vendorRateType: values.vendorRateType || null,
         vendorRate: values.vendorRate === "" ? null : Number(values.vendorRate),
-        vendorPayableAmount:
-          values.vendorPayableAmount === ""
-            ? null
-            : Number(values.vendorPayableAmount),
-        vendorNotes: values.vendorNotes || null,
       },
       config(),
     )
@@ -118,17 +116,65 @@ export async function startBookingDuty(id, values) {
 }
 
 export async function completeBookingDuty(id, values) {
+  const paymentAmount = Number(values.paymentAmount || 0);
   return (
     await api.patch(
       `/tenant/bookings/${id}/duty/complete`,
       {
         closingOdometer:
           values.closingOdometer === "" ? null : Number(values.closingOdometer),
+        tollTax: Number(values.tollTax || 0),
+        parking: Number(values.parking || 0),
+        driverAllowance: Number(values.driverAllowance || 0),
+        otherRecoverableCharges: Number(values.otherRecoverableCharges || 0),
+        paymentAmount,
+        paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
+        paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
+        paymentReference: values.paymentReference || null,
+        collectedBy: paymentAmount > 0 ? values.collectedBy : undefined,
         remarks: values.remarks || null,
       },
       config(),
     )
   ).data.data;
+}
+
+export async function uploadDutyEvidence(id, evidenceType, file) {
+  return (
+    await api.post(
+      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
+      file,
+      {
+        headers: {
+          ...config().headers,
+          "Content-Type": file.type,
+          "X-File-Name": encodeURIComponent(file.name),
+        },
+      },
+    )
+  ).data.data;
+}
+
+export async function openDutyEvidence(id, evidenceType) {
+  const preview = window.open("", "_blank");
+  try {
+    const response = await api.get(
+      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
+      { ...config(), responseType: "blob" },
+    );
+    const url = URL.createObjectURL(response.data);
+    if (preview) preview.location.href = url;
+    else {
+      const link = document.createElement("a");
+      link.href = url;
+      link.target = "_blank";
+      link.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) {
+    preview?.close();
+    throw error;
+  }
 }
 
 export async function cancelBooking(id, reason) {

@@ -31,6 +31,7 @@ import {
   getBookingErrorMessage,
   listBookings,
   startBookingDuty,
+  uploadDutyEvidence,
 } from "../../services/bookings";
 
 const pageSizeOptions = [10, 20, 40, 50];
@@ -201,8 +202,6 @@ function AssignmentModal({
       "",
     vendorRateType: booking.vendorRateType || "Fixed Amount",
     vendorRate: booking.vendorRate || "",
-    vendorPayableAmount: booking.vendorPayableAmount || "",
-    vendorNotes: booking.vendorNotes || "",
   });
   const isVendorVehicle = formValues.assignmentType === "vendor_vehicle";
   const allowedVendors = isVendorVehicle ? vendors : [];
@@ -251,12 +250,6 @@ function AssignmentModal({
           : "Fixed Amount",
       vendorRate:
         assignmentType === "vendor_vehicle" ? currentValues.vendorRate : "",
-      vendorPayableAmount:
-        assignmentType === "vendor_vehicle"
-          ? currentValues.vendorPayableAmount
-          : "",
-      vendorNotes:
-        assignmentType === "vendor_vehicle" ? currentValues.vendorNotes : "",
     }));
   }
 
@@ -303,8 +296,7 @@ function AssignmentModal({
       !formValues.vehicleType ||
       !formValues.vehicleRegistrationNo ||
       !formValues.driver ||
-      !formValues.driverNumber ||
-      (isVendorVehicle && !formValues.vendorPayableAmount)
+      !formValues.driverNumber
     ) {
       return;
     }
@@ -322,40 +314,36 @@ function AssignmentModal({
       driverId: formValues.driverId,
       vendorRateType: isVendorVehicle ? formValues.vendorRateType : "",
       vendorRate: isVendorVehicle ? formValues.vendorRate : "",
-      vendorPayableAmount: isVendorVehicle
-        ? formValues.vendorPayableAmount
-        : "",
-      vendorNotes: isVendorVehicle ? formValues.vendorNotes : "",
       assignment_status: "Assigned",
       status: booking.status === "Pending" ? "Confirmed" : booking.status,
     });
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between border-b border-slate-200 p-5">
-          <div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-slate-950/40 sm:items-center sm:p-4">
+      <div className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-xl sm:max-h-[92vh] sm:rounded-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 p-4">
+          <div className="min-w-0">
             <h3 className="text-lg font-semibold text-slate-900">
               Assign Vehicle & Driver
             </h3>
-            <p className="text-sm text-slate-500">
+            <p className="truncate text-sm text-slate-500">
               {booking.id} • {booking.customer}
             </p>
           </div>
           <button
             type="button"
             aria-label="Close assignment modal"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
             onClick={onClose}
           >
             <X size={18} />
           </button>
         </div>
 
-        <form className="p-5" onSubmit={handleSubmit}>
-          <div className="grid gap-5 md:grid-cols-2">
-            <label className="md:col-span-2">
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain p-4 [&>label]:min-w-0 md:grid-cols-2 lg:grid-cols-3">
+            <label>
               <span className="text-sm font-medium text-slate-700">
                 Assignment Source
               </span>
@@ -370,14 +358,10 @@ function AssignmentModal({
                 <option value="own_vehicle">Own Vehicle</option>
                 <option value="vendor_vehicle">Vendor Vehicle</option>
               </select>
-              <p className="mt-1 text-xs text-slate-500">
-                Vendor vehicle profit will be calculated separately from own
-                vehicle profit.
-              </p>
             </label>
 
             {isVendorVehicle && (
-              <label className="md:col-span-2">
+              <label>
                 <span className="text-sm font-medium text-slate-700">
                   Vendor
                 </span>
@@ -515,49 +499,19 @@ function AssignmentModal({
                     }
                   />
                 </label>
-
-                <label>
-                  <span className="text-sm font-medium text-slate-700">
-                    Vendor Payable Amount
-                  </span>
-                  <input
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                    type="number"
-                    step="0.01"
-                    value={formValues.vendorPayableAmount}
-                    onChange={(event) =>
-                      updateField("vendorPayableAmount", event.target.value)
-                    }
-                    required
-                  />
-                </label>
-
-                <label>
-                  <span className="text-sm font-medium text-slate-700">
-                    Vendor Notes
-                  </span>
-                  <input
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                    value={formValues.vendorNotes}
-                    onChange={(event) =>
-                      updateField("vendorNotes", event.target.value)
-                    }
-                    placeholder="Vendor deal remarks"
-                  />
-                </label>
               </>
             )}
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-end">
             <button
               type="button"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto"
               onClick={onClose}
             >
               Cancel
             </button>
-            <button className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600">
+            <button className="w-full rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 sm:w-auto">
               Save Assignment
             </button>
           </div>
@@ -570,7 +524,23 @@ function AssignmentModal({
 function LifecycleModal({ booking, mode, onClose, onSave }) {
   const [odometer, setOdometer] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [completion, setCompletion] = useState({
+    tollTax: "",
+    parking: "",
+    driverAllowance: "",
+    otherRecoverableCharges: "",
+    paymentAmount: "",
+    paymentMode: "",
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentReference: "",
+    collectedBy: "",
+  });
   const [saving, setSaving] = useState(false);
+  const [openingMeterPhoto, setOpeningMeterPhoto] = useState(null);
+  const [closingMeterPhoto, setClosingMeterPhoto] = useState(null);
+  const [signedDutySlip, setSignedDutySlip] = useState(null);
+  const [tollParkingDocument, setTollParkingDocument] = useState(null);
+  const [error, setError] = useState("");
   const isStart = mode === "start";
   const isComplete = mode === "complete";
   const isCancel = mode === "cancel";
@@ -581,18 +551,53 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     : isComplete
       ? "Complete Duty"
       : "Cancel Booking";
+  const hasPayment = Number(completion.paymentAmount || 0) > 0;
+  const requiredDocuments = new Set(booking.requiredDutyDocuments || []);
+  const requiresClosingMeter = requiredDocuments.has("CLOSING_METER_PHOTO");
+  const requiresDutySlip = requiredDocuments.has("SIGNED_DUTY_SLIP");
+  const requiresTollParking = requiredDocuments.has("TOLL_PARKING_RECEIPTS");
+  const requiresCompletionEvidence = requiredDocuments.size > 0;
+
+  function updateCompletion(name, value) {
+    setCompletion((current) => ({ ...current, [name]: value }));
+  }
 
   async function submit(event) {
     event.preventDefault();
+    setError("");
     setSaving(true);
     try {
+      if (isStart)
+        await uploadDutyEvidence(
+          booking.id,
+          "opening-meter",
+          openingMeterPhoto,
+        );
+      if (isComplete) {
+        if (requiresClosingMeter)
+          await uploadDutyEvidence(
+            booking.id,
+            "closing-meter",
+            closingMeterPhoto,
+          );
+        if (requiresDutySlip)
+          await uploadDutyEvidence(booking.id, "duty-slip", signedDutySlip);
+        if (requiresTollParking)
+          await uploadDutyEvidence(
+            booking.id,
+            "toll-parking",
+            tollParkingDocument,
+          );
+      }
       await onSave(
         isCancel
           ? { reason: remarks }
           : isStart
             ? { openingOdometer: odometer, remarks }
-            : { closingOdometer: odometer, remarks },
+            : { closingOdometer: odometer, remarks, ...completion },
       );
+    } catch (requestError) {
+      setError(getBookingErrorMessage(requestError));
     } finally {
       setSaving(false);
     }
@@ -602,7 +607,7 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <form
         onSubmit={submit}
-        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
       >
         <div className="flex items-center justify-between">
           <div>
@@ -635,6 +640,192 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
           </label>
         )}
 
+        {isStart && (
+          <label className="mt-4 block text-sm font-medium text-slate-700">
+            Opening Meter Photo
+            <input
+              type="file"
+              required
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              capture="environment"
+              onChange={(event) =>
+                setOpeningMeterPhoto(event.target.files?.[0] || null)
+              }
+              className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+          </label>
+        )}
+
+        {isComplete && (
+          <div className="mt-5 space-y-5 border-t border-slate-200 pt-5">
+            {requiresCompletionEvidence && (
+              <section>
+                <h4 className="font-semibold text-slate-900">
+                  Required Supporting Documents
+                </h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  These documents were selected when the booking was created.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {requiresClosingMeter && (
+                    <label className="text-sm font-medium text-slate-700">
+                      Closing Meter Photo
+                      <input
+                        type="file"
+                        required
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                        capture="environment"
+                        onChange={(event) =>
+                          setClosingMeterPhoto(event.target.files?.[0] || null)
+                        }
+                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  )}
+                  {requiresDutySlip && (
+                    <label className="text-sm font-medium text-slate-700">
+                      Signed Duty Slip
+                      <input
+                        type="file"
+                        required
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                        onChange={(event) =>
+                          setSignedDutySlip(event.target.files?.[0] || null)
+                        }
+                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  )}
+                  {requiresTollParking && (
+                    <label className="text-sm font-medium text-slate-700">
+                      Toll and Parking Statement / Receipts
+                      <input
+                        type="file"
+                        required
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                        onChange={(event) =>
+                          setTollParkingDocument(
+                            event.target.files?.[0] || null,
+                          )
+                        }
+                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </label>
+                  )}
+                </div>
+              </section>
+            )}
+            <section>
+              <h4 className="font-semibold text-slate-900">
+                Recoverable Charges
+              </h4>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["tollTax", "Toll Tax"],
+                  ["parking", "Parking"],
+                  ["driverAllowance", "Driver Allowance"],
+                  ["otherRecoverableCharges", "Other Charges"],
+                ].map(([name, label]) => (
+                  <label
+                    key={name}
+                    className="text-sm font-medium text-slate-700"
+                  >
+                    {label}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={completion[name]}
+                      onChange={(event) =>
+                        updateCompletion(name, event.target.value)
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-slate-900">Payment Details</h4>
+              <p className="mt-1 text-xs text-slate-500">
+                Optional at duty completion; these values will be reviewed when
+                closing the booking.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="text-sm font-medium text-slate-700">
+                  Amount Received
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={completion.paymentAmount}
+                    onChange={(event) =>
+                      updateCompletion("paymentAmount", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Payment Mode
+                  <select
+                    required={hasPayment}
+                    disabled={!hasPayment}
+                    value={completion.paymentMode}
+                    onChange={(event) =>
+                      updateCompletion("paymentMode", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
+                  >
+                    <option value="">Select payment mode</option>
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CARD">Card</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Payment Date
+                  <input
+                    type="date"
+                    required={hasPayment}
+                    disabled={!hasPayment}
+                    value={completion.paymentDate}
+                    onChange={(event) =>
+                      updateCompletion("paymentDate", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Reference Number
+                  <input
+                    disabled={!hasPayment}
+                    value={completion.paymentReference}
+                    onChange={(event) =>
+                      updateCompletion("paymentReference", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                  Collected By
+                  <input
+                    required={hasPayment}
+                    disabled={!hasPayment}
+                    value={completion.collectedBy}
+                    onChange={(event) =>
+                      updateCompletion("collectedBy", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
+        )}
+
         <label className="mt-4 block text-sm font-medium text-slate-700">
           {isCancel ? "Cancellation Reason" : "Remarks"}
           <textarea
@@ -652,6 +843,11 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
         </label>
 
         <div className="mt-6 flex justify-end gap-3">
+          {error && (
+            <p className="mr-auto self-center text-sm font-medium text-rose-600">
+              {error}
+            </p>
+          )}
           <button
             type="button"
             onClick={onClose}

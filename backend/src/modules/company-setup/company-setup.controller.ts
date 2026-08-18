@@ -10,9 +10,10 @@ import type {
   RoleInput,
   TaxSettingsInput,
   TenantUserInput,
-} from './company-setup.service'
+} from './company-setup.types'
+import type { SetupContext } from './company-setup.types'
 
-function context(request: Parameters<RequestHandler>[0]): service.SetupContext {
+function context(request: Parameters<RequestHandler>[0]): SetupContext {
   if (!request.auth?.tenantId || !request.tenant) {
     throw new AppError('Tenant context is required', 'UNAUTHORIZED', 401)
   }

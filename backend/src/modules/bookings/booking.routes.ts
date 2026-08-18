@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { raw, Router } from 'express'
 import { authenticateUser } from '../../middlewares/authenticate-user.middleware'
 import { authorizePermission } from '../../middlewares/authorize-permission.middleware'
 import { checkSubscription } from '../../middlewares/check-subscription.middleware'
@@ -22,6 +22,7 @@ import {
   collectionVerificationSchema,
   createBookingSchema,
   dutyCompleteSchema,
+  dutyEvidenceParamsSchema,
   dutyStartSchema,
   updateBookingSchema,
 } from './booking.schema'
@@ -95,6 +96,29 @@ bookingRouter.patch(
   validateParams(bookingParamsSchema),
   validateBody(dutyCompleteSchema),
   controller.completeDuty,
+)
+bookingRouter.post(
+  '/:bookingId/duty-evidence/:evidenceType',
+  authorizePermission('booking.assign'),
+  validateParams(dutyEvidenceParamsSchema),
+  raw({
+    type: [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+      'application/pdf',
+    ],
+    limit: '10mb',
+  }),
+  controller.uploadDutyEvidence,
+)
+bookingRouter.get(
+  '/:bookingId/duty-evidence/:evidenceType',
+  authorizePermission('booking.view'),
+  validateParams(dutyEvidenceParamsSchema),
+  controller.getDutyEvidence,
 )
 bookingRouter.patch(
   '/:bookingId/cancel',

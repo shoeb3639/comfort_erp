@@ -25,7 +25,10 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "customers:migrate:old": "node --import tsx prisma/import-old-customers.ts"
+    "customers:migrate:old": "node --import tsx prisma/import-old-customers.ts",
+    "db:backup": "node scripts/backup-database.mjs",
+    "db:backup:verify": "node scripts/verify-database-backup.mjs",
+    "db:provision-runtime-role": "node scripts/provision-runtime-database-role.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

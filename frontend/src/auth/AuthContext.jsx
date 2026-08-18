@@ -5,107 +5,117 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react'
-import * as authService from '../services/auth'
+} from "react";
+import * as authService from "../services/auth";
 
-const AuthContext = createContext(null)
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [isInitializing, setIsInitializing] = useState(true)
+  const [session, setSession] = useState(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    let active = true
+    let active = true;
 
     async function restoreSession() {
-      const storedSession = authService.readStoredSession()
+      const storedSession = authService.readStoredSession();
 
-      if (!storedSession?.accessToken || !storedSession?.refreshToken || !storedSession?.user) {
-        authService.clearSession()
-        if (active) setIsInitializing(false)
-        return
+      if (
+        !storedSession?.accessToken ||
+        !storedSession?.refreshToken ||
+        !storedSession?.user
+      ) {
+        authService.clearSession();
+        if (active) setIsInitializing(false);
+        return;
       }
 
       try {
         const validatedSession =
-          await authService.validateSession(storedSession)
-        authService.storeSession(validatedSession)
-        if (active) setSession(validatedSession)
+          await authService.validateSession(storedSession);
+        authService.storeSession(validatedSession);
+        if (active) setSession(validatedSession);
       } catch {
-        let refreshedSession = null
+        let refreshedSession = null;
         try {
-          refreshedSession = await authService.refreshSession(storedSession.refreshToken)
-          await authService.validateSession(refreshedSession)
-          authService.storeSession(refreshedSession)
-          if (active) setSession(refreshedSession)
+          refreshedSession = await authService.refreshSession(
+            storedSession.refreshToken,
+          );
+          await authService.validateSession(refreshedSession);
+          authService.storeSession(refreshedSession);
+          if (active) setSession(refreshedSession);
         } catch {
           if (refreshedSession?.refreshToken) {
             try {
-              await authService.logout(refreshedSession.refreshToken)
+              await authService.logout(refreshedSession.refreshToken);
             } catch {
               // Local access remains denied even if server revocation fails.
             }
           }
-          authService.clearSession()
+          authService.clearSession();
         }
       } finally {
-        if (active) setIsInitializing(false)
+        if (active) setIsInitializing(false);
       }
     }
 
-    restoreSession()
+    restoreSession();
     return () => {
-      active = false
-    }
-  }, [])
+      active = false;
+    };
+  }, []);
 
   async function signIn(credentials) {
-    const nextSession = await authService.login(credentials)
-    let validatedSession
+    const nextSession = await authService.login(credentials);
+    let validatedSession;
     try {
-      validatedSession = await authService.validateSession(nextSession)
+      validatedSession = await authService.validateSession(nextSession);
     } catch (validationError) {
       try {
-        await authService.logout(nextSession.refreshToken)
+        await authService.logout(nextSession.refreshToken);
       } catch {
         // The rejected session is never stored even if token revocation fails.
       }
-      throw validationError
+      throw validationError;
     }
-    authService.storeSession(validatedSession)
-    setSession(validatedSession)
-    return validatedSession
+    authService.storeSession(validatedSession);
+    setSession(validatedSession);
+    return validatedSession;
   }
 
   const validateAccess = useCallback(async () => {
-    if (!session) return false
+    if (!session) return false;
     try {
-      const validatedSession = await authService.validateSession(session)
-      authService.storeSession(validatedSession)
-      const currentPermissions = session.user?.permissions || []
-      const validatedPermissions = validatedSession.user?.permissions || []
+      const currentSession = authService.readStoredSession() ?? session;
+      const validatedSession =
+        await authService.validateSession(currentSession);
+      authService.storeSession(validatedSession);
+      const currentPermissions = session.user?.permissions || [];
+      const validatedPermissions = validatedSession.user?.permissions || [];
       if (
+        session.accessToken !== validatedSession.accessToken ||
+        session.refreshToken !== validatedSession.refreshToken ||
         currentPermissions.length !== validatedPermissions.length ||
         currentPermissions.some(
           (permission, index) => permission !== validatedPermissions[index],
         )
       ) {
-        setSession(validatedSession)
+        setSession(validatedSession);
       }
-      return true
+      return true;
     } catch {
-      authService.clearSession()
-      setSession(null)
-      return false
+      authService.clearSession();
+      setSession(null);
+      return false;
     }
-  }, [session])
+  }, [session]);
 
   async function signOut() {
-    const refreshToken = session?.refreshToken
-    authService.clearSession()
-    setSession(null)
+    const refreshToken = session?.refreshToken;
+    authService.clearSession();
+    setSession(null);
     try {
-      await authService.logout(refreshToken)
+      await authService.logout(refreshToken);
     } catch {
       // The local session is cleared even if the server is unavailable.
     }
@@ -122,13 +132,13 @@ export function AuthProvider({ children }) {
       validateAccess,
     }),
     [session, isInitializing, validateAccess],
-  )
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used inside AuthProvider')
-  return context
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used inside AuthProvider");
+  return context;
 }

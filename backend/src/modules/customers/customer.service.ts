@@ -1,77 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../generated/prisma/client'
-import type {
-  CustomerStatus,
-  CustomerType,
-  Salutation,
-} from '../../generated/prisma/enums'
+import type { CustomerStatus, CustomerType } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
 import type { PageRequest } from '../../shared/pagination'
 import { pageResult } from '../../shared/pagination'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
+import { mapCustomer } from './customer.mapper'
 import * as repository from './customer.repository'
-
-export interface CustomerContext {
-  tenantId: string
-  userId: string
-}
-
-export interface CustomerContactInput {
-  salutation?: Salutation | null
-  name: string
-  role?: string | null
-  phone?: string | null
-  email?: string | null
-  isPrimary?: boolean
-}
-
-export interface CustomerInput {
-  type?: CustomerType
-  salutation?: Salutation | null
-  name?: string
-  billingName?: string
-  email?: string | null
-  phone?: string
-  city?: string | null
-  gstin?: string | null
-  billingAddress?: string | null
-  creditLimit?: number
-  status?: CustomerStatus
-  contacts?: CustomerContactInput[]
-}
-
-export interface TravellerInput {
-  travellerType: string
-  salutation?: Salutation | null
-  name: string
-  phone?: string | null
-  email?: string | null
-  department?: string | null
-  employeeId?: string | null
-  notes?: string | null
-  status?: CustomerStatus
-}
-
-function mapCustomer<
-  T extends {
-    name: string
-    salutation: Salutation | null
-    creditLimit: Prisma.Decimal
-    outstanding: Prisma.Decimal
-  },
->(customer: T) {
-  return {
-    ...customer,
-    displayName: `${customer.salutation === 'MR' ? 'Mr. ' : customer.salutation === 'MS' ? 'Ms. ' : ''}${customer.name}`,
-    creditLimit: customer.creditLimit.toNumber(),
-    outstanding: customer.outstanding.toNumber(),
-    bookings: [],
-    invoices: [],
-    payments: [],
-    rateCards: [],
-    documents: [],
-  }
-}
+import type {
+  CustomerContactInput,
+  CustomerContext,
+  CustomerInput,
+  TravellerInput,
+} from './customer.types'
 
 function mapConflict(error: unknown): never {
   if (

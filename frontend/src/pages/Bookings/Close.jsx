@@ -6,6 +6,7 @@ import {
   closeBooking as closeBookingApi,
   getBooking,
   getBookingErrorMessage,
+  openDutyEvidence,
 } from "../../services/bookings";
 
 const fieldClass =
@@ -265,6 +266,7 @@ function CloseBookingPage() {
 
   useEffect(() => {
     if (!booking) return;
+    const dutyDetails = booking.dutyCompletionDetails || {};
     reset({
       startKm: booking.openingOdometer ?? "",
       endKm: booking.closingOdometer ?? "",
@@ -274,10 +276,10 @@ function CloseBookingPage() {
         booking.fixedAmount ||
         (defaultTripType === "Package Based" ? booking.amount : ""),
       billingTripType: defaultTripType,
-      tollTax: 0,
-      parking: 0,
-      driverAllowance: 0,
-      otherRecoverableCharges: 0,
+      tollTax: dutyDetails.tollTax || 0,
+      parking: dutyDetails.parking || 0,
+      driverAllowance: dutyDetails.driverAllowance || 0,
+      otherRecoverableCharges: dutyDetails.otherRecoverableCharges || 0,
       gst: 0,
       dieselCost: 0,
       directVehicleExpense: 0,
@@ -285,11 +287,13 @@ function CloseBookingPage() {
       vendorPayableAmount: booking.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
-      paymentAmount: 0,
-      paymentMode: "",
-      paymentDate: today(),
-      paymentReference: "",
-      collectedBy: "",
+      paymentAmount: dutyDetails.paymentAmount || 0,
+      paymentMode: dutyDetails.paymentMode || "",
+      paymentDate: dutyDetails.paymentDate
+        ? String(dutyDetails.paymentDate).slice(0, 10)
+        : today(),
+      paymentReference: dutyDetails.paymentReference || "",
+      collectedBy: dutyDetails.collectedBy || "",
       remarks: "",
       attachmentName: "",
     });
@@ -325,6 +329,14 @@ function CloseBookingPage() {
       navigate("/bookings", {
         state: { notice: `Booking ${booking.id} closed successfully.` },
       });
+    } catch (error) {
+      setLoadError(getBookingErrorMessage(error));
+    }
+  }
+
+  async function viewEvidence(type) {
+    try {
+      await openDutyEvidence(booking.id, type);
     } catch (error) {
       setLoadError(getBookingErrorMessage(error));
     }
@@ -450,6 +462,66 @@ function CloseBookingPage() {
           />
         </div>
       </CollapsibleSection>
+
+      {booking.dutyEvidence && (
+        <Section title="Duty Evidence — Manager Review">
+          <p className="mb-4 text-sm text-slate-500">
+            Review the driver-submitted evidence before approving and closing
+            this booking.
+          </p>
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              ["opening-meter", "Opening Meter", "openingMeter", true],
+              [
+                "closing-meter",
+                "Closing Meter",
+                "closingMeter",
+                booking.requiredDutyDocuments?.includes("CLOSING_METER_PHOTO"),
+              ],
+              [
+                "duty-slip",
+                "Signed Duty Slip",
+                "dutySlip",
+                booking.requiredDutyDocuments?.includes("SIGNED_DUTY_SLIP"),
+              ],
+              [
+                "toll-parking",
+                "Toll and Parking",
+                "tollParkingReceipts",
+                booking.requiredDutyDocuments?.includes(
+                  "TOLL_PARKING_RECEIPTS",
+                ),
+              ],
+            ]
+              .filter(([, , , show]) => show)
+              .map(([type, label, key]) => {
+                const evidence = booking.dutyEvidence[key];
+                return (
+                  <div
+                    key={type}
+                    className="rounded-xl border border-slate-200 p-4"
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      {label}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {evidence?.originalName || "Not uploaded"}
+                    </p>
+                    {evidence && (
+                      <button
+                        type="button"
+                        className="mt-3 text-sm font-semibold text-brand-600"
+                        onClick={() => viewEvidence(type)}
+                      >
+                        View evidence
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        </Section>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
         <div className="space-y-5">

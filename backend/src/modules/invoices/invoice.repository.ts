@@ -318,7 +318,7 @@ export function generate(
                   website: tenant.website,
                   mobile: tenant.mobile,
                   gstNumber: tenant.gstRegistrations[0]?.gstin || tenant.gstin,
-                  category: tenant.businessType,
+                  category: 'Car Rental',
                 }
               : null,
             bankDetails: tenant?.bankAccounts[0]

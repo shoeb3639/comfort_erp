@@ -39,6 +39,7 @@ export const updateVehicleSchema = vehicleSchema
   .fork(['ownershipType', 'registrationNumber', 'vehicleTypeId'], (field) =>
     field.optional(),
   )
+  .keys({ status: Joi.string().valid('ACTIVE', 'INACTIVE') })
   .min(1)
 
 export const vendorVehicleSchema = vehicleSchema

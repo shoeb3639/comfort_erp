@@ -49,6 +49,27 @@ if (validationResult.error) {
 }
 
 const validatedEnvironment = validationResult.value
+const databaseName = decodeURIComponent(
+  new URL(validatedEnvironment.DATABASE_URL).pathname.replace(/^\//, ''),
+)
+
+if (
+  validatedEnvironment.NODE_ENV === 'test' &&
+  databaseName !== 'cablix_erp_test'
+) {
+  throw new Error(
+    `Test processes are locked to cablix_erp_test; received ${databaseName || 'an empty database name'}`,
+  )
+}
+
+if (
+  validatedEnvironment.NODE_ENV !== 'test' &&
+  databaseName === 'cablix_erp_test'
+) {
+  throw new Error(
+    'The application cannot use cablix_erp_test outside test mode',
+  )
+}
 
 interface Environment {
   nodeEnv: 'development' | 'test' | 'production'

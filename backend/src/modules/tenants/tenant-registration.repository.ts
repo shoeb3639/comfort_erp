@@ -134,9 +134,17 @@ export async function createTenantRegistration(
     })
     if (!plan?.isActive) return null
 
+    const [tenantCodeSequence] = await transaction.$queryRaw<
+      Array<{ value: bigint }>
+    >`SELECT nextval('tenant_code_seq') AS value`
+    if (!tenantCodeSequence) {
+      throw new Error('Tenant code sequence did not return a value')
+    }
+    const tenantCode = `TEN${tenantCodeSequence.value.toString().padStart(6, '0')}`
+
     const tenant = await transaction.tenant.create({
       data: {
-        code: input.tenant.code,
+        code: tenantCode,
         legalName: input.tenant.legalName,
         email: input.tenant.email,
         mobile: input.tenant.mobile,
@@ -152,9 +160,6 @@ export async function createTenantRegistration(
         updatedById: metadata.actorUserId,
         ...(input.tenant.tradeName
           ? { tradeName: input.tenant.tradeName }
-          : {}),
-        ...(input.tenant.businessType
-          ? { businessType: input.tenant.businessType }
           : {}),
         ...(input.tenant.alternateNumber
           ? { alternateNumber: input.tenant.alternateNumber }

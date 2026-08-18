@@ -344,7 +344,6 @@ model Tenant {
   code                      String           @unique(map: "tenants_code_key") @db.VarChar(50)
   legalName                 String           @map("legal_name") @db.VarChar(200)
   tradeName                 String?          @map("trade_name") @db.VarChar(200)
-  businessType              String?          @map("business_type") @db.VarChar(100)
   email                     String           @db.VarChar(255)
   mobile                    String           @db.VarChar(30)
   alternateNumber           String?          @map("alternate_number") @db.VarChar(30)
@@ -660,6 +659,9 @@ model Booking {
   closingOdometer        Decimal?         @map("closing_odometer") @db.Decimal(12, 2)
   dutyStartRemarks       String?          @map("duty_start_remarks") @db.Text
   dutyCompletionRemarks  String?          @map("duty_completion_remarks") @db.Text
+  dutyCompletionDetails  Json?            @map("duty_completion_details")
+  dutyEvidence           Json?            @map("duty_evidence")
+  requiredDutyDocuments  String[]         @default([]) @map("required_duty_documents")
   cancelledAt            DateTime?        @map("cancelled_at") @db.Timestamptz(6)
   cancellationReason     String?          @map("cancellation_reason") @db.Text
   notes                  String?          @db.Text

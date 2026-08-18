@@ -1,4 +1,4 @@
-import { createCustomerSchema, updateCustomerSchema } from './customer.schemas'
+import { createCustomerSchema, updateCustomerSchema } from './customer.schema'
 
 describe('customer schemas', () => {
   it('allows email, city, and billing address to be omitted', () => {

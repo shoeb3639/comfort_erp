@@ -31,6 +31,7 @@ export const driverSchema = Joi.object({
 })
 export const updateDriverSchema = driverSchema
   .fork(['engagementType', 'name', 'mobile'], (field) => field.optional())
+  .keys({ status: Joi.string().valid('ACTIVE', 'INACTIVE') })
   .min(1)
 export const vendorDriverSchema = driverSchema.fork(
   ['engagementType', 'vendorId'],

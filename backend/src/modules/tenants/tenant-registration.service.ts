@@ -133,11 +133,7 @@ export async function registerTenant(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      throw new AppError(
-        'Tenant code or tenant owner email already exists',
-        'CONFLICT',
-        409,
-      )
+      throw new AppError('Tenant owner email already exists', 'CONFLICT', 409)
     }
     throw error
   }

@@ -43,6 +43,15 @@ const bookingTypeOptions = [
   { value: "outstation", label: "Outstation" },
 ];
 
+const requiredDutyDocumentOptions = [
+  { value: "CLOSING_METER_PHOTO", label: "Closing Meter Photo" },
+  { value: "SIGNED_DUTY_SLIP", label: "Signed Duty Slip" },
+  {
+    value: "TOLL_PARKING_RECEIPTS",
+    label: "Toll and Parking Statement / Receipts",
+  },
+];
+
 const dutyPackageOptions = {
   local: [
     {
@@ -608,6 +617,9 @@ function BookingFormPage() {
           ? existingBooking?.amount
           : ""),
       notes: existingBooking?.notes || "",
+      supportingDocumentsRequired:
+        (existingBooking?.requiredDutyDocuments || []).length > 0,
+      requiredDutyDocuments: existingBooking?.requiredDutyDocuments || [],
     },
   });
 
@@ -646,6 +658,9 @@ function BookingFormPage() {
             fixedAmount: booking.fixedAmount || "",
             ratePerKm: booking.ratePerKm || "",
             notes: booking.notes || "",
+            supportingDocumentsRequired:
+              (booking.requiredDutyDocuments || []).length > 0,
+            requiredDutyDocuments: booking.requiredDutyDocuments || [],
           });
         }
       })
@@ -660,6 +675,8 @@ function BookingFormPage() {
   const selectedTripType = watch("trip_type");
   const selectedBillingModel = watch("billing_model");
   const selectedStartDate = watch("startDate");
+  const supportingDocumentsRequired = watch("supportingDocumentsRequired");
+  const selectedRequiredDutyDocuments = watch("requiredDutyDocuments") || [];
   const selectedCustomer = customerOptions.find(
     (customer) => customer.id === selectedCustomerId,
   );
@@ -1364,6 +1381,83 @@ function BookingFormPage() {
                   <FieldError message={errors.ratePerKm?.message} />
                 </label>
               )}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 xl:col-span-3">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-600"
+                    {...register("supportingDocumentsRequired", {
+                      onChange: (event) => {
+                        if (!event.target.checked)
+                          setValue("requiredDutyDocuments", [], {
+                            shouldValidate: true,
+                          });
+                      },
+                    })}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">
+                      Supporting documents required at duty completion
+                    </span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      The selected documents will be mandatory before this duty
+                      can be completed.
+                    </span>
+                  </span>
+                </label>
+
+                {supportingDocumentsRequired && (
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedRequiredDutyDocuments.length ===
+                          requiredDutyDocumentOptions.length
+                        }
+                        onChange={(event) =>
+                          setValue(
+                            "requiredDutyDocuments",
+                            event.target.checked
+                              ? requiredDutyDocumentOptions.map(
+                                  (option) => option.value,
+                                )
+                              : [],
+                            { shouldValidate: true, shouldDirty: true },
+                          )
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                      />
+                      Select All
+                    </label>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                      {requiredDutyDocumentOptions.map((option) => (
+                        <label
+                          key={option.value}
+                          className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            value={option.value}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+                            {...register("requiredDutyDocuments", {
+                              validate: (value, values) =>
+                                !values.supportingDocumentsRequired ||
+                                value?.length > 0 ||
+                                "Select at least one supporting document",
+                            })}
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </div>
+                    <FieldError
+                      message={errors.requiredDutyDocuments?.message}
+                    />
+                  </div>
+                )}
+              </div>
 
               <label className="md:col-span-2 xl:col-span-3">
                 <span className="text-sm font-medium text-slate-700">

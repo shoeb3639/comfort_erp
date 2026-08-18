@@ -4,7 +4,7 @@ import { authorizePermission } from '../../middlewares/authorize-permission.midd
 import { checkSubscription } from '../../middlewares/check-subscription.middleware'
 import { checkTenantStatus } from '../../middlewares/check-tenant-status.middleware'
 import { resolveTenant } from '../../middlewares/resolve-tenant.middleware'
-import { getTenantContext } from './access.controller'
+import { getTenantContext } from '../access/access.controller'
 import { companySetupRouter } from '../company-setup/company-setup.routes'
 import { customerRouter } from '../customers/customer.routes'
 import { vendorRouter } from '../vendors/vendor.routes'

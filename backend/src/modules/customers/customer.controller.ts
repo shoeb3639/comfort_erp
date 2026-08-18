@@ -3,7 +3,7 @@ import type { CustomerStatus, CustomerType } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './customer.service'
-import type { CustomerInput, TravellerInput } from './customer.service'
+import type { CustomerInput, TravellerInput } from './customer.types'
 
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant) {

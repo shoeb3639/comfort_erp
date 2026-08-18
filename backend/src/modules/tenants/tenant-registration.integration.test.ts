@@ -38,14 +38,13 @@ async function cleanDatabase(): Promise<void> {
   await prisma.subscriptionPlan.deleteMany()
 }
 
-function registrationPayload(code = 'ACME_CABS') {
+function registrationPayload() {
   const startsAt = new Date()
   const expiresAt = new Date(startsAt)
   expiresAt.setFullYear(expiresAt.getFullYear() + 1)
 
   return {
     tenant: {
-      code,
       legalName: 'Acme Cabs Private Limited',
       tradeName: 'Acme Cabs',
       email: 'office@acme.example.com',
@@ -148,7 +147,7 @@ describe('tenant registration', () => {
       .send(registrationPayload())
 
     expect(response.status).toBe(201)
-    expect(response.body.data.tenant.code).toBe('ACME_CABS')
+    expect(response.body.data.tenant.code).toMatch(/^TEN\d{6}$/)
     expect(response.body.data.owner).not.toHaveProperty('passwordHash')
     expect(response.body.data.owner.isPrimaryOwner).toBe(true)
     expect(response.body.data.subscription.plan.code).toBe('ANNUAL_TEST')
@@ -201,7 +200,9 @@ describe('tenant registration', () => {
       .get('/api/v1/platform/tenants')
       .set('Authorization', `Bearer ${accessToken}`)
     expect(tenantList.status).toBe(200)
-    expect(tenantList.body.data.items[0].code).toBe('ACME_CABS')
+    expect(tenantList.body.data.items[0].code).toBe(
+      response.body.data.tenant.code,
+    )
     expect(tenantList.body.data.items[0].users[0].email).toBe(
       'owner@acme.example.com',
     )
@@ -223,7 +224,7 @@ describe('tenant registration', () => {
     expect(planList.body.data[0].id).toBe(planId)
   })
 
-  it('rejects a duplicate code without creating partial onboarding records', async () => {
+  it('rejects a duplicate owner email without creating partial onboarding records', async () => {
     const countsBefore = await Promise.all([
       prisma.tenant.count(),
       prisma.tenantUser.count(),
@@ -249,7 +250,7 @@ describe('tenant registration', () => {
   })
 
   it('rejects invalid subscription totals before creating a tenant', async () => {
-    const payload = registrationPayload('BAD_TOTAL')
+    const payload = registrationPayload()
     payload.subscription.finalAmount = 999
 
     const response = await request(app)
@@ -259,19 +260,15 @@ describe('tenant registration', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.code).toBe('VALIDATION_ERROR')
-    await expect(
-      prisma.tenant.count({ where: { code: 'BAD_TOTAL' } }),
-    ).resolves.toBe(0)
+    await expect(prisma.tenant.count()).resolves.toBe(1)
   })
 
   it('requires an authenticated platform user with tenant.create permission', async () => {
     const response = await request(app)
       .post('/api/v1/platform/tenants')
-      .send(registrationPayload('UNAUTHORIZED'))
+      .send(registrationPayload())
 
     expect(response.status).toBe(401)
-    await expect(
-      prisma.tenant.count({ where: { code: 'UNAUTHORIZED' } }),
-    ).resolves.toBe(0)
+    await expect(prisma.tenant.count()).resolves.toBe(1)
   })
 })

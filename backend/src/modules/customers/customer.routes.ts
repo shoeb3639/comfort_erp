@@ -18,7 +18,7 @@ import {
   updateCustomerSchema,
   updateTravellerSchema,
   travellerParamsSchema,
-} from './customer.schemas'
+} from './customer.schema'
 
 export const customerRouter = Router()
 

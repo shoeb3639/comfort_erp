@@ -3,13 +3,13 @@ import Joi from 'joi'
 import { authenticateUser } from '../../middlewares/authenticate-user.middleware'
 import { authorizePermission } from '../../middlewares/authorize-permission.middleware'
 import { checkPlatformUser } from '../../middlewares/check-platform-user.middleware'
-import { getPlatformContext } from './access.controller'
+import { getPlatformContext } from '../access/access.controller'
 import {
   validateBody,
   validateParams,
   validateQuery,
 } from '../../middlewares/validate-request.middleware'
-import * as platformController from '../platform/platform.controller'
+import * as platformController from './platform.controller'
 import {
   createOwnerSchema,
   createPlanSchema,
@@ -23,7 +23,7 @@ import {
   updateSubscriptionSchema,
   updateTenantSchema,
   platformListQuerySchema,
-} from '../platform/platform.schemas'
+} from './platform.schema'
 import {
   getTenantDetail,
   listTenants,

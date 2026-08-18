@@ -2,47 +2,20 @@ import { randomUUID } from 'node:crypto'
 import type {
   DriverEngagementType,
   Prisma,
-  Salutation,
-  SetupRecordStatus,
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
 import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
+import { mapDriver } from './driver.mapper'
 import * as repository from './driver.repository'
-
-export interface DriverContext {
-  tenantId: string
-  userId: string
-}
-export interface DriverInput {
-  engagementType?: DriverEngagementType
-  vendorId?: string | null
-  salutation?: Salutation | null
-  name?: string
-  mobile?: string
-  alternateMobile?: string | null
-  licenceNumber?: string | null
-  licenceType?: string | null
-  licenceExpiry?: string | null
-  address?: string | null
-  identityDetails?: Prisma.InputJsonValue | null
-  status?: SetupRecordStatus
-}
+import type { DriverContext, DriverInput } from './driver.types'
 function date(value: string | null | undefined) {
   return value
     ? new Date(`${value}T00:00:00.000Z`)
     : value === null
       ? null
       : undefined
-}
-function display<T extends { name: string; salutation: Salutation | null }>(
-  driver: T,
-) {
-  return {
-    ...driver,
-    displayName: `${driver.salutation === 'MR' ? 'Mr. ' : driver.salutation === 'MS' ? 'Ms. ' : ''}${driver.name}`,
-  }
 }
 function conflict(error: unknown): never {
   if (
@@ -109,12 +82,12 @@ export async function listDrivers(
   )
     throw new AppError('Vendor was not found', 'NOT_FOUND', 404)
   const [records, total] = await repository.list(context.tenantId, filters)
-  return pageResult(records.map(display), total, filters)
+  return pageResult(records.map(mapDriver), total, filters)
 }
 export async function getDriver(context: DriverContext, id: string) {
   const record = await repository.find(context.tenantId, id)
   if (!record) throw new AppError('Driver was not found', 'NOT_FOUND', 404)
-  return display(record)
+  return mapDriver(record)
 }
 export async function createDriver(
   context: DriverContext,
@@ -154,7 +127,7 @@ export async function createDriver(
       await audit(transaction, context, 'CREATE', created.id)
       return created
     })
-    return display(record)
+    return mapDriver(record)
   } catch (error) {
     return conflict(error)
   }
@@ -222,7 +195,7 @@ export async function updateDriver(
       await audit(transaction, context, 'UPDATE', id)
       return updated
     })
-    return display(record)
+    return mapDriver(record)
   } catch (error) {
     return conflict(error)
   }

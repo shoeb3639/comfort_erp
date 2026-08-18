@@ -7,10 +7,8 @@ import type {
 
 export interface RegisterTenantInput {
   tenant: {
-    code: string
     legalName: string
     tradeName?: string
-    businessType?: string
     email: string
     mobile: string
     alternateNumber?: string

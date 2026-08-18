@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
   Prisma,
-  SetupRecordStatus,
   VehicleOwnershipType,
 } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
@@ -9,30 +8,7 @@ import { AppError } from '../../shared/errors/app-error'
 import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as repository from './vehicle.repository'
-
-export interface VehicleContext {
-  tenantId: string
-  userId: string
-}
-
-export interface VehicleInput {
-  ownershipType?: VehicleOwnershipType
-  vendorId?: string | null
-  registrationNumber?: string
-  vehicleTypeId?: string
-  vehicleType?: string
-  make?: string | null
-  model?: string | null
-  variant?: string | null
-  fuelType?: string | null
-  manufacturingYear?: number | null
-  registrationDate?: string | Date | null
-  insuranceExpiry?: string | Date | null
-  permitExpiry?: string | Date | null
-  fitnessExpiry?: string | Date | null
-  seatingCapacity?: number | null
-  status?: SetupRecordStatus
-}
+import type { VehicleContext, VehicleInput } from './vehicle.types'
 
 function date(value: string | Date | null | undefined) {
   if (value === null) return null

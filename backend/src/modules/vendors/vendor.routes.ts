@@ -20,7 +20,7 @@ import {
   vendorParamsSchema,
   vendorQuerySchema,
   vendorSchema,
-} from './vendor.schemas'
+} from './vendor.schema'
 
 export const vendorRouter = Router()
 vendorRouter.use(

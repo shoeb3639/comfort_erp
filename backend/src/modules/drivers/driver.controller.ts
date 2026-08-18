@@ -1,8 +1,8 @@
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
-import type { DriverInput } from './driver.service'
 import * as service from './driver.service'
+import type { DriverInput } from './driver.types'
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant)
     throw new AppError('Tenant context is required', 'UNAUTHORIZED', 401)

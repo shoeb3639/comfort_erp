@@ -1,88 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '../../generated/prisma/client'
-import type { Salutation } from '../../generated/prisma/enums'
-import { prisma } from '../../config/prisma'
 import { AppError } from '../../shared/errors/app-error'
-import type { PageRequest } from '../../shared/pagination'
-import { pageResult, pageWindow } from '../../shared/pagination'
+import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as driverService from '../drivers/driver.service'
 import * as vehicleService from '../vehicles/vehicle.service'
-
-export interface VendorContext {
-  tenantId: string
-  userId: string
-}
-export interface VendorInput {
-  name?: string
-  recordType?: string
-  category?: string
-  rating?: number
-  phone?: string
-  city?: string
-  status?: 'ACTIVE' | 'INACTIVE'
-}
-export interface VehicleInput {
-  plate?: string
-  type?: string
-  status?: string
-  make?: string
-  seatingCapacity?: number
-}
-export interface DriverInput {
-  salutation?: Salutation | null
-  name?: string
-  license?: string
-  status?: string
-  phone?: string
-  city?: string
-}
-
-const include = {
-  vehicles: {
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'desc' as const },
-  },
-  drivers: {
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'desc' as const },
-  },
-} satisfies Prisma.VendorInclude
-
-function mapVendor<T extends { rating: Prisma.Decimal }>(vendor: T) {
-  return { ...vendor, rating: vendor.rating.toNumber() }
-}
-function displayDriver<
-  T extends {
-    name: string
-    salutation: Salutation | null
-    mobile?: string
-    licenceNumber?: string | null
-    address?: string | null
-  },
->(driver: T) {
-  return {
-    ...driver,
-    ...(driver.mobile !== undefined ? { phone: driver.mobile } : {}),
-    ...(driver.licenceNumber !== undefined
-      ? { license: driver.licenceNumber }
-      : {}),
-    ...(driver.address !== undefined ? { city: driver.address } : {}),
-    displayName: `${driver.salutation === 'MR' ? 'Mr. ' : driver.salutation === 'MS' ? 'Ms. ' : ''}${driver.name}`,
-  }
-}
-function displayVehicle<
-  T extends {
-    registrationNumber: string
-    vehicleType?: { name: string }
-  },
->(vehicle: T) {
-  return {
-    ...vehicle,
-    plate: vehicle.registrationNumber,
-    ...(vehicle.vehicleType ? { type: vehicle.vehicleType.name } : {}),
-  }
-}
+import { mapVendor, mapVendorDriver, mapVendorVehicle } from './vendor.mapper'
+import * as repository from './vendor.repository'
+import type {
+  DriverInput,
+  VehicleInput,
+  VendorContext,
+  VendorInput,
+} from './vendor.types'
 function conflict(error: unknown): never {
   if (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -92,101 +22,33 @@ function conflict(error: unknown): never {
   }
   throw error
 }
-async function audit(
-  transaction: Prisma.TransactionClient,
-  context: VendorContext,
-  action: string,
-  referenceId: string,
-) {
-  await transaction.tenantAuditLog.create({
-    data: {
-      tenantId: context.tenantId,
-      actorUserId: context.userId,
-      module: 'VENDOR',
-      action,
-      referenceId,
-    },
-  })
-}
 async function vendorOrThrow(context: VendorContext, vendorId: string) {
-  const vendor = await prisma.vendor.findFirst({
-    where: { tenantId: context.tenantId, id: vendorId, deletedAt: null },
-  })
+  const vendor = await repository.find(context.tenantId, vendorId)
   if (!vendor) throw new AppError('Vendor was not found', 'NOT_FOUND', 404)
   return vendor
 }
 export async function listVendors(
   context: VendorContext,
-  filters: {
-    search?: string
-    recordType?: string
-    status?: 'ACTIVE' | 'INACTIVE'
-  } & PageRequest,
+  filters: repository.VendorFilters,
 ) {
-  const where = {
-    tenantId: context.tenantId,
-    deletedAt: null,
-    ...(filters.recordType ? { recordType: filters.recordType } : {}),
-    ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.search
-      ? {
-          OR: [
-            { name: { contains: filters.search, mode: 'insensitive' } },
-            { category: { contains: filters.search, mode: 'insensitive' } },
-            { city: { contains: filters.search, mode: 'insensitive' } },
-            { phone: { contains: filters.search, mode: 'insensitive' } },
-            {
-              vehicles: {
-                some: {
-                  registrationNumber: {
-                    contains: filters.search,
-                    mode: 'insensitive',
-                  },
-                  deletedAt: null,
-                },
-              },
-            },
-            {
-              drivers: {
-                some: {
-                  name: { contains: filters.search, mode: 'insensitive' },
-                  deletedAt: null,
-                },
-              },
-            },
-          ],
-        }
-      : {}),
-  } satisfies Prisma.VendorWhereInput
-  const [records, total] = await Promise.all([
-    prisma.vendor.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include,
-      ...pageWindow(filters),
-    }),
-    prisma.vendor.count({ where }),
-  ])
+  const [records, total] = await repository.list(context.tenantId, filters)
   return pageResult(
     records.map((vendor) => ({
       ...mapVendor(vendor),
-      vehicles: vendor.vehicles.map(displayVehicle),
-      drivers: vendor.drivers.map(displayDriver),
+      vehicles: vendor.vehicles.map(mapVendorVehicle),
+      drivers: vendor.drivers.map(mapVendorDriver),
     })),
     total,
     filters,
   )
 }
 export async function getVendor(context: VendorContext, vendorId: string) {
-  const vendor = await prisma.vendor.findFirst({
-    where: { tenantId: context.tenantId, id: vendorId, deletedAt: null },
-    include,
-  })
+  const vendor = await repository.find(context.tenantId, vendorId)
   if (!vendor) throw new AppError('Vendor was not found', 'NOT_FOUND', 404)
   return {
     ...mapVendor(vendor),
-    vehicles: vendor.vehicles.map(displayVehicle),
-    drivers: vendor.drivers.map(displayDriver),
+    vehicles: vendor.vehicles.map(mapVendorVehicle),
+    drivers: vendor.drivers.map(mapVendorDriver),
   }
 }
 export async function createVendor(
@@ -195,23 +57,21 @@ export async function createVendor(
     VendorInput,
 ) {
   try {
-    const record = await prisma.$transaction(async (transaction) => {
-      const vendor = await transaction.vendor.create({
-        data: {
-          tenantId: context.tenantId,
-          vendorCode: `VEN-${randomUUID().slice(0, 8).toUpperCase()}`,
-          name: toTitleCase(input.name),
-          recordType: input.recordType ?? 'external_vendor',
-          category: toTitleCase(input.category),
-          rating: input.rating ?? 0,
-          phone: input.phone,
-          city: toTitleCase(input.city),
-          status: input.status ?? 'ACTIVE',
-          createdById: context.userId,
-          updatedById: context.userId,
-        },
+    const record = await repository.transaction(async (transaction) => {
+      const vendor = await repository.create(transaction, {
+        tenantId: context.tenantId,
+        vendorCode: `VEN-${randomUUID().slice(0, 8).toUpperCase()}`,
+        name: toTitleCase(input.name),
+        recordType: input.recordType ?? 'external_vendor',
+        category: toTitleCase(input.category),
+        rating: input.rating ?? 0,
+        phone: input.phone,
+        city: toTitleCase(input.city),
+        status: input.status ?? 'ACTIVE',
+        createdById: context.userId,
+        updatedById: context.userId,
       })
-      await audit(transaction, context, 'CREATE', vendor.id)
+      await repository.audit(transaction, context, 'CREATE', vendor.id)
       return vendor
     })
     return mapVendor({ ...record, vehicles: [], drivers: [] })
@@ -226,36 +86,28 @@ export async function updateVendor(
 ) {
   await vendorOrThrow(context, vendorId)
   try {
-    const record = await prisma.$transaction(async (transaction) => {
-      const vendor = await transaction.vendor.update({
-        where: { id: vendorId },
-        data: {
-          ...input,
-          ...(input.name ? { name: toTitleCase(input.name) } : {}),
-          ...(input.category ? { category: toTitleCase(input.category) } : {}),
-          ...(input.city ? { city: toTitleCase(input.city) } : {}),
-          updatedById: context.userId,
-        },
-        include,
+    const record = await repository.transaction(async (transaction) => {
+      const vendor = await repository.update(transaction, vendorId, {
+        ...input,
+        ...(input.name ? { name: toTitleCase(input.name) } : {}),
+        ...(input.category ? { category: toTitleCase(input.category) } : {}),
+        ...(input.city ? { city: toTitleCase(input.city) } : {}),
+        updatedById: context.userId,
       })
-      await audit(transaction, context, 'UPDATE', vendorId)
+      await repository.audit(transaction, context, 'UPDATE', vendorId)
       return vendor
     })
-    return { ...mapVendor(record), drivers: record.drivers.map(displayDriver) }
+    return {
+      ...mapVendor(record),
+      drivers: record.drivers.map(mapVendorDriver),
+    }
   } catch (error) {
     return conflict(error)
   }
 }
 export async function deleteVendor(context: VendorContext, vendorId: string) {
   const vendor = await vendorOrThrow(context, vendorId)
-  const children = await prisma.$transaction([
-    prisma.vehicle.count({
-      where: { tenantId: context.tenantId, vendorId, deletedAt: null },
-    }),
-    prisma.driver.count({
-      where: { tenantId: context.tenantId, vendorId, deletedAt: null },
-    }),
-  ])
+  const children = await repository.countChildren(context.tenantId, vendorId)
   if (children[0] + children[1] > 0) {
     throw new AppError(
       'Delete linked vehicles and drivers first',
@@ -270,16 +122,9 @@ export async function deleteVendor(context: VendorContext, vendorId: string) {
       409,
     )
   }
-  await prisma.$transaction(async (transaction) => {
-    await transaction.vendor.update({
-      where: { id: vendorId },
-      data: {
-        deletedAt: new Date(),
-        deletedById: context.userId,
-        status: 'INACTIVE',
-      },
-    })
-    await audit(transaction, context, 'DELETE', vendorId)
+  await repository.transaction(async (transaction) => {
+    await repository.softDelete(transaction, vendorId, context.userId)
+    await repository.audit(transaction, context, 'DELETE', vendorId)
   })
   return { id: vendorId, deleted: true }
 }
@@ -293,7 +138,7 @@ export async function createVehicle(
     VehicleInput,
 ) {
   await vendorOrThrow(context, vendorId)
-  return displayVehicle(
+  return mapVendorVehicle(
     await vehicleService.createVehicle(
       context,
       {
@@ -314,7 +159,7 @@ export async function updateVehicle(
   input: VehicleInput,
 ) {
   await vendorOrThrow(context, vendorId)
-  return displayVehicle(
+  return mapVendorVehicle(
     await vehicleService.updateVehicle(
       context,
       childId,
@@ -350,7 +195,7 @@ export async function createDriver(
     DriverInput,
 ) {
   await vendorOrThrow(context, vendorId)
-  return displayDriver(
+  return mapVendorDriver(
     await driverService.createDriver(
       context,
       {
@@ -374,7 +219,7 @@ export async function updateDriver(
   input: DriverInput,
 ) {
   await vendorOrThrow(context, vendorId)
-  return displayDriver(
+  return mapVendorDriver(
     await driverService.updateDriver(
       context,
       childId,

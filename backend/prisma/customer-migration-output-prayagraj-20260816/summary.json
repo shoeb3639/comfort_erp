@@ -1,0 +1,22 @@
+{
+  "mode": "apply",
+  "sourcePath": "/Users/syedshoeb/booking-admin-panel/backend/prisma/old_customer_records.csv",
+  "sourceSha256": "bc0d11983b8066dc1edae5fcec6aa8a0a1aaeb12db1217ac12271ab598f3ed8a",
+  "outputPath": "/Users/syedshoeb/booking-admin-panel/backend/prisma/customer-migration-output-prayagraj-20260816",
+  "tenantId": "1bf92e04-a9a5-445d-bad5-e889604feb05",
+  "sourceRows": 2800,
+  "acceptedRows": 2783,
+  "rejectedRows": 2,
+  "excludedRows": 15,
+  "associationConflictRows": 0,
+  "legacyCustomerIdsWithAssociationConflicts": 0,
+  "individualsPromotedToCorporate": 5,
+  "proposedCustomers": 2526,
+  "corporateCustomers": 320,
+  "retailCustomers": 2206,
+  "proposedTravellers": 568,
+  "proposedContacts": 2526,
+  "duplicateCorporatePeopleRemoved": 9,
+  "companyGroupsNeedingReview": 8,
+  "mappingCoverage": "2783/2783"
+}

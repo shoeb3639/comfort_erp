@@ -196,6 +196,11 @@ describe('booking and duty assignment APIs', () => {
       assignmentSource: 'OWN',
       pricingBasis: 'FIXED',
       customerRate: 2500,
+      requiredDutyDocuments: [
+        'CLOSING_METER_PHOTO',
+        'SIGNED_DUTY_SLIP',
+        'TOLL_PARKING_RECEIPTS',
+      ],
     })
     expect(created.status).toBe(201)
     expect(created.body.data.id).toMatch(/^BKNG-\d{6}$/)
@@ -204,6 +209,11 @@ describe('booking and duty assignment APIs', () => {
     expect(created.body.data.pickupReportingAddress).toBe(
       'Airport Terminal Two',
     )
+    expect(created.body.data.requiredDutyDocuments).toEqual([
+      'CLOSING_METER_PHOTO',
+      'SIGNED_DUTY_SLIP',
+      'TOLL_PARKING_RECEIPTS',
+    ])
 
     const updated = await authorized(
       'patch',
@@ -249,6 +259,19 @@ describe('booking and duty assignment APIs', () => {
     ).send({})
     expect(missingOpeningOdometer.status).toBe(400)
 
+    const openingEvidence = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/opening-meter`,
+    )
+      .set('Content-Type', 'image/jpeg')
+      .set('X-File-Name', 'opening-meter.jpg')
+      .send(Buffer.from('opening-meter-photo'))
+    expect(openingEvidence.status).toBe(200)
+    expect(openingEvidence.body.data.dutyEvidence.openingMeter).toMatchObject({
+      originalName: 'opening-meter.jpg',
+      mimeType: 'image/jpeg',
+    })
+
     const started = await authorized(
       'patch',
       `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/start`,
@@ -257,6 +280,62 @@ describe('booking and duty assignment APIs', () => {
     expect(started.body.data.status).toBe('In Transit')
     expect(started.body.data.openingOdometer).toBe(12500.5)
     expect(started.body.data.dutyStartRemarks).toBe('Driver Reported On Time')
+
+    const missingClosingEvidence = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
+    ).send({ closingOdometer: 12620.75 })
+    expect(missingClosingEvidence.status).toBe(400)
+    expect(missingClosingEvidence.body.code).toBe(
+      'CLOSING_METER_PHOTO_REQUIRED',
+    )
+
+    const closingEvidence = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/closing-meter`,
+    )
+      .set('Content-Type', 'image/png')
+      .set('X-File-Name', 'closing-meter.png')
+      .send(Buffer.from('closing-meter-photo'))
+    expect(closingEvidence.status).toBe(200)
+
+    const missingDutySlip = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
+    ).send({ closingOdometer: 12620.75 })
+    expect(missingDutySlip.status).toBe(400)
+    expect(missingDutySlip.body.code).toBe('DUTY_SLIP_REQUIRED')
+
+    const dutySlipEvidence = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/duty-slip`,
+    )
+      .set('Content-Type', 'application/pdf')
+      .set('X-File-Name', 'signed-duty-slip.pdf')
+      .send(Buffer.from('%PDF signed duty slip'))
+    expect(dutySlipEvidence.status).toBe(200)
+
+    const missingTollParking = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
+    ).send({ closingOdometer: 12620.75 })
+    expect(missingTollParking.status).toBe(400)
+    expect(missingTollParking.body.code).toBe('TOLL_PARKING_DOCUMENT_REQUIRED')
+
+    const tollParkingEvidence = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/toll-parking`,
+    )
+      .set('Content-Type', 'application/pdf')
+      .set('X-File-Name', 'toll-parking-receipts.pdf')
+      .send(Buffer.from('%PDF toll and parking receipts'))
+    expect(tollParkingEvidence.status).toBe(200)
+    expect(
+      tollParkingEvidence.body.data.dutyEvidence.tollParkingReceipts,
+    ).toMatchObject({
+      originalName: 'toll-parking-receipts.pdf',
+      mimeType: 'application/pdf',
+    })
 
     const invalidClosingOdometer = await authorized(
       'patch',
@@ -269,6 +348,15 @@ describe('booking and duty assignment APIs', () => {
       `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
     ).send({
       closingOdometer: 12620.75,
+      tollTax: 150,
+      parking: 50,
+      driverAllowance: 300,
+      otherRecoverableCharges: 100,
+      paymentAmount: 500,
+      paymentMode: 'UPI',
+      paymentDate: '2026-08-02',
+      paymentReference: 'UPI-DUTY-500',
+      collectedBy: 'field executive',
       remarks: 'guest dropped successfully',
     })
     expect(completed.status).toBe(200)
@@ -277,6 +365,16 @@ describe('booking and duty assignment APIs', () => {
     expect(completed.body.data.dutyCompletionRemarks).toBe(
       'Guest Dropped Successfully',
     )
+    expect(completed.body.data.dutyCompletionDetails).toMatchObject({
+      tollTax: 150,
+      parking: 50,
+      driverAllowance: 300,
+      otherRecoverableCharges: 100,
+      paymentAmount: 500,
+      paymentMode: 'UPI',
+      paymentReference: 'UPI-DUTY-500',
+      collectedBy: 'Field Executive',
+    })
 
     const cancelCompleted = await authorized(
       'patch',

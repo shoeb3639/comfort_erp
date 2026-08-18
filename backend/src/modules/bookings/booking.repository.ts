@@ -36,6 +36,18 @@ export function updateTenantPrefix(tenantId: string, bookingPrefix: string) {
   })
 }
 
+export function updateDutyEvidence(
+  tenantId: string,
+  bookingId: string,
+  dutyEvidence: Prisma.InputJsonValue,
+) {
+  return prisma.booking.update({
+    where: { tenantId_id: { tenantId, id: bookingId } },
+    data: { dutyEvidence },
+    include,
+  })
+}
+
 export function list(
   tenantId: string,
   filters: { search?: string; status?: string; view?: string } & PageRequest,

@@ -29,17 +29,26 @@ export const errorHandler: ErrorRequestHandler = (
   const appError =
     error instanceof AppError
       ? error
-      : databaseUnavailable
+      : typeof error === 'object' &&
+          error !== null &&
+          'type' in error &&
+          error.type === 'entity.too.large'
         ? new AppError(
-            'Database service is unavailable. Please try again shortly.',
-            'SERVICE_UNAVAILABLE',
-            503,
+            'Uploaded file exceeds the 10 MB limit',
+            'FILE_TOO_LARGE',
+            413,
           )
-      : new AppError(
-          'An unexpected error occurred',
-          'INTERNAL_SERVER_ERROR',
-          500,
-        )
+        : databaseUnavailable
+          ? new AppError(
+              'Database service is unavailable. Please try again shortly.',
+              'SERVICE_UNAVAILABLE',
+              503,
+            )
+          : new AppError(
+              'An unexpected error occurred',
+              'INTERNAL_SERVER_ERROR',
+              500,
+            )
 
   logger.error(appError.message, {
     code: appError.code,

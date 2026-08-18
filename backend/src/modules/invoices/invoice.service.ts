@@ -3,7 +3,7 @@ import { AppError } from '../../shared/errors/app-error'
 import type { PageRequest } from '../../shared/pagination'
 import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
-import type { Context } from '../bookings/booking.service'
+import type { Context } from '../bookings/booking.types'
 import * as repository from './invoice.repository'
 
 type InvoiceRecord = NonNullable<Awaited<ReturnType<typeof repository.find>>>
@@ -333,7 +333,7 @@ export async function options(context: Context) {
             website: tenant.website || '',
             mobile: tenant.mobile,
             gstNumber: tenant.gstRegistrations[0]?.gstin || tenant.gstin || '',
-            category: tenant.businessType || '',
+            category: 'Car Rental',
           },
           bankDetails: tenant.bankAccounts[0]
             ? {

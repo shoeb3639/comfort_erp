@@ -199,7 +199,7 @@ export default function DutySlipPage() {
 
       <article className="duty-slip-page mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white p-8 text-slate-950 shadow-sm">
         <div className="grid grid-cols-[3fr_2.5fr] border border-slate-950">
-          <div className="border-r border-slate-950 p-3">
+          <div className="border-r border-slate-950 px-2 py-1.5">
             <h1 className="text-3xl font-black tracking-wide">
               {companyName?.toUpperCase()}
             </h1>
@@ -210,11 +210,13 @@ export default function DutySlipPage() {
                 .join(", ")}
             </p>
           </div>
-          <div>
-            <p className="border-b border-slate-950 p-3">
+          <div className="grid grid-rows-2">
+            <p className="flex items-center border-b border-slate-950 px-2 py-1.5">
               Sr. No: DS-{booking.id}
             </p>
-            <p className="p-3">Booking ID: {booking.id}</p>
+            <p className="flex items-center px-2 py-1.5">
+              Booking ID: {booking.id}
+            </p>
           </div>
         </div>
         {[
@@ -234,7 +236,7 @@ export default function DutySlipPage() {
             {row.map((value, index) => (
               <p
                 key={`${row[0]}-${index}`}
-                className={`p-3 ${index < 3 ? "border-r border-slate-950" : ""}`}
+                className={`px-2 py-1.5 ${index < 3 ? "border-r border-slate-950" : ""}`}
               >
                 {value}
               </p>
@@ -242,12 +244,14 @@ export default function DutySlipPage() {
           </div>
         ))}
         <div className="grid grid-cols-[1fr_4.5fr] border-x border-b border-slate-950">
-          <p className="border-r border-slate-950 p-3">Reporting Add. & Time</p>
-          <p className="p-3">{reporting}</p>
+          <p className="border-r border-slate-950 px-2 py-1.5">
+            Reporting Add. & Time
+          </p>
+          <p className="px-2 py-1.5">{reporting}</p>
         </div>
-        <div className="grid min-h-24 grid-cols-[1fr_4.5fr] border-x border-b border-slate-950">
-          <p className="border-r border-slate-950 p-3">Routing</p>
-          <p className="p-3">{routing}</p>
+        <div className="grid min-h-16 grid-cols-[1fr_4.5fr] border-x border-b border-slate-950">
+          <p className="border-r border-slate-950 px-2 py-1">Routing</p>
+          <p className="px-2 py-1">{routing}</p>
         </div>
         <h3 className="my-6 text-center text-lg font-bold">Log Sheet</h3>
         <table className="w-full border-collapse text-sm">
