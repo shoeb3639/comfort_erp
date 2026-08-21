@@ -17,6 +17,13 @@ export const vehicleQuerySchema = Joi.object({
   status: Joi.string().valid('ACTIVE', 'INACTIVE'),
 })
 
+export const vehicleLedgerQuerySchema = Joi.object({
+  ...paginationQueryFields,
+  dateFrom: Joi.date().iso(),
+  dateTo: Joi.date().iso().min(Joi.ref('dateFrom')),
+  groupBy: Joi.string().valid('DAY', 'MONTH').default('MONTH'),
+})
+
 export const vehicleSchema = Joi.object({
   ownershipType: Joi.string().valid('OWN', 'VENDOR').required(),
   vendorId: Joi.string().uuid().allow(null),

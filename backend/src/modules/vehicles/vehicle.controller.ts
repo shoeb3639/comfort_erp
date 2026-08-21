@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './vehicle.service'
-import type { VehicleInput } from './vehicle.types'
+import type { VehicleInput, VehicleLedgerGroupBy } from './vehicle.types'
 
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant)
@@ -21,6 +21,20 @@ const send = (
   message: string,
   status = 200,
 ) => response.status(status).json({ success: true, data, message })
+
+function query(request: Parameters<RequestHandler>[0], name: string) {
+  const value = request.query[name]
+  return typeof value === 'string' ? value : undefined
+}
+
+function ledgerBoundary(value: string, endOfDay = false) {
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value)
+  return new Date(
+    isDateOnly
+      ? `${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`
+      : value,
+  )
+}
 
 export const list: RequestHandler = async (request, response) =>
   send(
@@ -69,6 +83,20 @@ export const get: RequestHandler = async (request, response) =>
     await service.getVehicle(context(request), id(request)),
     'Vehicle retrieved',
   )
+export const ledger: RequestHandler = async (request, response) => {
+  const dateFrom = query(request, 'dateFrom')
+  const dateTo = query(request, 'dateTo')
+  send(
+    response,
+    await service.getVehicleLedger(context(request), id(request), {
+      ...pageRequest(request.query),
+      groupBy: (query(request, 'groupBy') || 'MONTH') as VehicleLedgerGroupBy,
+      ...(dateFrom ? { dateFrom: ledgerBoundary(dateFrom) } : {}),
+      ...(dateTo ? { dateTo: ledgerBoundary(dateTo, true) } : {}),
+    }),
+    'Vehicle ledger retrieved',
+  )
+}
 export const create: RequestHandler = async (request, response) =>
   send(
     response,

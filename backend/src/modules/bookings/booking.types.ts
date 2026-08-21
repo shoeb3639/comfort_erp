@@ -58,11 +58,6 @@ export interface DutyCompleteInput {
   parking: number
   driverAllowance: number
   otherRecoverableCharges: number
-  paymentAmount: number
-  paymentMode?: CollectionPaymentMode
-  paymentDate?: Date
-  paymentReference?: string | null
-  collectedBy?: string
   remarks?: string | null
 }
 

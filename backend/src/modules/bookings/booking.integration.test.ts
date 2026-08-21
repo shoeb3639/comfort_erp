@@ -352,11 +352,6 @@ describe('booking and duty assignment APIs', () => {
       parking: 50,
       driverAllowance: 300,
       otherRecoverableCharges: 100,
-      paymentAmount: 500,
-      paymentMode: 'UPI',
-      paymentDate: '2026-08-02',
-      paymentReference: 'UPI-DUTY-500',
-      collectedBy: 'field executive',
       remarks: 'guest dropped successfully',
     })
     expect(completed.status).toBe(200)
@@ -370,10 +365,6 @@ describe('booking and duty assignment APIs', () => {
       parking: 50,
       driverAllowance: 300,
       otherRecoverableCharges: 100,
-      paymentAmount: 500,
-      paymentMode: 'UPI',
-      paymentReference: 'UPI-DUTY-500',
-      collectedBy: 'Field Executive',
     })
 
     const cancelCompleted = await authorized(

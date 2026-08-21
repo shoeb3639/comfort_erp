@@ -13,6 +13,13 @@ export const listVehicles = async (params = {}) =>
   (await api.get("/tenant/vehicles", { ...config(), params })).data.data;
 export const listVehicleTypes = async () =>
   (await api.get("/tenant/vehicles/types", config())).data.data;
+export const getVehicleLedger = async (id, params = {}) =>
+  (
+    await api.get(`/tenant/vehicles/${id}/ledger`, {
+      ...config(),
+      params,
+    })
+  ).data.data;
 export const createVehicleType = async (name) =>
   (await api.post("/tenant/vehicles/types", { name }, config())).data.data;
 export const createVehicle = async (payload) =>

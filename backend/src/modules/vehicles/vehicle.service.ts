@@ -8,7 +8,17 @@ import { AppError } from '../../shared/errors/app-error'
 import { pageResult } from '../../shared/pagination'
 import { toTitleCase } from '../../shared/text/title-case'
 import * as repository from './vehicle.repository'
-import type { VehicleContext, VehicleInput } from './vehicle.types'
+import {
+  groupVehicleLedger,
+  mapBookingLedgerEntry,
+  mapExpenseLedgerEntry,
+  summarizeVehicleLedger,
+} from './vehicle.mapper'
+import type {
+  VehicleContext,
+  VehicleInput,
+  VehicleLedgerFilters,
+} from './vehicle.types'
 
 function date(value: string | Date | null | undefined) {
   if (value === null) return null
@@ -140,6 +150,107 @@ export async function getVehicle(context: VehicleContext, id: string) {
   const record = await repository.find(context.tenantId, id)
   if (!record) throw new AppError('Vehicle was not found', 'NOT_FOUND', 404)
   return record
+}
+
+export async function getVehicleLedger(
+  context: VehicleContext,
+  id: string,
+  filters: VehicleLedgerFilters,
+) {
+  const vehicle = await getVehicle(context, id)
+  if (
+    filters.dateFrom &&
+    filters.dateTo &&
+    filters.dateFrom.getTime() > filters.dateTo.getTime()
+  )
+    throw new AppError(
+      'Ledger start date cannot be after end date',
+      'VALIDATION_ERROR',
+      400,
+    )
+
+  const [bookings, expenses] = await Promise.all([
+    repository.ledgerBookings(
+      context.tenantId,
+      id,
+      filters.dateFrom,
+      filters.dateTo,
+    ),
+    repository.ledgerExpenses(
+      context.tenantId,
+      id,
+      filters.dateFrom,
+      filters.dateTo,
+    ),
+  ])
+  const expenseBookingIds = Array.from(
+    new Set(
+      expenses
+        .map((expense) => expense.bookingId)
+        .filter((bookingId): bookingId is string => Boolean(bookingId)),
+    ),
+  )
+  const bookingReferences = new Map(
+    (
+      await repository.bookingReferences(context.tenantId, expenseBookingIds)
+    ).map((booking) => [booking.id, booking.bookingNumber]),
+  )
+  const entries = [
+    ...bookings.map((booking) =>
+      mapBookingLedgerEntry(booking, vehicle.ownershipType),
+    ),
+    ...expenses.map((expense) =>
+      mapExpenseLedgerEntry(
+        expense,
+        expense.bookingId
+          ? (bookingReferences.get(expense.bookingId) ?? null)
+          : null,
+      ),
+    ),
+  ].sort(
+    (left, right) =>
+      right.date.localeCompare(left.date) ||
+      left.entryType.localeCompare(right.entryType) ||
+      right.id.localeCompare(left.id),
+  )
+  const paged = pageResult(entries, entries.length, filters)
+
+  return {
+    vehicle: {
+      id: vehicle.id,
+      vehicleCode: vehicle.vehicleCode,
+      registrationNumber: vehicle.registrationNumber,
+      ownershipType: vehicle.ownershipType,
+      status: vehicle.status,
+      make: vehicle.make,
+      model: vehicle.model,
+      vehicleType: vehicle.vehicleType,
+      vendor: vehicle.vendor,
+    },
+    filters: {
+      dateFrom: filters.dateFrom?.toISOString().slice(0, 10) ?? null,
+      dateTo: filters.dateTo?.toISOString().slice(0, 10) ?? null,
+      groupBy: filters.groupBy,
+    },
+    summary: summarizeVehicleLedger(entries),
+    periods: groupVehicleLedger(entries, filters.groupBy),
+    entries: paged.items,
+    pagination: paged.pagination,
+    methodology: {
+      revenue:
+        vehicle.ownershipType === 'VENDOR'
+          ? 'Vendor booking revenue from approved booking closures'
+          : 'Own-vehicle revenue from approved booking closures',
+      bookingCosts:
+        vehicle.ownershipType === 'VENDOR'
+          ? 'Final vendor payable from approved booking closures'
+          : 'Diesel, direct vehicle, driver, and allocated office costs from approved booking closures',
+      additionalExpenses:
+        'Vehicle-linked account expenses without a booking reduce profit',
+      linkedExpenses:
+        'Booking-linked account expenses are shown for review but excluded from totals to prevent double-counting approved booking costs',
+    },
+  }
 }
 
 export const listVehicleTypes = (context: VehicleContext) =>

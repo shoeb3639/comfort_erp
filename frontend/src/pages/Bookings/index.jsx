@@ -529,11 +529,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     parking: "",
     driverAllowance: "",
     otherRecoverableCharges: "",
-    paymentAmount: "",
-    paymentMode: "",
-    paymentDate: new Date().toISOString().slice(0, 10),
-    paymentReference: "",
-    collectedBy: "",
   });
   const [saving, setSaving] = useState(false);
   const [openingMeterPhoto, setOpeningMeterPhoto] = useState(null);
@@ -551,7 +546,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     : isComplete
       ? "Complete Duty"
       : "Cancel Booking";
-  const hasPayment = Number(completion.paymentAmount || 0) > 0;
   const requiredDocuments = new Set(booking.requiredDutyDocuments || []);
   const requiresClosingMeter = requiredDocuments.has("CLOSING_METER_PHOTO");
   const requiresDutySlip = requiredDocuments.has("SIGNED_DUTY_SLIP");
@@ -743,84 +737,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
                     />
                   </label>
                 ))}
-              </div>
-            </section>
-
-            <section>
-              <h4 className="font-semibold text-slate-900">Payment Details</h4>
-              <p className="mt-1 text-xs text-slate-500">
-                Optional at duty completion; these values will be reviewed when
-                closing the booking.
-              </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="text-sm font-medium text-slate-700">
-                  Amount Received
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={completion.paymentAmount}
-                    onChange={(event) =>
-                      updateCompletion("paymentAmount", event.target.value)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
-                <label className="text-sm font-medium text-slate-700">
-                  Payment Mode
-                  <select
-                    required={hasPayment}
-                    disabled={!hasPayment}
-                    value={completion.paymentMode}
-                    onChange={(event) =>
-                      updateCompletion("paymentMode", event.target.value)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-                  >
-                    <option value="">Select payment mode</option>
-                    <option value="CASH">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                    <option value="CARD">Card</option>
-                    <option value="CHEQUE">Cheque</option>
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-slate-700">
-                  Payment Date
-                  <input
-                    type="date"
-                    required={hasPayment}
-                    disabled={!hasPayment}
-                    value={completion.paymentDate}
-                    onChange={(event) =>
-                      updateCompletion("paymentDate", event.target.value)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-                  />
-                </label>
-                <label className="text-sm font-medium text-slate-700">
-                  Reference Number
-                  <input
-                    disabled={!hasPayment}
-                    value={completion.paymentReference}
-                    onChange={(event) =>
-                      updateCompletion("paymentReference", event.target.value)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-                  />
-                </label>
-                <label className="text-sm font-medium text-slate-700 sm:col-span-2">
-                  Collected By
-                  <input
-                    required={hasPayment}
-                    disabled={!hasPayment}
-                    value={completion.collectedBy}
-                    onChange={(event) =>
-                      updateCompletion("collectedBy", event.target.value)
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-                  />
-                </label>
               </div>
             </section>
           </div>

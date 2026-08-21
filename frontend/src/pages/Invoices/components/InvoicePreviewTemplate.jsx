@@ -207,7 +207,7 @@ function InvoicePreviewTemplate({ invoice }) {
             <p className="font-bold">Bank Details</p>
             <div className="mt-2 font-medium">
               {[
-                ["Name:", bank.accountName],
+                ["Name:", String(bank.accountName || "").toUpperCase()],
                 ["Account No.:", bank.accountNumber],
                 ["Bank Name:", bank.bankName],
                 ["IFSC Code:", bank.ifscCode],

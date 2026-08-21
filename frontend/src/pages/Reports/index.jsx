@@ -160,7 +160,7 @@ function cellLink(reportKey, row, key, value) {
     return `/bookings/${encodeURIComponent(value)}`;
   if (key === "invoiceNumber" && row.id) return `/invoices/${row.id}/preview`;
   if (reportKey === "vehicle-utilization" && key === "registrationNumber")
-    return "/vehicles";
+    return `/vehicles/${row.id}/ledger`;
   return "";
 }
 

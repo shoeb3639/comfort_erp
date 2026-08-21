@@ -1073,7 +1073,7 @@ function InvoiceFormPage() {
               <p className="font-semibold">Bank Details</p>
               <dl className="grid max-w-xl grid-cols-[40%_1fr] gap-y-0.5">
                 <dt className="font-bold">Name:</dt>
-                <dd>{bank.accountName}</dd>
+                <dd>{String(bank.accountName || "").toUpperCase()}</dd>
                 <dt className="font-bold">Account No.:</dt>
                 <dd>{bank.accountNumber}</dd>
                 <dt className="font-bold">Bank Name:</dt>

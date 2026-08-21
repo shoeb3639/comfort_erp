@@ -2,6 +2,7 @@ import type {
   SetupRecordStatus,
   VehicleOwnershipType,
 } from '../../generated/prisma/client'
+import type { PageRequest } from '../../shared/pagination'
 
 export interface VehicleContext {
   tenantId: string
@@ -25,4 +26,57 @@ export interface VehicleInput {
   fitnessExpiry?: string | Date | null
   seatingCapacity?: number | null
   status?: SetupRecordStatus
+}
+
+export type VehicleLedgerGroupBy = 'DAY' | 'MONTH'
+
+export interface VehicleLedgerFilters extends PageRequest {
+  dateFrom?: Date
+  dateTo?: Date
+  groupBy: VehicleLedgerGroupBy
+}
+
+export interface VehicleLedgerEntry {
+  id: string
+  entryType: 'BOOKING' | 'EXPENSE'
+  date: string
+  bookingId: string | null
+  bookingNumber: string | null
+  customer: string | null
+  driver: string | null
+  route: string | null
+  status: string
+  description: string
+  category: string | null
+  referenceNumber: string | null
+  openingKm: number | null
+  closingKm: number | null
+  runningKm: number
+  billedAmount: number
+  recoverableCharges: number
+  revenue: number
+  bookingCost: number
+  expenseAmount: number
+  linkedExpenseForReview: number
+  netProfit: number
+  includedInProfit: boolean
+  profitTreatment: string
+}
+
+export interface VehicleLedgerTotals {
+  bookings: number
+  closedBookings: number
+  expenseEntries: number
+  runningKm: number
+  billedAmount: number
+  recoverableCharges: number
+  revenue: number
+  bookingCosts: number
+  additionalVehicleExpenses: number
+  linkedExpensesForReview: number
+  netProfit: number
+}
+
+export interface VehicleLedgerPeriod extends VehicleLedgerTotals {
+  period: string
 }

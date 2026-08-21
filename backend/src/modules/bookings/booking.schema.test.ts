@@ -1,4 +1,4 @@
-import { closeBookingSchema } from './booking.schema'
+import { closeBookingSchema, dutyCompleteSchema } from './booking.schema'
 
 const closing = {
   billingTripType: 'PACKAGE_BASED',
@@ -30,5 +30,33 @@ describe('booking closing payment validation', () => {
       collectedBy: 'Accounts Desk',
     })
     expect(result.error).toBeUndefined()
+  })
+})
+
+describe('duty completion payment validation', () => {
+  it('allows recoverable charges without payment details', () => {
+    const result = dutyCompleteSchema.validate({
+      closingOdometer: 1200,
+      tollTax: 100,
+      parking: 50,
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.value).toMatchObject({
+      tollTax: 100,
+      parking: 50,
+      driverAllowance: 0,
+      otherRecoverableCharges: 0,
+    })
+  })
+
+  it('rejects payment details because managers capture them at closing', () => {
+    const result = dutyCompleteSchema.validate({
+      closingOdometer: 1200,
+      paymentAmount: 500,
+      paymentMode: 'UPI',
+    })
+
+    expect(result.error).toBeDefined()
   })
 })

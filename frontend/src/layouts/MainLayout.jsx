@@ -231,6 +231,15 @@ const pageMeta = {
 };
 
 function getPageMeta(pathname) {
+  if (/^\/vehicles\/[^/]+\/ledger$/.test(pathname)) {
+    return {
+      eyebrow: "Fleet profitability",
+      title: "Vehicle Register",
+      description:
+        "Booking-wise vehicle ledger with daily and monthly profit and loss.",
+    };
+  }
+
   if (pathname === "/bookings/new") {
     return {
       eyebrow: "Reservations",

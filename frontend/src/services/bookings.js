@@ -116,7 +116,6 @@ export async function startBookingDuty(id, values) {
 }
 
 export async function completeBookingDuty(id, values) {
-  const paymentAmount = Number(values.paymentAmount || 0);
   return (
     await api.patch(
       `/tenant/bookings/${id}/duty/complete`,
@@ -127,11 +126,6 @@ export async function completeBookingDuty(id, values) {
         parking: Number(values.parking || 0),
         driverAllowance: Number(values.driverAllowance || 0),
         otherRecoverableCharges: Number(values.otherRecoverableCharges || 0),
-        paymentAmount,
-        paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
-        paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
-        paymentReference: values.paymentReference || null,
-        collectedBy: paymentAmount > 0 ? values.collectedBy : undefined,
         remarks: values.remarks || null,
       },
       config(),

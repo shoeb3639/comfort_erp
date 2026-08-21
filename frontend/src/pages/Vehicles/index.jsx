@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { BookOpen, Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import ActionNotice from "../../components/ActionNotice";
 import Pagination from "../../components/Pagination";
 import { getVendors } from "../../services/vendors";
@@ -219,6 +220,13 @@ export default function VehiclesPage() {
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
+                    <Link
+                      to={`/vehicles/${item.id}/ledger`}
+                      title="Vehicle register"
+                      className="text-brand-700"
+                    >
+                      <BookOpen size={17} />
+                    </Link>
                     <button onClick={() => edit(item)} title="Edit">
                       <Edit size={17} />
                     </button>

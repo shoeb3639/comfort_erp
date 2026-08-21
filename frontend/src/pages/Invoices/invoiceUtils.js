@@ -9,7 +9,7 @@ export const companyDetails = {
 }
 
 export const defaultBankDetails = {
-  accountName: 'Comfort Cars',
+  accountName: 'COMFORT CARS',
   accountNumber: '50200078410530',
   bankName: 'HDFC Bank',
   ifscCode: 'HDFC0008885',

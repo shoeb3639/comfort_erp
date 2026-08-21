@@ -5,6 +5,10 @@ coverage/
 backend/src/generated/prisma/
 .local/
 backend/prisma/customer-migration-output/
+backend/prisma/legacy-migration-input-prayagraj/*.csv
+backend/prisma/vendor-migration-output-prayagraj/
+backend/prisma/vehicle-migration-output-prayagraj/
+backend/prisma/driver-migration-output-prayagraj/
 .DS_Store
 
 *.log

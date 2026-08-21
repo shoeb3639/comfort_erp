@@ -1,5 +1,6 @@
 import {
   updateVehicleSchema,
+  vehicleLedgerQuerySchema,
   vehicleQuerySchema,
   vehicleSchema,
   vehicleTypeSchema,
@@ -36,5 +37,25 @@ describe('vehicle validation', () => {
   it('accepts a partial update but rejects an empty update', () => {
     expect(updateVehicleSchema.validate({ make: 'Tata' }).error).toBeUndefined()
     expect(updateVehicleSchema.validate({}).error).toBeDefined()
+  })
+
+  it('validates vehicle ledger dates, grouping, and pagination', () => {
+    const valid = vehicleLedgerQuerySchema.validate({
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+      groupBy: 'DAY',
+    })
+
+    expect(valid.error).toBeUndefined()
+    expect(valid.value).toMatchObject({ groupBy: 'DAY', page: 1, limit: 25 })
+    expect(
+      vehicleLedgerQuerySchema.validate({
+        dateFrom: '2026-08-31',
+        dateTo: '2026-08-01',
+      }).error,
+    ).toBeDefined()
+    expect(
+      vehicleLedgerQuerySchema.validate({ groupBy: 'YEAR' }).error,
+    ).toBeDefined()
   })
 })

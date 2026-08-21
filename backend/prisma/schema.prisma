@@ -1255,6 +1255,8 @@ model AccountTransaction {
   @@unique([tenantId, referenceNumber], map: "account_transactions_tenant_reference_key")
   @@index([tenantId, transactionDate], map: "account_transactions_tenant_date_idx")
   @@index([tenantId, ledgerId, transactionDate], map: "account_transactions_ledger_date_idx")
+  @@index([tenantId, vehicleId, transactionDate], map: "account_transactions_tenant_vehicle_date_idx")
+  @@index([tenantId, bookingId, transactionDate], map: "account_transactions_tenant_booking_date_idx")
   @@map("account_transactions")
 }
 

@@ -46,6 +46,7 @@ import SettingsPage from "../pages/Settings";
 import GSTRegistrationsPage from "../pages/Settings/GSTRegistrations";
 import VendorsPage from "../pages/Vendors";
 import VehiclesPage from "../pages/Vehicles";
+import VehicleLedgerPage from "../pages/Vehicles/Ledger";
 import DriversPage from "../pages/Drivers";
 
 function AppRoutes() {
@@ -118,6 +119,10 @@ function AppRoutes() {
           />
           <Route path="/vendors" element={<VendorsPage />} />
           <Route path="/vehicles" element={<VehiclesPage />} />
+          <Route
+            path="/vehicles/:vehicleId/ledger"
+            element={<VehicleLedgerPage />}
+          />
           <Route path="/drivers" element={<DriversPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/invoices/new" element={<InvoiceFormPage />} />

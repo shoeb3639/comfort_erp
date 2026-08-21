@@ -12,6 +12,7 @@ import {
 import * as controller from './vehicle.controller'
 import {
   updateVehicleSchema,
+  vehicleLedgerQuerySchema,
   vehicleParamsSchema,
   vehicleQuerySchema,
   vehicleSchema,
@@ -47,6 +48,13 @@ vehicleRouter.post(
   authorizePermission('vehicle.manage'),
   validateBody(vehicleSchema),
   controller.create,
+)
+vehicleRouter.get(
+  '/:vehicleId/ledger',
+  authorizePermission('vehicle.view'),
+  validateParams(vehicleParamsSchema),
+  validateQuery(vehicleLedgerQuerySchema),
+  controller.ledger,
 )
 vehicleRouter.get(
   '/:vehicleId',

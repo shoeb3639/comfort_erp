@@ -89,33 +89,11 @@ export const dutyCompleteSchema = Joi.object({
   parking: money.default(0),
   driverAllowance: money.default(0),
   otherRecoverableCharges: money.default(0),
-  paymentAmount: money.default(0),
-  paymentMode: Joi.string()
-    .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
-    .when('paymentAmount', {
-      is: Joi.number().greater(0),
-      then: Joi.required(),
-    }),
-  paymentDate: Joi.date()
-    .iso()
-    .when('paymentAmount', {
-      is: Joi.number().greater(0),
-      then: Joi.required(),
-    }),
-  paymentReference: Joi.string()
-    .trim()
-    .min(3)
-    .max(150)
-    .pattern(/^[A-Za-z0-9][A-Za-z0-9 /_.:-]*$/)
-    .allow('', null),
-  collectedBy: Joi.string()
-    .trim()
-    .min(2)
-    .max(150)
-    .when('paymentAmount', {
-      is: Joi.number().greater(0),
-      then: Joi.required(),
-    }),
+  paymentAmount: Joi.forbidden(),
+  paymentMode: Joi.forbidden(),
+  paymentDate: Joi.forbidden(),
+  paymentReference: Joi.forbidden(),
+  collectedBy: Joi.forbidden(),
   remarks: optionalText(2000),
 })
 
