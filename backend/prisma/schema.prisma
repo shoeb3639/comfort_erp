@@ -128,6 +128,13 @@ enum BillingTripType {
   PACKAGE_BASED
 }
 
+enum BookingProfitDataStatus {
+  NOT_TRACKED
+  AVAILABLE
+  INCOMPLETE
+  REGISTER_ONLY
+}
+
 enum CollectionPaymentMode {
   CASH
   UPI
@@ -624,7 +631,7 @@ model CustomerTraveller {
 model Booking {
   id                     String           @id @default(uuid()) @db.Uuid
   tenantId               String           @map("tenant_id") @db.Uuid
-  bookingNumber          String           @unique(map: "bookings_booking_id_key") @map("booking_id") @db.VarChar(11)
+  bookingNumber          String           @unique(map: "bookings_booking_id_key") @map("booking_id") @db.VarChar(20)
   customerId             String           @map("customer_id") @db.Uuid
   travellerId            String?          @map("traveller_id") @db.Uuid
   bookingType            BookingType      @map("booking_type")
@@ -692,41 +699,43 @@ model Booking {
 }
 
 model BookingClosure {
-  id                      String          @id @default(uuid()) @db.Uuid
-  tenantId                String          @map("tenant_id") @db.Uuid
-  bookingId               String          @unique(map: "booking_closures_booking_key") @map("booking_id") @db.Uuid
-  billingTripType         BillingTripType @map("billing_trip_type")
-  startKm                 Decimal?        @map("start_km") @db.Decimal(12, 2)
-  endKm                   Decimal?        @map("end_km") @db.Decimal(12, 2)
-  actualRunningKm         Decimal         @map("actual_running_km") @db.Decimal(12, 2)
-  minimumBillingKm        Decimal         @map("minimum_billing_km") @db.Decimal(12, 2)
-  billingKm               Decimal         @map("billing_km") @db.Decimal(12, 2)
-  ratePerKm               Decimal?        @map("rate_per_km") @db.Decimal(12, 2)
-  packageAmount           Decimal?        @map("package_amount") @db.Decimal(12, 2)
-  baseFare                Decimal         @map("base_fare") @db.Decimal(12, 2)
-  tollTax                 Decimal         @default(0) @map("toll_tax") @db.Decimal(12, 2)
-  parking                 Decimal         @default(0) @db.Decimal(12, 2)
-  driverAllowance         Decimal         @default(0) @map("driver_allowance") @db.Decimal(12, 2)
-  otherRecoverableCharges Decimal         @default(0) @map("other_recoverable_charges") @db.Decimal(12, 2)
-  gstAmount               Decimal         @default(0) @map("gst_amount") @db.Decimal(12, 2)
-  totalBillAmount         Decimal         @map("total_bill_amount") @db.Decimal(12, 2)
-  dieselCost              Decimal         @default(0) @map("diesel_cost") @db.Decimal(12, 2)
-  directVehicleExpense    Decimal         @default(0) @map("direct_vehicle_expense") @db.Decimal(12, 2)
-  driverCost              Decimal         @default(0) @map("driver_cost") @db.Decimal(12, 2)
-  allocatedOfficeExpense  Decimal         @default(0) @map("allocated_office_expense") @db.Decimal(12, 2)
-  vehicleRevenue          Decimal         @default(0) @map("vehicle_revenue") @db.Decimal(12, 2)
-  netVehicleProfit        Decimal         @default(0) @map("net_vehicle_profit") @db.Decimal(12, 2)
-  vendorPayableAmount     Decimal         @default(0) @map("vendor_payable_amount") @db.Decimal(12, 2)
-  vendorExtraCharges      Decimal         @default(0) @map("vendor_extra_charges") @db.Decimal(12, 2)
-  vendorDeduction         Decimal         @default(0) @map("vendor_deduction") @db.Decimal(12, 2)
-  finalVendorPayable      Decimal         @default(0) @map("final_vendor_payable") @db.Decimal(12, 2)
-  vendorBookingProfit     Decimal         @default(0) @map("vendor_booking_profit") @db.Decimal(12, 2)
-  remarks                 String?         @db.Text
-  attachmentName          String?         @map("attachment_name") @db.VarChar(255)
-  closedAt                DateTime        @default(now()) @map("closed_at") @db.Timestamptz(6)
-  closedById              String          @map("closed_by") @db.Uuid
-  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                      String                  @id @default(uuid()) @db.Uuid
+  tenantId                String                  @map("tenant_id") @db.Uuid
+  bookingId               String                  @unique(map: "booking_closures_booking_key") @map("booking_id") @db.Uuid
+  billingTripType         BillingTripType         @map("billing_trip_type")
+  startKm                 Decimal?                @map("start_km") @db.Decimal(12, 2)
+  endKm                   Decimal?                @map("end_km") @db.Decimal(12, 2)
+  actualRunningKm         Decimal                 @map("actual_running_km") @db.Decimal(12, 2)
+  minimumBillingKm        Decimal                 @map("minimum_billing_km") @db.Decimal(12, 2)
+  billingKm               Decimal                 @map("billing_km") @db.Decimal(12, 2)
+  ratePerKm               Decimal?                @map("rate_per_km") @db.Decimal(12, 2)
+  packageAmount           Decimal?                @map("package_amount") @db.Decimal(12, 2)
+  baseFare                Decimal                 @map("base_fare") @db.Decimal(12, 2)
+  tollTax                 Decimal                 @default(0) @map("toll_tax") @db.Decimal(12, 2)
+  parking                 Decimal                 @default(0) @db.Decimal(12, 2)
+  driverAllowance         Decimal                 @default(0) @map("driver_allowance") @db.Decimal(12, 2)
+  otherRecoverableCharges Decimal                 @default(0) @map("other_recoverable_charges") @db.Decimal(12, 2)
+  gstAmount               Decimal                 @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  totalBillAmount         Decimal                 @map("total_bill_amount") @db.Decimal(12, 2)
+  dieselCost              Decimal                 @default(0) @map("diesel_cost") @db.Decimal(12, 2)
+  directVehicleExpense    Decimal                 @default(0) @map("direct_vehicle_expense") @db.Decimal(12, 2)
+  driverCost              Decimal                 @default(0) @map("driver_cost") @db.Decimal(12, 2)
+  allocatedOfficeExpense  Decimal                 @default(0) @map("allocated_office_expense") @db.Decimal(12, 2)
+  vehicleRevenue          Decimal                 @default(0) @map("vehicle_revenue") @db.Decimal(12, 2)
+  netVehicleProfit        Decimal                 @default(0) @map("net_vehicle_profit") @db.Decimal(12, 2)
+  vendorPayableAmount     Decimal                 @default(0) @map("vendor_payable_amount") @db.Decimal(12, 2)
+  vendorExtraCharges      Decimal                 @default(0) @map("vendor_extra_charges") @db.Decimal(12, 2)
+  vendorDeduction         Decimal                 @default(0) @map("vendor_deduction") @db.Decimal(12, 2)
+  finalVendorPayable      Decimal                 @default(0) @map("final_vendor_payable") @db.Decimal(12, 2)
+  vendorBookingProfit     Decimal                 @default(0) @map("vendor_booking_profit") @db.Decimal(12, 2)
+  commissionProfit        Decimal                 @default(0) @map("commission_profit") @db.Decimal(12, 2)
+  profitDataStatus        BookingProfitDataStatus @default(AVAILABLE) @map("profit_data_status")
+  remarks                 String?                 @db.Text
+  attachmentName          String?                 @map("attachment_name") @db.VarChar(255)
+  closedAt                DateTime                @default(now()) @map("closed_at") @db.Timestamptz(6)
+  closedById              String                  @map("closed_by") @db.Uuid
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   booking Booking @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)

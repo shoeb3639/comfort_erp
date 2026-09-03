@@ -122,6 +122,8 @@ export function ledgerBookings(
           netVehicleProfit: true,
           finalVendorPayable: true,
           vendorBookingProfit: true,
+          commissionProfit: true,
+          profitDataStatus: true,
         },
       },
     },

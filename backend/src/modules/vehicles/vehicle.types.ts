@@ -34,6 +34,8 @@ export interface VehicleLedgerFilters extends PageRequest {
   dateFrom?: Date
   dateTo?: Date
   groupBy: VehicleLedgerGroupBy
+  profitDataStatus?:
+    'NOT_TRACKED' | 'AVAILABLE' | 'INCOMPLETE' | 'REGISTER_ONLY'
 }
 
 export interface VehicleLedgerEntry {
@@ -58,7 +60,9 @@ export interface VehicleLedgerEntry {
   bookingCost: number
   expenseAmount: number
   linkedExpenseForReview: number
-  netProfit: number
+  netProfit: number | null
+  commissionProfit: number
+  profitDataStatus: string | null
   includedInProfit: boolean
   profitTreatment: string
 }
@@ -75,6 +79,7 @@ export interface VehicleLedgerTotals {
   additionalVehicleExpenses: number
   linkedExpensesForReview: number
   netProfit: number
+  commissionProfit: number
 }
 
 export interface VehicleLedgerPeriod extends VehicleLedgerTotals {

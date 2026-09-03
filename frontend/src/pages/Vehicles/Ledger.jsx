@@ -11,6 +11,7 @@ const initialFilters = {
   dateFrom: "",
   dateTo: "",
   groupBy: "MONTH",
+  profitDataStatus: "",
   page: 1,
   limit: 25,
 };
@@ -78,6 +79,8 @@ function downloadCsv(vehicle, entries, filters) {
     ["bookingCost", "Booking Cost"],
     ["expenseAmount", "Expense"],
     ["netProfit", "Net Profit"],
+    ["commissionProfit", "Commission Profit"],
+    ["profitDataStatus", "Profit Data Status"],
     ["profitTreatment", "P&L Treatment"],
     ["referenceNumber", "Reference"],
   ];
@@ -100,6 +103,9 @@ function downloadCsv(vehicle, entries, filters) {
 }
 
 function ProfitValue({ value }) {
+  if (value === null || value === undefined) {
+    return <span className="font-semibold text-slate-500">Unavailable</span>;
+  }
   const numericValue = Number(value || 0);
   return (
     <span
@@ -263,7 +269,7 @@ export default function VehicleLedgerPage() {
 
           <form
             onSubmit={applyFilters}
-            className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end"
+            className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] lg:items-end"
           >
             <label className="text-sm font-medium text-slate-700">
               From Date
@@ -311,6 +317,25 @@ export default function VehicleLedgerPage() {
                 <option value="MONTH">Monthly</option>
               </select>
             </label>
+            <label className="text-sm font-medium text-slate-700">
+              Profit Data
+              <select
+                value={draftFilters.profitDataStatus}
+                onChange={(event) =>
+                  setDraftFilters((current) => ({
+                    ...current,
+                    profitDataStatus: event.target.value,
+                  }))
+                }
+                className={`${fieldClass} mt-1`}
+              >
+                <option value="">All records</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="INCOMPLETE">Incomplete</option>
+                <option value="NOT_TRACKED">Not tracked</option>
+                <option value="REGISTER_ONLY">Register only</option>
+              </select>
+            </label>
             <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
               Apply Filters
             </button>
@@ -350,6 +375,11 @@ export default function VehicleLedgerPage() {
               label="Net Vehicle Profit"
               value={ledger.summary.netProfit}
               profit
+            />
+            <SummaryCard
+              label="Commission Profit"
+              value={ledger.summary.commissionProfit}
+              moneyValue
             />
           </section>
 
@@ -446,6 +476,7 @@ export default function VehicleLedgerPage() {
                       "Revenue",
                       "Cost / Expense",
                       "Net Profit",
+                      "Commission",
                       "P&L Treatment",
                     ].map((label) => (
                       <th key={label} className="px-4 py-3">
@@ -515,6 +546,9 @@ export default function VehicleLedgerPage() {
                       <td className="whitespace-nowrap px-4 py-3">
                         <ProfitValue value={entry.netProfit} />
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        {money(entry.commissionProfit)}
+                      </td>
                       <td className="max-w-xs px-4 py-3 text-xs text-slate-500">
                         {entry.profitTreatment}
                       </td>
@@ -523,7 +557,7 @@ export default function VehicleLedgerPage() {
                   {!ledger.entries.length && (
                     <tr>
                       <td
-                        colSpan={11}
+                        colSpan={12}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No vehicle ledger records found.

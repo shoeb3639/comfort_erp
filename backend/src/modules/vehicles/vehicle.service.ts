@@ -195,7 +195,7 @@ export async function getVehicleLedger(
       await repository.bookingReferences(context.tenantId, expenseBookingIds)
     ).map((booking) => [booking.id, booking.bookingNumber]),
   )
-  const entries = [
+  const allEntries = [
     ...bookings.map((booking) =>
       mapBookingLedgerEntry(booking, vehicle.ownershipType),
     ),
@@ -213,6 +213,11 @@ export async function getVehicleLedger(
       left.entryType.localeCompare(right.entryType) ||
       right.id.localeCompare(left.id),
   )
+  const entries = filters.profitDataStatus
+    ? allEntries.filter(
+        (entry) => entry.profitDataStatus === filters.profitDataStatus,
+      )
+    : allEntries
   const paged = pageResult(entries, entries.length, filters)
 
   return {
@@ -231,6 +236,7 @@ export async function getVehicleLedger(
       dateFrom: filters.dateFrom?.toISOString().slice(0, 10) ?? null,
       dateTo: filters.dateTo?.toISOString().slice(0, 10) ?? null,
       groupBy: filters.groupBy,
+      profitDataStatus: filters.profitDataStatus ?? null,
     },
     summary: summarizeVehicleLedger(entries),
     periods: groupVehicleLedger(entries, filters.groupBy),

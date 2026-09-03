@@ -86,6 +86,7 @@ export const get: RequestHandler = async (request, response) =>
 export const ledger: RequestHandler = async (request, response) => {
   const dateFrom = query(request, 'dateFrom')
   const dateTo = query(request, 'dateTo')
+  const profitDataStatus = query(request, 'profitDataStatus')
   send(
     response,
     await service.getVehicleLedger(context(request), id(request), {
@@ -93,6 +94,12 @@ export const ledger: RequestHandler = async (request, response) => {
       groupBy: (query(request, 'groupBy') || 'MONTH') as VehicleLedgerGroupBy,
       ...(dateFrom ? { dateFrom: ledgerBoundary(dateFrom) } : {}),
       ...(dateTo ? { dateTo: ledgerBoundary(dateTo, true) } : {}),
+      ...(profitDataStatus === 'NOT_TRACKED' ||
+      profitDataStatus === 'AVAILABLE' ||
+      profitDataStatus === 'INCOMPLETE' ||
+      profitDataStatus === 'REGISTER_ONLY'
+        ? { profitDataStatus }
+        : {}),
     }),
     'Vehicle ledger retrieved',
   )

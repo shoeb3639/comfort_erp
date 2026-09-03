@@ -100,7 +100,7 @@ function InvoicePreviewTemplate({ invoice }) {
               />
             </div>
             <div className="text-[14px] font-medium leading-[1.5]">
-              <h1 className="whitespace-nowrap text-[34px] font-extrabold leading-[1.15] tracking-wide">
+              <h1 className="whitespace-nowrap text-[34px] font-extrabold uppercase leading-[1.15] tracking-wide">
                 {company.name}
               </h1>
               <p className="mt-1">{company.address}</p>

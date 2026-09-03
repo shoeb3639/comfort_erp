@@ -4,14 +4,38 @@ coverage/
 .vite/
 backend/src/generated/prisma/
 .local/
-backend/prisma/customer-migration-output/
-backend/prisma/legacy-migration-input-prayagraj/*.csv
-backend/prisma/vendor-migration-output-prayagraj/
-backend/prisma/vehicle-migration-output-prayagraj/
-backend/prisma/driver-migration-output-prayagraj/
 .DS_Store
 
 *.log
 .env
 .env.*
 !.env.example
+
+# Secrets and private key material
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+
+# Database dumps and backups
+*.dump
+*.backup
+*.sql.gz
+*.sql.zip
+backups/
+
+# Runtime uploads must use persistent storage, not Git.
+uploads/
+backend/uploads/
+
+# Legacy source exports and generated migration/reconciliation reports contain
+# customer, booking, invoice, vehicle, and financial data. Keep them only in
+# the restricted migration archive.
+backend/prisma/*.csv
+backend/prisma/*.zip
+backend/prisma/*-migration-output*/
+backend/prisma/*-repair-output*/
+backend/prisma/booking-detail-repair-output*/
+backend/prisma/booking-profit-repair-output*/
+backend/prisma/legacy-migration-input-prayagraj/*.csv

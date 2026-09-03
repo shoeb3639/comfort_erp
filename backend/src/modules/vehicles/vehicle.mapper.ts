@@ -42,6 +42,8 @@ interface BookingLedgerRecord {
     netVehicleProfit: unknown
     finalVendorPayable: unknown
     vendorBookingProfit: unknown
+    commissionProfit: unknown
+    profitDataStatus: string
   } | null
 }
 
@@ -60,6 +62,10 @@ export function mapBookingLedgerEntry(
   ownershipType: VehicleOwnershipType,
 ): VehicleLedgerEntry {
   const closure = record.closure
+  const profitDataStatus = closure
+    ? closure.profitDataStatus || 'AVAILABLE'
+    : null
+  const profitAvailable = profitDataStatus === 'AVAILABLE'
   const recoverableCharges = closure
     ? number(closure.tollTax) +
       number(closure.parking) +
@@ -82,11 +88,12 @@ export function mapBookingLedgerEntry(
         number(closure.driverCost) +
         number(closure.allocatedOfficeExpense)
     : 0
-  const netProfit = closure
-    ? ownershipType === 'VENDOR'
-      ? number(closure.vendorBookingProfit)
-      : number(closure.netVehicleProfit)
-    : 0
+  const netProfit =
+    closure && profitAvailable
+      ? ownershipType === 'VENDOR'
+        ? number(closure.vendorBookingProfit)
+        : number(closure.netVehicleProfit)
+      : null
   const route =
     [record.travellingFrom, record.travellingTo].filter(Boolean).join(' → ') ||
     record.serviceCity
@@ -116,9 +123,17 @@ export function mapBookingLedgerEntry(
     expenseAmount: 0,
     linkedExpenseForReview: 0,
     netProfit,
-    includedInProfit: Boolean(closure),
+    commissionProfit: closure ? number(closure.commissionProfit) : 0,
+    profitDataStatus,
+    includedInProfit: Boolean(closure && profitAvailable),
     profitTreatment: closure
-      ? 'Approved close-booking P&L'
+      ? profitAvailable
+        ? 'Approved close-booking P&L'
+        : profitDataStatus === 'NOT_TRACKED'
+          ? 'Profit not tracked before vehicle ledger launch'
+          : profitDataStatus === 'INCOMPLETE'
+            ? 'Vehicle ledger period; source profit fields incomplete'
+            : 'Register-only period; profit unavailable'
       : 'Pending booking closure',
   }
 }
@@ -152,6 +167,8 @@ export function mapExpenseLedgerEntry(
     expenseAmount: amount,
     linkedExpenseForReview: linkedToBooking ? amount : 0,
     netProfit: linkedToBooking ? 0 : -amount,
+    commissionProfit: 0,
+    profitDataStatus: null,
     includedInProfit: !linkedToBooking,
     profitTreatment: linkedToBooking
       ? 'Review only; excluded to prevent double-counting booking costs'
@@ -172,6 +189,7 @@ function emptyTotals(): VehicleLedgerTotals {
     additionalVehicleExpenses: 0,
     linkedExpensesForReview: 0,
     netProfit: 0,
+    commissionProfit: 0,
   }
 }
 
@@ -183,12 +201,15 @@ function addEntry(totals: VehicleLedgerTotals, entry: VehicleLedgerEntry) {
   totals.runningKm += entry.runningKm
   totals.billedAmount += entry.billedAmount
   totals.recoverableCharges += entry.recoverableCharges
-  totals.revenue += entry.revenue
-  totals.bookingCosts += entry.bookingCost
+  if (entry.entryType !== 'BOOKING' || entry.includedInProfit) {
+    totals.revenue += entry.revenue
+    totals.bookingCosts += entry.bookingCost
+  }
   if (entry.entryType === 'EXPENSE' && entry.includedInProfit)
     totals.additionalVehicleExpenses += entry.expenseAmount
   totals.linkedExpensesForReview += entry.linkedExpenseForReview
-  totals.netProfit += entry.netProfit
+  totals.netProfit += entry.netProfit ?? 0
+  totals.commissionProfit += entry.commissionProfit
   return totals
 }
 

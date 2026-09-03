@@ -22,6 +22,12 @@ export const vehicleLedgerQuerySchema = Joi.object({
   dateFrom: Joi.date().iso(),
   dateTo: Joi.date().iso().min(Joi.ref('dateFrom')),
   groupBy: Joi.string().valid('DAY', 'MONTH').default('MONTH'),
+  profitDataStatus: Joi.string().valid(
+    'NOT_TRACKED',
+    'AVAILABLE',
+    'INCOMPLETE',
+    'REGISTER_ONLY',
+  ),
 })
 
 export const vehicleSchema = Joi.object({
