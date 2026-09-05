@@ -9,6 +9,7 @@ import { listBookings } from "../../services/bookings";
 import { getCustomers } from "../../services/customers";
 import { listDrivers } from "../../services/drivers";
 import { listInvoices } from "../../services/invoices";
+import { getCompanyProfile } from "../../services/tenantSetup";
 import {
   AlertList,
   AreaChart,
@@ -105,15 +106,23 @@ function sortByDate(records, key) {
   );
 }
 
-function latestDateFrom(...collections) {
-  const dates = collections.flat().filter(Boolean).sort();
-  return dates.at(-1) || new Date().toISOString().slice(0, 10);
+function tenantBusinessDate(timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
-function previousDateFrom(dates, currentDate) {
-  const sorted = [...new Set(dates.filter(Boolean))].sort();
-  const index = sorted.indexOf(currentDate);
-  return index > 0 ? sorted[index - 1] : sorted.at(-2) || currentDate;
+function previousCalendarDate(currentDate) {
+  const value = new Date(`${currentDate}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() - 1);
+  return value.toISOString().slice(0, 10);
 }
 
 function percentageChange(current, previous) {
@@ -231,22 +240,8 @@ function buildDashboardData(source) {
   const drivers = source.drivers;
   const partners = [];
 
-  const businessDate = latestDateFrom(
-    bookings.map((booking) => booking.pickupDate),
-    invoices.map((invoice) => invoice.dueDate),
-    expenses.map((expense) => expense.date),
-    transactions.map(
-      (transaction) => transaction.transactionDate || transaction.date,
-    ),
-  );
-  const previousDate = previousDateFrom(
-    [
-      ...bookings.map((booking) => booking.pickupDate),
-      ...invoices.map((invoice) => invoice.dueDate),
-      ...expenses.map((expense) => expense.date),
-    ],
-    businessDate,
-  );
+  const businessDate = source.businessDate;
+  const previousDate = previousCalendarDate(businessDate);
   const monthKey = businessDate.slice(0, 7);
 
   const todayBookings = bookings.filter(
@@ -535,13 +530,6 @@ function buildDashboardData(source) {
     ],
     bookingOverviewCards: Object.entries(bookingStatusCounts).map(
       ([label, value]) => metricRecord(label, value),
-    ),
-    bookingOverview: asChartData(
-      Object.fromEntries(
-        Object.entries(bookingStatusCounts).filter(
-          ([label]) => label !== "Total",
-        ),
-      ),
     ),
     revenueCards: [
       metricRecord("Revenue Today", formatCurrency(todayRevenue)),
@@ -924,6 +912,7 @@ function DashboardPage() {
       listManagerLedgers(),
       getAccountsAudit(),
       listDrivers({ limit: 100 }),
+      getCompanyProfile(),
     ])
       .then(
         ([
@@ -935,6 +924,7 @@ function DashboardPage() {
           ledgerData,
           auditData,
           drivers,
+          companyProfile,
         ]) => {
           if (!active) return;
           const transactions = transactionData.transactions || [];
@@ -976,6 +966,7 @@ function DashboardPage() {
               auditExceptions:
                 auditData.exceptions || auditData.auditExceptions || [],
               drivers: drivers.items,
+              businessDate: tenantBusinessDate(companyProfile.timeZone),
             }),
           });
         },
@@ -1016,16 +1007,7 @@ function DashboardPage() {
 
   return (
     <div className="space-y-7">
-      <SectionHeader
-        title="Business Control Center"
-        subtitle={`Single-screen operating view from live tenant records. Business date: ${dashboard.businessDate}`}
-      />
-
-      <section className="space-y-4">
-        <SectionHeader
-          title="Business Summary"
-          subtitle="Owner-level daily KPIs with comparison and sparklines"
-        />
+      <section>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboard.summaryCards.map((card) => (
             <KpiCard
@@ -1050,24 +1032,6 @@ function DashboardPage() {
           subtitle="Booking pipeline and status distribution"
         />
         <SmallMetricGrid items={dashboard.bookingOverviewCards} />
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <div className="xl:col-span-2">
-            <DonutChart
-              title="Booking Status Donut"
-              subtitle="Total, draft, confirmed, running, completed, closed, cancelled"
-              data={dashboard.bookingOverview}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <BarChart
-              title="Booking Type Mix"
-              subtitle="Duty volume by booking category"
-              data={dashboard.bookingOverview.filter(
-                (item) => item.label !== "Total",
-              )}
-            />
-          </div>
-        </div>
       </section>
 
       <section className="space-y-4">

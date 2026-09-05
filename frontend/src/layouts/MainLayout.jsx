@@ -177,8 +177,8 @@ const bottomNavItems = [
 
 const pageMeta = {
   "/dashboard": {
-    eyebrow: "Operations control center",
-    title: "Today overview",
+    eyebrow: "",
+    title: "Business Control Center",
     description: "Monitor bookings, vehicles, billing, and operations.",
   },
   "/bookings": {

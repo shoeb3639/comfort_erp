@@ -3,6 +3,7 @@ import { app } from '../../app'
 import { prisma } from '../../config/prisma'
 import { hashPassword } from '../../shared/security/password'
 import { TENANT_PERMISSIONS } from '../auth/auth.constants'
+import * as bookingRepository from './booking.repository'
 
 const password = 'Booking-Test!9Qv7#Secure'
 let token: string
@@ -18,8 +19,10 @@ async function clean() {
   await prisma.bookingCollection.deleteMany()
   await prisma.invoiceItem.deleteMany()
   await prisma.invoice.deleteMany()
+  await prisma.invoiceSequence.deleteMany()
   await prisma.bookingClosure.deleteMany()
   await prisma.booking.deleteMany()
+  await prisma.bookingSequence.deleteMany()
   await prisma.vehicle.deleteMany()
   await prisma.vehicleType.deleteMany()
   await prisma.driver.deleteMany()
@@ -60,6 +63,7 @@ beforeAll(async () => {
       legalName: 'Booking Tenant',
       email: 'booking@test.example.com',
       mobile: '9999999999',
+      invoicePrefix: 'INV',
       status: 'ACTIVE',
     },
   })
@@ -152,36 +156,34 @@ function authorized(method: 'get' | 'post' | 'patch' | 'delete', path: string) {
   return request(app)[method](path).set('Authorization', `Bearer ${token}`)
 }
 
+function repositoryBookingData(
+  targetTenantId: string,
+  targetCustomerId: string,
+) {
+  return {
+    tenantId: targetTenantId,
+    customerId: targetCustomerId,
+    bookingType: 'LOCAL' as const,
+    bookingPackage: null,
+    tripType: 'ONE_WAY' as const,
+    serviceCity: 'New Delhi',
+    startDate: new Date('2030-01-20'),
+    endDate: new Date('2030-01-20'),
+    pickupTime: '10:00',
+    travellingFrom: 'New Delhi',
+    travellingTo: 'Noida',
+    pickupReportingAddress: 'Test pickup address',
+    requestedVehicleType: 'Sedan',
+    assignmentSource: 'OWN' as const,
+    pricingBasis: 'FIXED' as const,
+    customerRate: 1000,
+    status: 'CONFIRMED' as const,
+    confirmedAt: new Date(),
+  }
+}
+
 describe('booking and duty assignment APIs', () => {
-  it('requires and applies a unique prefix, creates booking, and assigns own duty resources', async () => {
-    const missingPrefix = await authorized(
-      'post',
-      '/api/v1/tenant/bookings',
-    ).send({
-      customerId,
-      bookingType: 'LOCAL',
-      serviceCity: 'New Delhi',
-      startDate: '2026-08-01',
-      endDate: '2026-08-01',
-      pickupTime: '10:00',
-      travellingFrom: 'new delhi',
-      travellingTo: 'gurugram',
-      pickupReportingAddress: 'airport terminal two',
-      requestedVehicleType: 'Sedan',
-      assignmentSource: 'OWN',
-      pricingBasis: 'FIXED',
-      customerRate: 2500,
-    })
-    expect(missingPrefix.status).toBe(409)
-
-    expect(
-      (
-        await authorized('patch', '/api/v1/tenant/bookings/settings').send({
-          bookingPrefix: 'BKNG',
-        })
-      ).status,
-    ).toBe(200)
-
+  it('allocates a daily booking number and assigns own duty resources', async () => {
     const created = await authorized('post', '/api/v1/tenant/bookings').send({
       customerId,
       bookingType: 'LOCAL',
@@ -196,24 +198,17 @@ describe('booking and duty assignment APIs', () => {
       assignmentSource: 'OWN',
       pricingBasis: 'FIXED',
       customerRate: 2500,
-      requiredDutyDocuments: [
-        'CLOSING_METER_PHOTO',
-        'SIGNED_DUTY_SLIP',
-        'TOLL_PARKING_RECEIPTS',
-      ],
     })
-    expect(created.status).toBe(201)
-    expect(created.body.data.id).toMatch(/^BKNG-\d{6}$/)
+    if (created.status !== 201)
+      throw new Error(
+        `Booking creation failed: ${JSON.stringify(created.body)}`,
+      )
+    expect(created.body.data.id).toMatch(/^\d{2}-\d{7,}$/)
     expect(created.body.data.travellingFrom).toBe('New Delhi')
     expect(created.body.data.travellingTo).toBe('Gurugram')
     expect(created.body.data.pickupReportingAddress).toBe(
       'Airport Terminal Two',
     )
-    expect(created.body.data.requiredDutyDocuments).toEqual([
-      'CLOSING_METER_PHOTO',
-      'SIGNED_DUTY_SLIP',
-      'TOLL_PARKING_RECEIPTS',
-    ])
 
     const updated = await authorized(
       'patch',
@@ -250,7 +245,7 @@ describe('booking and duty assignment APIs', () => {
     expect(assigned.status).toBe(200)
     expect(assigned.body.data.status).toBe('Assigned')
     expect(
-      (await authorized('get', '/api/v1/tenant/bookings')).body.data,
+      (await authorized('get', '/api/v1/tenant/bookings')).body.data.items,
     ).toHaveLength(1)
 
     const missingOpeningOdometer = await authorized(
@@ -258,19 +253,6 @@ describe('booking and duty assignment APIs', () => {
       `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/start`,
     ).send({})
     expect(missingOpeningOdometer.status).toBe(400)
-
-    const openingEvidence = await authorized(
-      'post',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/opening-meter`,
-    )
-      .set('Content-Type', 'image/jpeg')
-      .set('X-File-Name', 'opening-meter.jpg')
-      .send(Buffer.from('opening-meter-photo'))
-    expect(openingEvidence.status).toBe(200)
-    expect(openingEvidence.body.data.dutyEvidence.openingMeter).toMatchObject({
-      originalName: 'opening-meter.jpg',
-      mimeType: 'image/jpeg',
-    })
 
     const started = await authorized(
       'patch',
@@ -280,62 +262,6 @@ describe('booking and duty assignment APIs', () => {
     expect(started.body.data.status).toBe('In Transit')
     expect(started.body.data.openingOdometer).toBe(12500.5)
     expect(started.body.data.dutyStartRemarks).toBe('Driver Reported On Time')
-
-    const missingClosingEvidence = await authorized(
-      'patch',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
-    ).send({ closingOdometer: 12620.75 })
-    expect(missingClosingEvidence.status).toBe(400)
-    expect(missingClosingEvidence.body.code).toBe(
-      'CLOSING_METER_PHOTO_REQUIRED',
-    )
-
-    const closingEvidence = await authorized(
-      'post',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/closing-meter`,
-    )
-      .set('Content-Type', 'image/png')
-      .set('X-File-Name', 'closing-meter.png')
-      .send(Buffer.from('closing-meter-photo'))
-    expect(closingEvidence.status).toBe(200)
-
-    const missingDutySlip = await authorized(
-      'patch',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
-    ).send({ closingOdometer: 12620.75 })
-    expect(missingDutySlip.status).toBe(400)
-    expect(missingDutySlip.body.code).toBe('DUTY_SLIP_REQUIRED')
-
-    const dutySlipEvidence = await authorized(
-      'post',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/duty-slip`,
-    )
-      .set('Content-Type', 'application/pdf')
-      .set('X-File-Name', 'signed-duty-slip.pdf')
-      .send(Buffer.from('%PDF signed duty slip'))
-    expect(dutySlipEvidence.status).toBe(200)
-
-    const missingTollParking = await authorized(
-      'patch',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty/complete`,
-    ).send({ closingOdometer: 12620.75 })
-    expect(missingTollParking.status).toBe(400)
-    expect(missingTollParking.body.code).toBe('TOLL_PARKING_DOCUMENT_REQUIRED')
-
-    const tollParkingEvidence = await authorized(
-      'post',
-      `/api/v1/tenant/bookings/${created.body.data.id as string}/duty-evidence/toll-parking`,
-    )
-      .set('Content-Type', 'application/pdf')
-      .set('X-File-Name', 'toll-parking-receipts.pdf')
-      .send(Buffer.from('%PDF toll and parking receipts'))
-    expect(tollParkingEvidence.status).toBe(200)
-    expect(
-      tollParkingEvidence.body.data.dutyEvidence.tollParkingReceipts,
-    ).toMatchObject({
-      originalName: 'toll-parking-receipts.pdf',
-      mimeType: 'application/pdf',
-    })
 
     const invalidClosingOdometer = await authorized(
       'patch',
@@ -415,7 +341,7 @@ describe('booking and duty assignment APIs', () => {
     expect(generated.status).toBe(200)
     expect(generated.body.data.invoiceStatus).toBe('Generated')
     expect(generated.body.data.invoiceNumber).toMatch(
-      /^INV\/\d{4}-\d{2}\/\d{6}$/,
+      /^INV\/\d{2}-\d{2}\/\d{6}$/,
     )
 
     const collection = await authorized(
@@ -644,6 +570,7 @@ describe('booking and duty assignment APIs', () => {
     })
     expect(draft.status).toBe(201)
     expect(draft.body.data.status).toBe('Draft')
+    expect(draft.body.data.bookingNumber).toBeNull()
 
     const confirmed = await authorized(
       'patch',
@@ -651,6 +578,15 @@ describe('booking and duty assignment APIs', () => {
     ).send({})
     expect(confirmed.status).toBe(200)
     expect(confirmed.body.data.status).toBe('Confirmed')
+    expect(confirmed.body.data.id).toMatch(/^\d{2}-\d{7,}$/)
+    const confirmedNumber = confirmed.body.data.id as string
+
+    const confirmedAgain = await authorized(
+      'patch',
+      `/api/v1/tenant/bookings/${draft.body.data.databaseId as string}/confirm`,
+    ).send({})
+    expect(confirmedAgain.status).toBe(200)
+    expect(confirmedAgain.body.data.id).toBe(confirmedNumber)
 
     const cancelled = await authorized(
       'patch',
@@ -661,5 +597,106 @@ describe('booking and duty assignment APIs', () => {
     expect(cancelled.body.data.cancellationReason).toBe(
       'Customer Changed Travel Plan',
     )
+  })
+
+  it('allocates unique numbers under concurrent confirmed booking creation', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        authorized('post', '/api/v1/tenant/bookings').send({
+          customerId,
+          bookingType: 'LOCAL',
+          serviceCity: 'New Delhi',
+          startDate: '2026-09-20',
+          endDate: '2026-09-20',
+          pickupTime: '12:00',
+          travellingFrom: 'new delhi',
+          travellingTo: `destination ${index}`,
+          pickupReportingAddress: 'test pickup address',
+          requestedVehicleType: 'Sedan',
+          assignmentSource: 'OWN',
+          pricingBasis: 'FIXED',
+          customerRate: 1000 + index,
+        }),
+      ),
+    )
+    expect(responses.every((response) => response.status === 201)).toBe(true)
+    const numbers = responses.map((response) => response.body.data.id as string)
+    expect(new Set(numbers).size).toBe(10)
+    expect(numbers.every((number) => /^\d{2}-\d{7,}$/.test(number))).toBe(true)
+  })
+
+  it('rolls back sequence allocation when the booking transaction fails', async () => {
+    const bookingDate = '2030-01-01'
+    await expect(
+      bookingRepository.create(
+        repositoryBookingData(tenantId, customerId),
+        bookingDate,
+        '00000000-0000-4000-8000-000000000099',
+      ),
+    ).rejects.toBeDefined()
+    expect(
+      await prisma.bookingSequence.findUnique({
+        where: {
+          tenantId_bookingDate: {
+            tenantId,
+            bookingDate: new Date(`${bookingDate}T00:00:00.000Z`),
+          },
+        },
+      }),
+    ).toBeNull()
+  })
+
+  it('keeps daily sequences independent across tenants and dates', async () => {
+    const secondTenant = await prisma.tenant.create({
+      data: {
+        code: 'BOOKING_TENANT_TWO',
+        legalName: 'Booking Tenant Two',
+        email: 'booking-two@test.example.com',
+        mobile: '9999999998',
+        status: 'ACTIVE',
+      },
+    })
+    const secondRole = await prisma.tenantRole.create({
+      data: { tenantId: secondTenant.id, name: 'Admin', code: 'ADMIN' },
+    })
+    const secondUser = await prisma.tenantUser.create({
+      data: {
+        tenantId: secondTenant.id,
+        roleId: secondRole.id,
+        name: 'Second User',
+        email: 'booking-user-two@example.com',
+        passwordHash: await hashPassword(password),
+        status: 'ACTIVE',
+      },
+    })
+    const secondCustomer = await prisma.customer.create({
+      data: {
+        tenantId: secondTenant.id,
+        customerCode: 'CUS-001',
+        type: 'RETAIL',
+        name: 'Second Customer',
+        billingName: 'Second Customer',
+        phone: '9888888887',
+        billingAddress: 'Test Address',
+      },
+    })
+    const firstTenantBooking = await bookingRepository.create(
+      repositoryBookingData(tenantId, customerId),
+      '2030-01-02',
+      managerId,
+    )
+    const secondTenantBooking = await bookingRepository.create(
+      repositoryBookingData(secondTenant.id, secondCustomer.id),
+      '2030-01-02',
+      secondUser.id,
+    )
+    const nextDayBooking = await bookingRepository.create(
+      repositoryBookingData(tenantId, customerId),
+      '2030-01-03',
+      managerId,
+    )
+    expect(firstTenantBooking.bookingNumber).toBe('30-0102001')
+    expect(secondTenantBooking.bookingNumber).toBe('30-0102001')
+    expect(nextDayBooking.bookingNumber).toBe('30-0103001')
   })
 })

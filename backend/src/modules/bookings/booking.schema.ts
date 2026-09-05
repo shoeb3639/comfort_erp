@@ -191,13 +191,10 @@ export const collectionVerificationSchema = Joi.object({
 export const bookingParamsSchema = Joi.object({
   bookingId: Joi.string()
     .trim()
-    .pattern(/^(?:[0-9a-f-]{36}|[A-Z0-9]{4}-\d{6})$/i)
-    .required(),
-})
-
-export const dutyEvidenceParamsSchema = bookingParamsSchema.keys({
-  evidenceType: Joi.string()
-    .valid('opening-meter', 'closing-meter', 'duty-slip', 'toll-parking')
+    .max(36)
+    .pattern(
+      /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|\d{2}-\d{7,}|[A-Z0-9]{4}-\d{6}|CMF\d{2}-(?:\d{5,6}|\d{4}-\d{3}))$/i,
+    )
     .required(),
 })
 
@@ -218,12 +215,4 @@ export const bookingQuerySchema = Joi.object({
     'CANCELLED',
   ),
   view: Joi.string().valid('ACTIVE', 'CLOSED'),
-})
-
-export const bookingPrefixSchema = Joi.object({
-  bookingPrefix: Joi.string()
-    .trim()
-    .uppercase()
-    .pattern(/^[A-Z0-9]{4}$/)
-    .required(),
 })

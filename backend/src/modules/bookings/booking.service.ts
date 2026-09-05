@@ -1,6 +1,3 @@
-import { randomInt, randomUUID } from 'node:crypto'
-import { mkdir, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, join, resolve, sep } from 'node:path'
 import { Prisma } from '../../generated/prisma/client'
 import type {
   BookingStatus,
@@ -9,17 +6,13 @@ import type {
 import { AppError } from '../../shared/errors/app-error'
 import type { PageRequest } from '../../shared/pagination'
 import { pageResult } from '../../shared/pagination'
+import { tenantBusinessDate } from '../../shared/date/tenant-business-date'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
 import {
   normalizeReferenceNumber,
   validateReference,
 } from '../accounts/accounts.service'
-import {
-  DUTY_EVIDENCE_FIELDS,
-  DUTY_EVIDENCE_IMAGE_EXTENSIONS,
-  DUTY_EVIDENCE_ROOT,
-} from './booking.constants'
-import { asDutyEvidence, mapBooking } from './booking.mapper'
+import { mapBooking } from './booking.mapper'
 import * as repository from './booking.repository'
 import type {
   AssignmentInput,
@@ -29,8 +22,6 @@ import type {
   Context,
   CreateBookingInput,
   DutyCompleteInput,
-  DutyEvidenceFile,
-  DutyEvidenceType,
   DutyStartInput,
 } from './booking.types'
 
@@ -64,31 +55,6 @@ function validateDates(startDate: Date, endDate: Date) {
     )
 }
 
-export async function getPrefix(context: Context) {
-  const tenant = await repository.getTenantPrefix(context.tenantId)
-  return { bookingPrefix: tenant?.bookingPrefix ?? null }
-}
-
-export async function setPrefix(context: Context, bookingPrefix: string) {
-  try {
-    return await repository.updateTenantPrefix(
-      context.tenantId,
-      bookingPrefix.toUpperCase(),
-    )
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    )
-      throw new AppError(
-        'This booking prefix is already used by another tenant',
-        'BOOKING_PREFIX_EXISTS',
-        409,
-      )
-    throw error
-  }
-}
-
 export async function list(
   context: Context,
   filters: { search?: string; status?: string; view?: string } & PageRequest,
@@ -107,119 +73,16 @@ export async function get(context: Context, idOrNumber: string) {
   return mapBooking(booking)
 }
 
-export async function uploadDutyEvidence(
-  context: Context,
-  idOrNumber: string,
-  type: DutyEvidenceType,
-  file: { data: Buffer; mimeType: string; originalName: string },
-) {
-  const booking = await repository.find(context.tenantId, idOrNumber)
-  if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
-  const expectedStatus = type === 'opening-meter' ? 'ASSIGNED' : 'RUNNING'
-  if (booking.status !== expectedStatus)
-    throw new AppError(
-      type === 'opening-meter'
-        ? 'Opening meter evidence can only be uploaded for an assigned booking'
-        : 'Completion evidence can only be uploaded for a running duty',
-      'INVALID_BOOKING_TRANSITION',
-      409,
-    )
-
-  const supportsPdf = type === 'duty-slip' || type === 'toll-parking'
-  const extension =
-    DUTY_EVIDENCE_IMAGE_EXTENSIONS[file.mimeType] ||
-    (supportsPdf && file.mimeType === 'application/pdf' ? 'pdf' : null)
-  if (!extension)
-    throw new AppError(
-      supportsPdf
-        ? 'Supporting document must be a JPEG, PNG, WebP, HEIC, or PDF file'
-        : 'Meter evidence must be a JPEG, PNG, WebP, or HEIC image',
-      'UNSUPPORTED_FILE_TYPE',
-      415,
-    )
-  if (file.data.length === 0)
-    throw new AppError('Uploaded file is empty', 'VALIDATION_ERROR', 400)
-
-  const storageDirectory = join(context.tenantId, booking.id)
-  const storedName = `${randomUUID()}.${extension}`
-  const storageKey = join(storageDirectory, storedName)
-  const absolutePath = resolve(DUTY_EVIDENCE_ROOT, storageKey)
-  await mkdir(resolve(DUTY_EVIDENCE_ROOT, storageDirectory), {
-    recursive: true,
-  })
-  await writeFile(absolutePath, file.data, { flag: 'wx' })
-
-  const field = DUTY_EVIDENCE_FIELDS[type]
-  const current = asDutyEvidence(booking.dutyEvidence)
-  const previous = current[field]
-  const metadata: DutyEvidenceFile = {
-    originalName: basename(file.originalName).slice(0, 255) || storedName,
-    storageKey,
-    mimeType: file.mimeType,
-    size: file.data.length,
-    uploadedAt: new Date().toISOString(),
-    uploadedByUserId: context.userId,
-  }
-  try {
-    const updated = await repository.updateDutyEvidence(
-      context.tenantId,
-      booking.id,
-      { ...current, [field]: metadata } as Prisma.InputJsonValue,
-    )
-    if (previous?.storageKey) {
-      const previousPath = resolve(DUTY_EVIDENCE_ROOT, previous.storageKey)
-      if (previousPath.startsWith(`${DUTY_EVIDENCE_ROOT}${sep}`))
-        await unlink(previousPath).catch(() => undefined)
-    }
-    return mapBooking(updated)
-  } catch (error) {
-    await unlink(absolutePath).catch(() => undefined)
-    throw error
-  }
-}
-
-export async function getDutyEvidenceFile(
-  context: Context,
-  idOrNumber: string,
-  type: DutyEvidenceType,
-) {
-  const booking = await repository.find(context.tenantId, idOrNumber)
-  if (!booking) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
-  const metadata = asDutyEvidence(booking.dutyEvidence)[
-    DUTY_EVIDENCE_FIELDS[type]
-  ]
-  if (!metadata)
-    throw new AppError('Duty evidence was not found', 'NOT_FOUND', 404)
-  const absolutePath = resolve(DUTY_EVIDENCE_ROOT, metadata.storageKey)
-  if (!absolutePath.startsWith(`${DUTY_EVIDENCE_ROOT}${sep}`))
-    throw new AppError(
-      'Duty evidence path is invalid',
-      'INTERNAL_SERVER_ERROR',
-      500,
-    )
-  await stat(absolutePath).catch(() => {
-    throw new AppError('Duty evidence file is missing', 'NOT_FOUND', 404)
-  })
-  return { ...metadata, absolutePath }
-}
-
 export async function create(context: Context, input: CreateBookingInput) {
-  const tenant = await repository.getTenantPrefix(context.tenantId)
-  if (!tenant?.bookingPrefix)
-    throw new AppError(
-      'Set the four-character Booking Prefix in Company Setup before creating a booking',
-      'BOOKING_PREFIX_REQUIRED',
-      409,
-    )
+  const tenant = await repository.getTenantTimeZone(context.tenantId)
+  if (!tenant) throw new AppError('Tenant was not found', 'NOT_FOUND', 404)
   validateDates(input.startDate, input.endDate)
   await validateCustomer(context, input.customerId, input.travellerId)
-
-  for (let attempt = 0; attempt < 25; attempt += 1) {
-    const sequence = randomInt(100000, 1000000)
-    try {
-      const booking = await repository.create({
+  const status = input.status ?? 'CONFIRMED'
+  try {
+    const booking = await repository.create(
+      {
         tenantId: context.tenantId,
-        bookingNumber: `${tenant.bookingPrefix}-${sequence}`,
         customerId: input.customerId,
         travellerId: input.travellerId ?? null,
         bookingType: input.bookingType,
@@ -240,26 +103,27 @@ export async function create(context: Context, input: CreateBookingInput) {
         customerRate: input.customerRate,
         requiredDutyDocuments: input.requiredDutyDocuments ?? [],
         notes: titleCaseOptional(input.notes) ?? null,
-        status: input.status ?? 'CONFIRMED',
-        confirmedAt: input.status === 'DRAFT' ? null : new Date(),
+        status,
+        confirmedAt: status === 'DRAFT' ? null : new Date(),
         createdById: context.userId,
         updatedById: context.userId,
-      })
-      return mapBooking(booking)
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+      },
+      status === 'DRAFT' ? null : tenantBusinessDate(tenant.timeZone),
+      context.userId,
+    )
+    return mapBooking(booking)
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    )
+      throw new AppError(
+        'Booking number conflict; please retry',
+        'BOOKING_NUMBER_CONFLICT',
+        409,
       )
-        continue
-      throw error
-    }
+    throw error
   }
-  throw new AppError(
-    'Unable to allocate a unique booking number; please retry',
-    'BOOKING_NUMBER_UNAVAILABLE',
-    503,
-  )
 }
 
 export async function update(
@@ -433,15 +297,28 @@ async function transition(
   return mapBooking(updated)
 }
 
-export function confirm(context: Context, idOrNumber: string) {
-  return transition(
-    context,
-    idOrNumber,
-    ['DRAFT'],
-    { status: 'CONFIRMED', confirmedAt: new Date() },
-    'CONFIRM',
-    'Only a draft booking can be confirmed',
+export async function confirm(context: Context, idOrNumber: string) {
+  const [current, tenant] = await Promise.all([
+    repository.find(context.tenantId, idOrNumber),
+    repository.getTenantTimeZone(context.tenantId),
+  ])
+  if (!current) throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  if (!tenant) throw new AppError('Tenant was not found', 'NOT_FOUND', 404)
+  const result = await repository.confirmWithNumber(
+    context.tenantId,
+    current.id,
+    tenantBusinessDate(tenant.timeZone),
+    context.userId,
   )
+  if (result.outcome === 'NOT_FOUND')
+    throw new AppError('Booking was not found', 'NOT_FOUND', 404)
+  if (result.outcome === 'INVALID_STATE')
+    throw new AppError(
+      'Only a draft booking can be confirmed',
+      'INVALID_BOOKING_TRANSITION',
+      409,
+    )
+  return mapBooking(result.booking)
 }
 
 export async function startDuty(
@@ -472,12 +349,6 @@ export async function startDuty(
       'OPENING_ODOMETER_REQUIRED',
       400,
     )
-  if (!asDutyEvidence(booking.dutyEvidence).openingMeter)
-    throw new AppError(
-      'Opening meter photo is required before duty start',
-      'OPENING_METER_PHOTO_REQUIRED',
-      400,
-    )
   return transition(
     context,
     idOrNumber,
@@ -505,29 +376,6 @@ export async function completeDuty(
       'Only a running booking can complete duty',
       'INVALID_BOOKING_TRANSITION',
       409,
-    )
-  const evidence = asDutyEvidence(booking.dutyEvidence)
-  const requiredDocuments = new Set(booking.requiredDutyDocuments)
-  if (requiredDocuments.has('CLOSING_METER_PHOTO') && !evidence.closingMeter)
-    throw new AppError(
-      'Closing meter photo is required before duty completion',
-      'CLOSING_METER_PHOTO_REQUIRED',
-      400,
-    )
-  if (requiredDocuments.has('SIGNED_DUTY_SLIP') && !evidence.dutySlip)
-    throw new AppError(
-      'Signed duty slip is required before duty completion',
-      'DUTY_SLIP_REQUIRED',
-      400,
-    )
-  if (
-    requiredDocuments.has('TOLL_PARKING_RECEIPTS') &&
-    !evidence.tollParkingReceipts
-  )
-    throw new AppError(
-      'Toll and parking supporting document is required before duty completion',
-      'TOLL_PARKING_DOCUMENT_REQUIRED',
-      400,
     )
   if (
     booking.assignmentSource === 'OWN' &&
@@ -1120,5 +968,5 @@ export async function remove(context: Context, idOrNumber: string) {
       'BOOKING_DELETE_NOT_ALLOWED',
       409,
     )
-  return { id: booking.bookingNumber, deleted: true }
+  return { id: booking.bookingNumber || booking.id, deleted: true }
 }

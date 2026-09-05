@@ -31,7 +31,6 @@ import {
   getBookingErrorMessage,
   listBookings,
   startBookingDuty,
-  uploadDutyEvidence,
 } from "../../services/bookings";
 
 const pageSizeOptions = [10, 20, 40, 50];
@@ -531,10 +530,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     otherRecoverableCharges: "",
   });
   const [saving, setSaving] = useState(false);
-  const [openingMeterPhoto, setOpeningMeterPhoto] = useState(null);
-  const [closingMeterPhoto, setClosingMeterPhoto] = useState(null);
-  const [signedDutySlip, setSignedDutySlip] = useState(null);
-  const [tollParkingDocument, setTollParkingDocument] = useState(null);
   const [error, setError] = useState("");
   const isStart = mode === "start";
   const isComplete = mode === "complete";
@@ -546,11 +541,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     : isComplete
       ? "Complete Duty"
       : "Cancel Booking";
-  const requiredDocuments = new Set(booking.requiredDutyDocuments || []);
-  const requiresClosingMeter = requiredDocuments.has("CLOSING_METER_PHOTO");
-  const requiresDutySlip = requiredDocuments.has("SIGNED_DUTY_SLIP");
-  const requiresTollParking = requiredDocuments.has("TOLL_PARKING_RECEIPTS");
-  const requiresCompletionEvidence = requiredDocuments.size > 0;
 
   function updateCompletion(name, value) {
     setCompletion((current) => ({ ...current, [name]: value }));
@@ -561,28 +551,6 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     setError("");
     setSaving(true);
     try {
-      if (isStart)
-        await uploadDutyEvidence(
-          booking.id,
-          "opening-meter",
-          openingMeterPhoto,
-        );
-      if (isComplete) {
-        if (requiresClosingMeter)
-          await uploadDutyEvidence(
-            booking.id,
-            "closing-meter",
-            closingMeterPhoto,
-          );
-        if (requiresDutySlip)
-          await uploadDutyEvidence(booking.id, "duty-slip", signedDutySlip);
-        if (requiresTollParking)
-          await uploadDutyEvidence(
-            booking.id,
-            "toll-parking",
-            tollParkingDocument,
-          );
-      }
       await onSave(
         isCancel
           ? { reason: remarks }
@@ -634,81 +602,8 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
           </label>
         )}
 
-        {isStart && (
-          <label className="mt-4 block text-sm font-medium text-slate-700">
-            Opening Meter Photo
-            <input
-              type="file"
-              required
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              capture="environment"
-              onChange={(event) =>
-                setOpeningMeterPhoto(event.target.files?.[0] || null)
-              }
-              className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            />
-          </label>
-        )}
-
         {isComplete && (
           <div className="mt-5 space-y-5 border-t border-slate-200 pt-5">
-            {requiresCompletionEvidence && (
-              <section>
-                <h4 className="font-semibold text-slate-900">
-                  Required Supporting Documents
-                </h4>
-                <p className="mt-1 text-xs text-slate-500">
-                  These documents were selected when the booking was created.
-                </p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {requiresClosingMeter && (
-                    <label className="text-sm font-medium text-slate-700">
-                      Closing Meter Photo
-                      <input
-                        type="file"
-                        required
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                        capture="environment"
-                        onChange={(event) =>
-                          setClosingMeterPhoto(event.target.files?.[0] || null)
-                        }
-                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  )}
-                  {requiresDutySlip && (
-                    <label className="text-sm font-medium text-slate-700">
-                      Signed Duty Slip
-                      <input
-                        type="file"
-                        required
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                        onChange={(event) =>
-                          setSignedDutySlip(event.target.files?.[0] || null)
-                        }
-                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  )}
-                  {requiresTollParking && (
-                    <label className="text-sm font-medium text-slate-700">
-                      Toll and Parking Statement / Receipts
-                      <input
-                        type="file"
-                        required
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-                        onChange={(event) =>
-                          setTollParkingDocument(
-                            event.target.files?.[0] || null,
-                          )
-                        }
-                        className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                  )}
-                </div>
-              </section>
-            )}
             <section>
               <h4 className="font-semibold text-slate-900">
                 Recoverable Charges
@@ -1078,7 +973,7 @@ function BookingsPage() {
         </div>
 
         <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-[980px] divide-y divide-slate-200 text-sm">
+          <table className="min-w-[875px] divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
                 <th className="w-[120px] px-3 py-3 text-left font-semibold text-slate-700">
@@ -1089,9 +984,6 @@ function BookingsPage() {
                 </th>
                 <th className="w-[125px] px-3 py-3 text-left font-semibold text-slate-700">
                   Trip Dates
-                </th>
-                <th className="w-[105px] px-3 py-3 text-left font-semibold text-slate-700">
-                  City
                 </th>
                 <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
                   Route
@@ -1213,14 +1105,6 @@ function BookingsPage() {
                           {pickupTime}
                         </p>
                       )}
-                    </td>
-                    <td className="w-[105px] max-w-[105px] px-3 py-3">
-                      <p
-                        className="truncate font-semibold text-slate-900"
-                        title={booking.serviceCity || ""}
-                      >
-                        {booking.serviceCity || "-"}
-                      </p>
                     </td>
                     <td className="w-[180px] px-3 py-3">
                       <p className="break-words font-semibold text-slate-900">

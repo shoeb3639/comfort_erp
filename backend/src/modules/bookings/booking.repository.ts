@@ -2,6 +2,7 @@ import type { BookingStatus, Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import type { PageRequest } from '../../shared/pagination'
 import { pageWindow } from '../../shared/pagination'
+import { bookingDateValue, formatBookingNumber } from './booking-numbering'
 
 const include = {
   customer: true,
@@ -21,30 +22,10 @@ const include = {
   },
 } satisfies Prisma.BookingInclude
 
-export function getTenantPrefix(tenantId: string) {
+export function getTenantTimeZone(tenantId: string) {
   return prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { bookingPrefix: true },
-  })
-}
-
-export function updateTenantPrefix(tenantId: string, bookingPrefix: string) {
-  return prisma.tenant.update({
-    where: { id: tenantId },
-    data: { bookingPrefix },
-    select: { bookingPrefix: true },
-  })
-}
-
-export function updateDutyEvidence(
-  tenantId: string,
-  bookingId: string,
-  dutyEvidence: Prisma.InputJsonValue,
-) {
-  return prisma.booking.update({
-    where: { tenantId_id: { tenantId, id: bookingId } },
-    data: { dutyEvidence },
-    include,
+    select: { timeZone: true },
   })
 }
 
@@ -171,8 +152,153 @@ export function hasResourceConflict(
   })
 }
 
-export function create(data: Prisma.BookingUncheckedCreateInput) {
-  return prisma.booking.create({ data, include })
+async function allocateBookingNumber(
+  transaction: Prisma.TransactionClient,
+  tenantId: string,
+  bookingDate: string,
+) {
+  const rows = await transaction.$queryRaw<{ last_number: number }[]>`
+    INSERT INTO "booking_sequences" (
+      "id", "tenant_id", "booking_date", "last_number", "created_at", "updated_at"
+    ) VALUES (
+      gen_random_uuid(), ${tenantId}::uuid, ${bookingDate}::date, 1, NOW(), NOW()
+    )
+    ON CONFLICT ("tenant_id", "booking_date")
+    DO UPDATE SET
+      "last_number" = "booking_sequences"."last_number" + 1,
+      "updated_at" = NOW()
+    RETURNING "last_number"
+  `
+  const sequence = rows[0]?.last_number
+  if (!sequence) throw new Error('BOOKING_SEQUENCE_ALLOCATION_FAILED')
+  return {
+    sequence,
+    bookingNumber: formatBookingNumber(bookingDate, sequence),
+    bookingNumberDate: bookingDateValue(bookingDate),
+  }
+}
+
+export function create(
+  data: Omit<Prisma.BookingUncheckedCreateInput, 'bookingNumber'>,
+  bookingDate: string | null,
+  userId: string,
+) {
+  return prisma.$transaction(async (transaction) => {
+    const number = bookingDate
+      ? await allocateBookingNumber(transaction, data.tenantId, bookingDate)
+      : null
+    const booking = await transaction.booking.create({
+      data: {
+        ...data,
+        bookingNumber: number?.bookingNumber ?? null,
+        bookingSequence: number?.sequence ?? null,
+        bookingNumberDate: number?.bookingNumberDate ?? null,
+      },
+      include,
+    })
+    if (number) {
+      await transaction.tenantAuditLog.create({
+        data: {
+          tenantId: data.tenantId,
+          actorUserId: userId,
+          module: 'BOOKING',
+          action: 'BOOKING_NUMBER_ALLOCATED',
+          referenceId: booking.id,
+          newValues: {
+            bookingNumber: number.bookingNumber,
+            bookingDate,
+            sequence: number.sequence,
+          },
+        },
+      })
+    }
+    await transaction.tenantAuditLog.create({
+      data: {
+        tenantId: data.tenantId,
+        actorUserId: userId,
+        module: 'BOOKING',
+        action: 'CREATE',
+        referenceId: booking.id,
+        newValues: {
+          status: booking.status,
+          bookingNumber: booking.bookingNumber,
+        },
+      },
+    })
+    return booking
+  })
+}
+
+export function confirmWithNumber(
+  tenantId: string,
+  bookingId: string,
+  bookingDate: string,
+  userId: string,
+) {
+  return prisma.$transaction(async (transaction) => {
+    const locked = await transaction.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "bookings"
+      WHERE "tenant_id" = ${tenantId}::uuid
+        AND "id" = ${bookingId}::uuid
+        AND "deleted_at" IS NULL
+      FOR UPDATE
+    `
+    if (!locked.length) return { outcome: 'NOT_FOUND' as const, booking: null }
+    const current = await transaction.booking.findUniqueOrThrow({
+      where: { tenantId_id: { tenantId, id: bookingId } },
+      include,
+    })
+    if (current.status === 'CONFIRMED' && current.bookingNumber)
+      return { outcome: 'ALREADY_CONFIRMED' as const, booking: current }
+    if (current.status !== 'DRAFT')
+      return { outcome: 'INVALID_STATE' as const, booking: current }
+
+    const number = await allocateBookingNumber(
+      transaction,
+      tenantId,
+      bookingDate,
+    )
+    const booking = await transaction.booking.update({
+      where: { tenantId_id: { tenantId, id: bookingId } },
+      data: {
+        status: 'CONFIRMED',
+        confirmedAt: new Date(),
+        updatedById: userId,
+        bookingNumber: number.bookingNumber,
+        bookingSequence: number.sequence,
+        bookingNumberDate: number.bookingNumberDate,
+      },
+      include,
+    })
+    await transaction.tenantAuditLog.createMany({
+      data: [
+        {
+          tenantId,
+          actorUserId: userId,
+          module: 'BOOKING',
+          action: 'BOOKING_NUMBER_ALLOCATED',
+          referenceId: bookingId,
+          newValues: {
+            bookingNumber: number.bookingNumber,
+            bookingDate,
+            sequence: number.sequence,
+          },
+        },
+        {
+          tenantId,
+          actorUserId: userId,
+          module: 'BOOKING',
+          action: 'CONFIRM',
+          referenceId: bookingId,
+          newValues: {
+            status: 'CONFIRMED',
+            bookingNumber: number.bookingNumber,
+          },
+        },
+      ],
+    })
+    return { outcome: 'CONFIRMED' as const, booking }
+  })
 }
 
 export function update(
@@ -250,7 +376,7 @@ export function softDelete(
       tenantId,
       id: bookingId,
       deletedAt: null,
-      status: { in: ['DRAFT', 'CONFIRMED'] },
+      status: 'DRAFT',
     },
     data: { deletedAt: new Date(), deletedById: userId, updatedById: userId },
   })

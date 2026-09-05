@@ -1,3 +1,4 @@
+import { formatInvoiceNumber, getFinancialYear } from './invoice-numbering'
 import { calculateInvoiceAmounts } from './invoice.service'
 
 const invoice = {
@@ -43,5 +44,24 @@ describe('invoice calculations', () => {
         items: [{ ...invoice.items[0]!, amount: 1900 }],
       }),
     ).toThrow('amount must equal quantity × rate')
+  })
+})
+
+describe('getFinancialYear', () => {
+  it.each([
+    ['2025-04-01', '25-26'],
+    ['2026-03-31', '25-26'],
+    ['2026-04-01', '26-27'],
+    ['2027-03-31', '26-27'],
+  ])('maps %s to %s', (date, expected) => {
+    expect(getFinancialYear(new Date(`${date}T00:00:00.000Z`))).toBe(expected)
+  })
+
+  it('pads without truncating sequences wider than the configured length', () => {
+    expect(formatInvoiceNumber('INV', '25-26', 1, 4)).toBe('INV/25-26/0001')
+    expect(formatInvoiceNumber('INV', '25-26', 157, 4)).toBe('INV/25-26/0157')
+    expect(formatInvoiceNumber('INV', '25-26', 12345, 4)).toBe(
+      'INV/25-26/12345',
+    )
   })
 })

@@ -41,12 +41,6 @@ export interface InvoiceInput {
   }>
 }
 
-function financialYear(date = new Date()) {
-  const startYear =
-    date.getUTCMonth() >= 3 ? date.getUTCFullYear() : date.getUTCFullYear() - 1
-  return `${startYear}-${String(startYear + 1).slice(-2)}`
-}
-
 export function mapInvoice(invoice: InvoiceRecord) {
   const bank = invoice.tenant.bankAccounts[0]
   const gst = invoice.tenant.gstRegistrations[0]
@@ -376,7 +370,6 @@ export async function generate(context: Context, invoiceId: string) {
         context.tenantId,
         invoiceId,
         context.userId,
-        financialYear(),
       )
       if (!invoice)
         throw new AppError(
@@ -391,6 +384,12 @@ export async function generate(context: Context, invoiceId: string) {
         (error.code === 'P2002' || error.code === 'P2034')
       )
         continue
+      if (error instanceof Error && error.message === 'INVALID_INVOICE_PREFIX')
+        throw new AppError(
+          'Invoice prefix must contain 1 to 3 uppercase letters.',
+          'INVALID_INVOICE_PREFIX',
+          400,
+        )
       throw error
     }
   }

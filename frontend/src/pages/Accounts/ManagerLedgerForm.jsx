@@ -41,7 +41,6 @@ function ManagerLedgerFormPage() {
       referenceNumber: "",
       description: "",
       remarks: "",
-      attachmentName: "",
     },
   });
 
@@ -77,7 +76,6 @@ function ManagerLedgerFormPage() {
         referenceNumber: "",
         description: "",
         remarks: "",
-        attachmentName: "",
       });
       await load();
     } catch (error) {
@@ -207,21 +205,6 @@ function ManagerLedgerFormPage() {
                   {errors.referenceNumber.message}
                 </p>
               )}
-            </label>
-            <label>
-              <span className="text-sm font-medium text-slate-700">
-                Attachment
-              </span>
-              <input
-                className="mt-2 block w-full text-sm text-slate-600"
-                type="file"
-                onChange={(event) =>
-                  setValue(
-                    "attachmentName",
-                    event.target.files?.[0]?.name || "",
-                  )
-                }
-              />
             </label>
             <label className="md:col-span-2 xl:col-span-3">
               <span className="text-sm font-medium text-slate-700">

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, Share2, Upload } from "lucide-react";
+import { ChevronDown, Share2 } from "lucide-react";
 import {
   closeBooking as closeBookingApi,
   getBooking,
   getBookingErrorMessage,
-  openDutyEvidence,
 } from "../../services/bookings";
 
 const fieldClass =
@@ -194,7 +193,6 @@ function CloseBookingPage() {
       paymentReference: "",
       collectedBy: "",
       remarks: "",
-      attachmentName: "",
     },
   });
 
@@ -295,7 +293,6 @@ function CloseBookingPage() {
       paymentReference: dutyDetails.paymentReference || "",
       collectedBy: dutyDetails.collectedBy || "",
       remarks: "",
-      attachmentName: "",
     });
   }, [booking, defaultRatePerKm, defaultTotalKm, defaultTripType, reset]);
 
@@ -329,14 +326,6 @@ function CloseBookingPage() {
       navigate("/bookings", {
         state: { notice: `Booking ${booking.id} closed successfully.` },
       });
-    } catch (error) {
-      setLoadError(getBookingErrorMessage(error));
-    }
-  }
-
-  async function viewEvidence(type) {
-    try {
-      await openDutyEvidence(booking.id, type);
     } catch (error) {
       setLoadError(getBookingErrorMessage(error));
     }
@@ -462,66 +451,6 @@ function CloseBookingPage() {
           />
         </div>
       </CollapsibleSection>
-
-      {booking.dutyEvidence && (
-        <Section title="Duty Evidence — Manager Review">
-          <p className="mb-4 text-sm text-slate-500">
-            Review the driver-submitted evidence before approving and closing
-            this booking.
-          </p>
-          <div className="grid gap-3 md:grid-cols-3">
-            {[
-              ["opening-meter", "Opening Meter", "openingMeter", true],
-              [
-                "closing-meter",
-                "Closing Meter",
-                "closingMeter",
-                booking.requiredDutyDocuments?.includes("CLOSING_METER_PHOTO"),
-              ],
-              [
-                "duty-slip",
-                "Signed Duty Slip",
-                "dutySlip",
-                booking.requiredDutyDocuments?.includes("SIGNED_DUTY_SLIP"),
-              ],
-              [
-                "toll-parking",
-                "Toll and Parking",
-                "tollParkingReceipts",
-                booking.requiredDutyDocuments?.includes(
-                  "TOLL_PARKING_RECEIPTS",
-                ),
-              ],
-            ]
-              .filter(([, , , show]) => show)
-              .map(([type, label, key]) => {
-                const evidence = booking.dutyEvidence[key];
-                return (
-                  <div
-                    key={type}
-                    className="rounded-xl border border-slate-200 p-4"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {label}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {evidence?.originalName || "Not uploaded"}
-                    </p>
-                    {evidence && (
-                      <button
-                        type="button"
-                        className="mt-3 text-sm font-semibold text-brand-600"
-                        onClick={() => viewEvidence(type)}
-                      >
-                        View evidence
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </Section>
-      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
         <div className="space-y-5">
@@ -743,7 +672,7 @@ function CloseBookingPage() {
           )}
 
           <Section title="Closing Notes">
-            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            <div>
               <label>
                 <span className="text-sm font-medium text-slate-700">
                   Remarks
@@ -762,21 +691,6 @@ function CloseBookingPage() {
                     {errors.remarks.message}
                   </p>
                 )}
-              </label>
-              <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <Upload size={16} />
-                  Attachment Upload
-                </span>
-                <input
-                  className="mt-3 block w-full text-sm text-slate-600"
-                  type="file"
-                  onChange={(event) => {
-                    const fileName = event.target.files?.[0]?.name || "";
-                    setValue("attachmentName", fileName);
-                  }}
-                />
-                <input type="hidden" {...register("attachmentName")} />
               </label>
             </div>
           </Section>

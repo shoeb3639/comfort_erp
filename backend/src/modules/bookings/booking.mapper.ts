@@ -1,18 +1,11 @@
 import { toTitleCase } from '../../shared/text/title-case'
 import { BOOKING_STATUS_LABELS } from './booking.constants'
 import type * as repository from './booking.repository'
-import type { DutyEvidence } from './booking.types'
 
 type BookingRecord = NonNullable<Awaited<ReturnType<typeof repository.find>>>
 
 function packageKm(bookingPackage: string) {
   return Number(bookingPackage.match(/\d+/g)?.at(-1) ?? 0)
-}
-
-export function asDutyEvidence(value: unknown): DutyEvidence {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value
-    : {}
 }
 
 export function mapBookingInvoice(
@@ -108,7 +101,7 @@ export function mapBooking(record: BookingRecord | null) {
   return {
     ...record,
     databaseId: record.id,
-    id: record.bookingNumber,
+    id: record.bookingNumber || record.id,
     bookingId: record.id,
     customer_type: record.customer.type
       .split('_')
@@ -175,7 +168,6 @@ export function mapBooking(record: BookingRecord | null) {
     closingOdometer:
       record.closingOdometer === null ? null : Number(record.closingOdometer),
     dutyCompletionDetails: record.dutyCompletionDetails,
-    dutyEvidence: record.dutyEvidence,
     requiredDutyDocuments: record.requiredDutyDocuments,
     actualDistance:
       record.openingOdometer !== null && record.closingOdometer !== null

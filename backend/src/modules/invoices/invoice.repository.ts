@@ -2,6 +2,7 @@ import { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import type { PageRequest } from '../../shared/pagination'
 import { pageWindow } from '../../shared/pagination'
+import { formatInvoiceNumber, getFinancialYear } from './invoice-numbering'
 
 export const invoiceInclude = {
   booking: true,
@@ -248,19 +249,20 @@ export function cancel(
   })
 }
 
-export function generate(
-  tenantId: string,
-  invoiceId: string,
-  userId: string,
-  financialYear: string,
-) {
+export function generate(tenantId: string, invoiceId: string, userId: string) {
   return prisma.$transaction(
     async (transaction) => {
-      const [invoice, tenant, sequence] = await Promise.all([
-        transaction.invoice.findFirst({
-          where: { tenantId, id: invoiceId, status: 'DRAFT' },
+      const claimed = await transaction.invoice.updateMany({
+        where: { tenantId, id: invoiceId, status: 'DRAFT' },
+        data: { status: 'GENERATED' },
+      })
+      if (claimed.count === 0) return null
+
+      const [invoice, tenant] = await Promise.all([
+        transaction.invoice.findUniqueOrThrow({
+          where: { tenantId_id: { tenantId, id: invoiceId } },
         }),
-        transaction.tenant.findUnique({
+        transaction.tenant.findUniqueOrThrow({
           where: { id: tenantId },
           include: {
             bankAccounts: {
@@ -275,15 +277,35 @@ export function generate(
             },
           },
         }),
-        transaction.invoice.aggregate({
-          where: { tenantId, invoiceSequence: { not: null } },
-          _max: { invoiceSequence: true },
-        }),
       ])
-      if (!invoice) return null
-      const nextSequence = (sequence._max.invoiceSequence ?? 0) + 1
-      const prefix = tenant?.invoicePrefix || 'INV'
-      const invoiceNumber = `${prefix}/${financialYear}/${String(nextSequence).padStart(tenant?.invoiceNumberLength ?? 6, '0')}`
+      const prefix = tenant.invoicePrefix?.trim().toUpperCase()
+      if (!prefix || !/^[A-Z]{1,3}$/.test(prefix)) {
+        throw new Error('INVALID_INVOICE_PREFIX')
+      }
+      const financialYear = getFinancialYear(invoice.invoiceDate)
+      const sequence = await transaction.invoiceSequence.upsert({
+        where: {
+          tenantId_financialYear_invoicePrefix: {
+            tenantId,
+            financialYear,
+            invoicePrefix: prefix,
+          },
+        },
+        create: {
+          tenantId,
+          financialYear,
+          invoicePrefix: prefix,
+          lastNumber: 1,
+        },
+        update: { lastNumber: { increment: 1 } },
+      })
+      const nextSequence = sequence.lastNumber
+      const invoiceNumber = formatInvoiceNumber(
+        prefix,
+        financialYear,
+        nextSequence,
+        tenant.invoiceNumberLength,
+      )
       const existingSnapshot =
         invoice.displaySnapshot &&
         typeof invoice.displaySnapshot === 'object' &&
@@ -297,7 +319,6 @@ export function generate(
           invoiceSequence: nextSequence,
           invoiceNumber,
           financialYear,
-          status: 'GENERATED',
           generatedAt: new Date(),
           generatedById: userId,
           updatedById: userId,

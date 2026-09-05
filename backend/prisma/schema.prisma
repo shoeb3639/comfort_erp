@@ -372,7 +372,7 @@ model Tenant {
   timeZone                  String           @default("Asia/Kolkata") @map("time_zone") @db.VarChar(100)
   financialYearStartMonth   Int              @default(4) @map("financial_year_start_month")
   dateFormat                String           @default("DD/MM/YYYY") @map("date_format") @db.VarChar(30)
-  invoicePrefix             String?          @map("invoice_prefix") @db.VarChar(30)
+  invoicePrefix             String?          @map("invoice_prefix") @db.VarChar(3)
   invoiceNumberLength       Int              @default(6) @map("invoice_number_length")
   bookingPrefix             String?          @unique(map: "tenants_booking_prefix_key") @map("booking_prefix") @db.Char(4)
   smsPrefix                 String?          @map("sms_prefix") @db.VarChar(12)
@@ -411,6 +411,9 @@ model Tenant {
   bookingClosures      BookingClosure[]
   bookingCollections   BookingCollection[]
   invoices             Invoice[]
+  bookingSequences     BookingSequence[]
+  invoiceSequences     InvoiceSequence[]
+  storedFiles          StoredFile[]
   accountReferences    AccountReference[]
   cashDeposits         BookingCashDeposit[]
   managerLedgers       ManagerLedger[]
@@ -631,7 +634,9 @@ model CustomerTraveller {
 model Booking {
   id                     String           @id @default(uuid()) @db.Uuid
   tenantId               String           @map("tenant_id") @db.Uuid
-  bookingNumber          String           @unique(map: "bookings_booking_id_key") @map("booking_id") @db.VarChar(20)
+  bookingNumber          String?          @map("booking_id") @db.VarChar(20)
+  bookingSequence        Int?             @map("booking_sequence")
+  bookingNumberDate      DateTime?        @map("booking_number_date") @db.Date
   customerId             String           @map("customer_id") @db.Uuid
   travellerId            String?          @map("traveller_id") @db.Uuid
   bookingType            BookingType      @map("booking_type")
@@ -690,12 +695,28 @@ model Booking {
   invoices    Invoice[]
 
   @@unique([tenantId, id], map: "bookings_tenant_id_id_key")
+  @@unique([tenantId, bookingNumber], map: "bookings_tenant_booking_number_key")
+  @@unique([tenantId, bookingNumberDate, bookingSequence], map: "bookings_tenant_date_sequence_key")
   @@index([tenantId, status, startDate], map: "bookings_tenant_status_start_idx")
   @@index([tenantId, customerId], map: "bookings_tenant_customer_idx")
   @@index([tenantId, vendorId], map: "bookings_tenant_vendor_idx")
   @@index([tenantId, vehicleId, startDate, endDate], map: "bookings_tenant_vehicle_dates_idx")
   @@index([tenantId, driverId, startDate, endDate], map: "bookings_tenant_driver_dates_idx")
   @@map("bookings")
+}
+
+model BookingSequence {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  bookingDate DateTime @map("booking_date") @db.Date
+  lastNumber  Int      @default(0) @map("last_number")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, bookingDate], map: "booking_sequences_tenant_date_key")
+  @@map("booking_sequences")
 }
 
 model BookingClosure {
@@ -831,7 +852,7 @@ model Invoice {
   customerId         String        @map("customer_id") @db.Uuid
   invoiceNumber      String?       @map("invoice_number") @db.VarChar(100)
   invoiceSequence    Int?          @map("invoice_sequence")
-  invoicePrefix      String?       @map("invoice_prefix") @db.VarChar(30)
+  invoicePrefix      String?       @map("invoice_prefix") @db.VarChar(3)
   financialYear      String?       @map("financial_year") @db.VarChar(20)
   invoiceDate        DateTime      @map("invoice_date") @db.Date
   status             InvoiceStatus @default(DRAFT)
@@ -877,9 +898,55 @@ model Invoice {
   @@unique([tenantId, id], map: "invoices_tenant_id_id_key")
   @@unique([tenantId, bookingId], map: "invoices_tenant_booking_key")
   @@unique([tenantId, invoiceNumber], map: "invoices_tenant_number_key")
-  @@unique([tenantId, invoiceSequence], map: "invoices_tenant_sequence_key")
+  @@unique([tenantId, financialYear, invoicePrefix, invoiceSequence], map: "invoices_tenant_fy_prefix_sequence_key")
   @@index([tenantId, status, invoiceDate], map: "invoices_tenant_status_date_idx")
   @@map("invoices")
+}
+
+model InvoiceSequence {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  financialYear String   @map("financial_year") @db.VarChar(20)
+  invoicePrefix String   @map("invoice_prefix") @db.VarChar(3)
+  lastNumber    Int      @default(0) @map("last_number")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, financialYear, invoicePrefix], map: "invoice_sequences_tenant_fy_prefix_key")
+  @@index([tenantId, financialYear], map: "invoice_sequences_tenant_fy_idx")
+  @@map("invoice_sequences")
+}
+
+model StoredFile {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  entityType       String    @map("entity_type") @db.VarChar(50)
+  entityId         String    @map("entity_id") @db.Uuid
+  documentType     String?   @map("document_type") @db.VarChar(50)
+  originalFileName String    @map("original_file_name") @db.VarChar(255)
+  storedFileName   String    @map("stored_file_name") @db.VarChar(255)
+  storageProvider  String    @default("LOCAL") @map("storage_provider") @db.VarChar(30)
+  storageKey       String    @map("storage_key") @db.VarChar(1000)
+  mimeType         String    @map("mime_type") @db.VarChar(150)
+  extension        String?   @db.VarChar(20)
+  fileSize         BigInt    @map("file_size")
+  checksum         String?   @db.VarChar(128)
+  uploadedById     String?   @map("uploaded_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedById      String?   @map("deleted_by_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id], map: "stored_files_tenant_id_key")
+  @@unique([tenantId, storageKey], map: "stored_files_tenant_storage_key")
+  @@index([tenantId, entityType, entityId], map: "stored_files_entity_idx")
+  @@index([tenantId, documentType], map: "stored_files_document_type_idx")
+  @@index([tenantId, createdAt], map: "stored_files_created_at_idx")
+  @@index([tenantId, deletedAt], map: "stored_files_deleted_at_idx")
+  @@map("stored_files")
 }
 
 model InvoiceItem {

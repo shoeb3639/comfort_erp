@@ -114,7 +114,7 @@ export interface PreparedInvoice {
   customerId: string
   invoiceNumber: string
   invoiceSequence: null
-  invoicePrefix: 'LEGACY'
+  invoicePrefix: 'LEG'
   financialYear: string
   invoiceDate: Date
   status: 'GENERATED'
@@ -563,7 +563,7 @@ export function prepareInvoiceMigration(
         customerId: targetCustomer.id,
         invoiceNumber,
         invoiceSequence: null,
-        invoicePrefix: 'LEGACY',
+        invoicePrefix: 'LEG',
         financialYear: financialYear(invoiceDate),
         invoiceDate,
         status: 'GENERATED',

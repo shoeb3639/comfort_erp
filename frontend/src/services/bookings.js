@@ -48,9 +48,6 @@ export function bookingPayload(values) {
         ? values.ratePerKm
         : values.fixedAmount,
     ),
-    requiredDutyDocuments: values.supportingDocumentsRequired
-      ? values.requiredDutyDocuments || []
-      : [],
     notes: values.notes || null,
   };
 }
@@ -131,44 +128,6 @@ export async function completeBookingDuty(id, values) {
       config(),
     )
   ).data.data;
-}
-
-export async function uploadDutyEvidence(id, evidenceType, file) {
-  return (
-    await api.post(
-      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
-      file,
-      {
-        headers: {
-          ...config().headers,
-          "Content-Type": file.type,
-          "X-File-Name": encodeURIComponent(file.name),
-        },
-      },
-    )
-  ).data.data;
-}
-
-export async function openDutyEvidence(id, evidenceType) {
-  const preview = window.open("", "_blank");
-  try {
-    const response = await api.get(
-      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
-      { ...config(), responseType: "blob" },
-    );
-    const url = URL.createObjectURL(response.data);
-    if (preview) preview.location.href = url;
-    else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.click();
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch (error) {
-    preview?.close();
-    throw error;
-  }
 }
 
 export async function cancelBooking(id, reason) {
@@ -275,16 +234,6 @@ export async function voidBookingCollection(bookingId, collectionId) {
       `/tenant/bookings/${bookingId}/collections/${collectionId}`,
       config(),
     )
-  ).data.data;
-}
-
-export async function getBookingSettings() {
-  return (await api.get("/tenant/bookings/settings", config())).data.data;
-}
-
-export async function updateBookingSettings(bookingPrefix) {
-  return (
-    await api.patch("/tenant/bookings/settings", { bookingPrefix }, config())
   ).data.data;
 }
 

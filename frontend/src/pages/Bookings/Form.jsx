@@ -11,6 +11,7 @@ import {
 import {
   createCustomer,
   createCustomerTraveller,
+  getCustomer,
   getCustomers,
 } from "../../services/customers";
 
@@ -41,15 +42,6 @@ const bookingTypeOptions = [
   { value: "airport_transfer", label: "Airport Transfer" },
   { value: "railway_station_transfer", label: "Railway Station Transfer" },
   { value: "outstation", label: "Outstation" },
-];
-
-const requiredDutyDocumentOptions = [
-  { value: "CLOSING_METER_PHOTO", label: "Closing Meter Photo" },
-  { value: "SIGNED_DUTY_SLIP", label: "Signed Duty Slip" },
-  {
-    value: "TOLL_PARKING_RECEIPTS",
-    label: "Toll and Parking Statement / Receipts",
-  },
 ];
 
 const dutyPackageOptions = {
@@ -562,7 +554,9 @@ function BookingFormPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [customerOptions, setCustomerOptions] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
   const [travellerOptions, setTravellerOptions] = useState([]);
+  const [travellersLoading, setTravellersLoading] = useState(false);
   const [isTravellerModalOpen, setIsTravellerModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const {
@@ -617,9 +611,6 @@ function BookingFormPage() {
           ? existingBooking?.amount
           : ""),
       notes: existingBooking?.notes || "",
-      supportingDocumentsRequired:
-        (existingBooking?.requiredDutyDocuments || []).length > 0,
-      requiredDutyDocuments: existingBooking?.requiredDutyDocuments || [],
     },
   });
 
@@ -658,9 +649,6 @@ function BookingFormPage() {
             fixedAmount: booking.fixedAmount || "",
             ratePerKm: booking.ratePerKm || "",
             notes: booking.notes || "",
-            supportingDocumentsRequired:
-              (booking.requiredDutyDocuments || []).length > 0,
-            requiredDutyDocuments: booking.requiredDutyDocuments || [],
           });
         }
       })
@@ -675,8 +663,6 @@ function BookingFormPage() {
   const selectedTripType = watch("trip_type");
   const selectedBillingModel = watch("billing_model");
   const selectedStartDate = watch("startDate");
-  const supportingDocumentsRequired = watch("supportingDocumentsRequired");
-  const selectedRequiredDutyDocuments = watch("requiredDutyDocuments") || [];
   const selectedCustomer = customerOptions.find(
     (customer) => customer.id === selectedCustomerId,
   );
@@ -804,17 +790,61 @@ function BookingFormPage() {
     }
   }
 
-  function handleCustomerTypeChange(customerType) {
+  async function handleCustomerTypeChange(customerType) {
     setValue("customer_type", customerType, { shouldValidate: true });
     setValue("billing_customer_id", "");
     setValue("traveller_id", "");
+    if (!customerType) return;
+
+    const apiTypes = {
+      Individuals: "RETAIL",
+      Corporate: "CORPORATE",
+      "Travel Agent": "TRAVEL_AGENT",
+    };
+    setCustomersLoading(true);
+    setLoadError("");
+    try {
+      const result = await getCustomers({
+        type: apiTypes[customerType],
+        status: "ACTIVE",
+        limit: 100,
+      });
+      setCustomerOptions(result.items);
+      setTravellerOptions(
+        result.items.flatMap((customer) => customer.travellers || []),
+      );
+    } catch (error) {
+      setLoadError(getBookingErrorMessage(error));
+    } finally {
+      setCustomersLoading(false);
+    }
   }
 
-  function handleBillingCustomerChange(customerId) {
+  async function handleBillingCustomerChange(customerId) {
     const customer = customerOptions.find((option) => option.id === customerId);
     setValue("billing_customer_id", customerId, { shouldValidate: true });
     setValue("customer_type", customer?.type || "", { shouldValidate: true });
     setValue("traveller_id", "");
+    if (!customerId) return;
+
+    setTravellersLoading(true);
+    setLoadError("");
+    try {
+      const detailedCustomer = await getCustomer(customerId);
+      setCustomerOptions((current) =>
+        current.map((item) =>
+          item.id === customerId ? detailedCustomer : item,
+        ),
+      );
+      setTravellerOptions((current) => [
+        ...current.filter((traveller) => traveller.customer_id !== customerId),
+        ...(detailedCustomer.travellers || []),
+      ]);
+    } catch (error) {
+      setLoadError(getBookingErrorMessage(error));
+    } finally {
+      setTravellersLoading(false);
+    }
   }
 
   async function handleSaveCustomer(newCustomer, newTraveller) {
@@ -921,15 +951,17 @@ function BookingFormPage() {
                       <select
                         className={fieldClass}
                         value={selectedCustomerId}
-                        disabled={!selectedCustomerType}
+                        disabled={!selectedCustomerType || customersLoading}
                         onChange={(event) =>
                           handleBillingCustomerChange(event.target.value)
                         }
                       >
                         <option value="">
-                          {selectedCustomerType
-                            ? "Select billing customer"
-                            : "Select customer type first"}
+                          {customersLoading
+                            ? "Loading customers…"
+                            : selectedCustomerType
+                              ? "Select billing customer"
+                              : "Select customer type first"}
                         </option>
                         {filteredCustomers.map((customer) => (
                           <option key={customer.id} value={customer.id}>
@@ -993,15 +1025,17 @@ function BookingFormPage() {
                         </span>
                         <select
                           className={fieldClass}
-                          disabled={!selectedCustomerId}
+                          disabled={!selectedCustomerId || travellersLoading}
                           {...register("traveller_id", {
                             required: "Traveller is required",
                           })}
                         >
                           <option value="">
-                            {selectedCustomerId
-                              ? "Select traveller"
-                              : "Select billing customer first"}
+                            {travellersLoading
+                              ? "Loading employees…"
+                              : selectedCustomerId
+                                ? "Select traveller"
+                                : "Select billing customer first"}
                           </option>
                           {filteredTravellers.map((traveller) => (
                             <option key={traveller.id} value={traveller.id}>
@@ -1381,83 +1415,6 @@ function BookingFormPage() {
                   <FieldError message={errors.ratePerKm?.message} />
                 </label>
               )}
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 xl:col-span-3">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-600"
-                    {...register("supportingDocumentsRequired", {
-                      onChange: (event) => {
-                        if (!event.target.checked)
-                          setValue("requiredDutyDocuments", [], {
-                            shouldValidate: true,
-                          });
-                      },
-                    })}
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-900">
-                      Supporting documents required at duty completion
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      The selected documents will be mandatory before this duty
-                      can be completed.
-                    </span>
-                  </span>
-                </label>
-
-                {supportingDocumentsRequired && (
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedRequiredDutyDocuments.length ===
-                          requiredDutyDocumentOptions.length
-                        }
-                        onChange={(event) =>
-                          setValue(
-                            "requiredDutyDocuments",
-                            event.target.checked
-                              ? requiredDutyDocumentOptions.map(
-                                  (option) => option.value,
-                                )
-                              : [],
-                            { shouldValidate: true, shouldDirty: true },
-                          )
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-brand-600"
-                      />
-                      Select All
-                    </label>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                      {requiredDutyDocumentOptions.map((option) => (
-                        <label
-                          key={option.value}
-                          className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
-                        >
-                          <input
-                            type="checkbox"
-                            value={option.value}
-                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
-                            {...register("requiredDutyDocuments", {
-                              validate: (value, values) =>
-                                !values.supportingDocumentsRequired ||
-                                value?.length > 0 ||
-                                "Select at least one supporting document",
-                            })}
-                          />
-                          {option.label}
-                        </label>
-                      ))}
-                    </div>
-                    <FieldError
-                      message={errors.requiredDutyDocuments?.message}
-                    />
-                  </div>
-                )}
-              </div>
 
               <label className="md:col-span-2 xl:col-span-3">
                 <span className="text-sm font-medium text-slate-700">

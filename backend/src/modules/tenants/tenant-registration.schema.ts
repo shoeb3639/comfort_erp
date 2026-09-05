@@ -3,6 +3,13 @@ import Joi from 'joi'
 const optionalText = (maximum: number) =>
   Joi.string().trim().max(maximum).empty('').optional()
 
+const invoicePrefix = Joi.string()
+  .trim()
+  .uppercase()
+  .pattern(/^[A-Z]{1,3}$/)
+  .empty('')
+  .optional()
+
 export const registerTenantSchema = Joi.object({
   tenant: Joi.object({
     legalName: Joi.string().trim().min(2).max(200).required(),
@@ -28,7 +35,7 @@ export const registerTenantSchema = Joi.object({
     timeZone: Joi.string().trim().max(100).default('Asia/Kolkata'),
     financialYearStartMonth: Joi.number().integer().min(1).max(12).default(4),
     dateFormat: Joi.string().trim().max(30).default('DD/MM/YYYY'),
-    invoicePrefix: optionalText(30),
+    invoicePrefix,
     invoiceNumberLength: Joi.number().integer().min(1).max(12).default(6),
     taxSettings: Joi.object().unknown(true).optional(),
     status: Joi.string()

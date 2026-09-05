@@ -1,6 +1,7 @@
 /* global __dirname */
 
 const path = require('node:path')
+const os = require('node:os')
 const { statSync } = require('node:fs')
 const { config } = require('dotenv')
 
@@ -42,3 +43,13 @@ process.env.ACCESS_TOKEN_TTL ??= '900'
 process.env.REFRESH_TOKEN_TTL ??= '604800'
 process.env.JWT_ISSUER ??= 'cablix-api-test'
 process.env.JWT_AUDIENCE ??= 'cablix-app-test'
+process.env.STORAGE_LOCAL_ROOT = path.join(
+  os.tmpdir(),
+  `cablix-storage-tests-${process.pid}`,
+  'final',
+)
+process.env.STORAGE_TEMP_ROOT = path.join(
+  os.tmpdir(),
+  `cablix-storage-tests-${process.pid}`,
+  'temp',
+)

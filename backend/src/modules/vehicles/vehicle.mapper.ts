@@ -16,7 +16,7 @@ function date(value: Date) {
 
 interface BookingLedgerRecord {
   id: string
-  bookingNumber: string
+  bookingNumber: string | null
   startDate: Date
   travellingFrom: string | null
   travellingTo: string | null
@@ -108,7 +108,7 @@ export function mapBookingLedgerEntry(
     driver: record.driver?.name ?? null,
     route,
     status: record.status,
-    description: `${record.bookingNumber} — ${record.customer.billingName}`,
+    description: `${record.bookingNumber || 'Draft booking'} — ${record.customer.billingName}`,
     category: null,
     referenceNumber: record.bookingNumber,
     openingKm:

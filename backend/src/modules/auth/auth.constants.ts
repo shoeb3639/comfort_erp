@@ -46,6 +46,10 @@ export const TENANT_PERMISSIONS = [
   ['accounts.daily_closing', 'manage'],
   ['accounts.audit', 'verify'],
   ['reports', 'view'],
+  ['files', 'upload'],
+  ['files', 'view'],
+  ['files', 'download'],
+  ['files', 'delete'],
 ] as const
 
 export const TENANT_SYSTEM_ROLES = [

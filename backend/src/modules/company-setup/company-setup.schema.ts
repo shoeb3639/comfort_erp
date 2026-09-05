@@ -3,6 +3,17 @@ import Joi from 'joi'
 const optionalText = (max: number) =>
   Joi.string().trim().max(max).empty('').allow(null)
 
+const invoicePrefix = Joi.string()
+  .trim()
+  .uppercase()
+  .pattern(/^[A-Z]{1,3}$/)
+  .empty('')
+  .allow(null)
+  .messages({
+    'string.pattern.base':
+      'Invoice prefix must contain 1 to 3 uppercase letters.',
+  })
+
 export const recordParamsSchema = Joi.object({
   recordId: Joi.string().uuid().required(),
 })
@@ -31,7 +42,7 @@ export const companyProfileSchema = Joi.object({
     .uppercase()
     .pattern(/^[A-Z0-9]{4}$/)
     .allow(null),
-  invoicePrefix: optionalText(30),
+  invoicePrefix,
   smsPrefix: Joi.string()
     .trim()
     .uppercase()
@@ -50,7 +61,7 @@ export const taxSettingsSchema = Joi.object({
 })
 
 export const invoiceSettingsSchema = Joi.object({
-  invoicePrefix: optionalText(30),
+  invoicePrefix,
   invoiceNumberLength: Joi.number().integer().min(1).max(12),
   invoiceSettings: Joi.object().unknown(true).required(),
 })

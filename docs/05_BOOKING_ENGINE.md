@@ -31,31 +31,26 @@ Bookings are tenant-owned records and must always be scoped by tenant.
 
 ## Booking Number
 
-Before creating its first booking, each tenant configures a booking prefix.
-
-- Prefix is exactly four uppercase alphanumeric characters.
-- Prefix is globally unique across tenants.
-- The backend generates a random number between `100000` and `999999`.
-- The six-digit random number is globally unique across bookings.
-- The frontend must never generate or submit the booking number.
+The backend allocates booking numbers from a PostgreSQL daily sequence scoped
+to the authenticated tenant and the tenant-local allocation date. The frontend
+must never generate or submit the booking number.
 
 Format:
 
 ```text
-<PREFIX>-<SIX_DIGIT_RANDOM_NUMBER>
+YY-MMDDSSS
 ```
 
 Example:
 
 ```text
-CMFP-265381
+26-0904011
 ```
 
-The database applies uniqueness to the complete `booking_id`. Because every
-tenant has a globally unique four-character booking prefix, this guarantees
-that every generated Booking ID is unique without storing the six-digit part
-in a second column. Creation retries safely when a generated Booking ID
-collides.
+The sequence starts at `001` each tenant-local day and expands beyond three
+digits without truncation. The database scopes booking ID uniqueness by
+`tenant_id`; two tenants may therefore have the same visible booking number.
+Historical prefixed booking IDs remain valid and unchanged.
 
 ## Booking Scope
 
