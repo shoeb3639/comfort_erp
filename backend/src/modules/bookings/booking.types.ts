@@ -84,6 +84,11 @@ export type DutyEvidence = Partial<
 >
 
 export interface CloseBookingInput {
+  openingTime?: string
+  closingDate?: string
+  closingTime?: string
+  extraKmRate?: number
+  extraHourRate?: number
   billingTripType: BillingTripType
   startKm?: number | null
   endKm?: number | null
@@ -95,6 +100,7 @@ export interface CloseBookingInput {
   otherRecoverableCharges?: number
   gst?: number
   dieselCost?: number
+  fuelConsumedLitres?: number | null
   directVehicleExpense?: number
   driverCost?: number
   allocatedOfficeExpense?: number
@@ -102,6 +108,9 @@ export interface CloseBookingInput {
   vendorExtraCharges?: number
   vendorDeduction?: number
   paymentAmount?: number
+  paymentHolder?: 'COMPANY' | 'DRIVER'
+  fuelAmount?: number
+  fuelReceiptId?: string | null
   paymentMode?: CollectionPaymentMode
   paymentDate?: Date
   paymentReference?: string | null

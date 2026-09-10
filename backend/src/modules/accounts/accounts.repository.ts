@@ -105,6 +105,7 @@ function collectionWhere(
 }
 
 const collectionInclude = {
+  fuelReceipt: true,
   booking: {
     include: {
       customer: true,
@@ -196,7 +197,16 @@ export function listBookingBalances(
       closure: { select: { totalBillAmount: true, closedAt: true } },
       collections: {
         where: { status: { not: 'VOID' } },
-        select: { amount: true, status: true, paymentMode: true },
+        select: {
+          amount: true,
+          status: true,
+          paymentMode: true,
+          paymentHolder: true,
+          fuelAmount: true,
+          returnedAmount: true,
+          custodianDriverId: true,
+          collectedByName: true,
+        },
       },
       invoices: {
         select: { id: true, invoiceNumber: true },
@@ -212,6 +222,19 @@ export function findCollection(tenantId: string, collectionId: string) {
   return prisma.bookingCollection.findFirst({
     where: { tenantId, id: collectionId },
     include: collectionInclude,
+  })
+}
+
+export function listDriverCollections(tenantId: string, driverId: string) {
+  return prisma.bookingCollection.findMany({
+    where: {
+      tenantId,
+      custodianDriverId: driverId,
+      paymentHolder: 'DRIVER',
+      status: { not: 'VOID' },
+    },
+    include: collectionInclude,
+    orderBy: [{ collectionDate: 'desc' }, { createdAt: 'desc' }],
   })
 }
 

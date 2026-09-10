@@ -28,6 +28,8 @@ backups/
 # Runtime uploads must use persistent storage, not Git.
 uploads/
 backend/uploads/
+backend/storage/
+backend/storage-temp/
 
 # Legacy source exports and generated migration/reconciliation reports contain
 # customer, booking, invoice, vehicle, and financial data. Keep them only in

@@ -114,6 +114,24 @@ export async function listCollections(
       totalBillAmount,
       totalCollected,
       balance,
+      driverBalance: booking.collections
+        .filter((row) => row.paymentHolder === 'DRIVER')
+        .reduce(
+          (sum, row) =>
+            sum +
+            Number(row.amount) -
+            Number(row.fuelAmount) -
+            Number(row.returnedAmount),
+          0,
+        ),
+      fuelFromCollections: booking.collections.reduce(
+        (sum, row) => sum + Number(row.fuelAmount),
+        0,
+      ),
+      driverReturns: booking.collections.reduce(
+        (sum, row) => sum + Number(row.returnedAmount),
+        0,
+      ),
       paymentStatus: paymentStatus(totalBillAmount, totalCollected),
       closedAt: booking.closure?.closedAt.toISOString() ?? null,
     }
@@ -126,13 +144,57 @@ export async function listCollections(
     (sum, booking) => sum + booking.totalCollected,
     0,
   )
+  const drivers = new Map<
+    string,
+    {
+      id: string
+      name: string
+      collected: number
+      fuel: number
+      returned: number
+      balance: number
+    }
+  >()
+  for (const booking of bookings)
+    for (const row of booking.collections) {
+      if (row.paymentHolder !== 'DRIVER') continue
+      const key = row.custodianDriverId ?? row.collectedByName.toLowerCase()
+      const driver = drivers.get(key) ?? {
+        id: key,
+        name: row.collectedByName,
+        collected: 0,
+        fuel: 0,
+        returned: 0,
+        balance: 0,
+      }
+      driver.collected += Number(row.amount)
+      driver.fuel += Number(row.fuelAmount)
+      driver.returned += Number(row.returnedAmount)
+      driver.balance =
+        Math.round((driver.collected - driver.fuel - driver.returned) * 100) /
+        100
+      drivers.set(key, driver)
+    }
   return {
+    driverSummaries: [...drivers.values()],
     collections: records.map((record) => mapCollection(record)),
     bookingSummaries,
     summary: {
       totalBilled,
       totalCollected,
       outstandingBalance: Math.max(0, totalBilled - totalCollected),
+      driverBalance: bookingSummaries.reduce(
+        (sum, row) => sum + row.driverBalance,
+        0,
+      ),
+      fuelFromCollections: bookingSummaries.reduce(
+        (sum, row) => sum + row.fuelFromCollections,
+        0,
+      ),
+      driverReturns: bookingSummaries.reduce(
+        (sum, row) => sum + row.driverReturns,
+        0,
+      ),
       paidBookings: bookingSummaries.filter(
         (booking) => booking.paymentStatus === 'PAID',
       ).length,

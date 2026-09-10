@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CheckCircle2,
+  ImageIcon,
   MapPin,
   ReceiptText,
   ShieldCheck,
   Users,
   WalletCards,
+  X,
 } from "lucide-react";
 import {
   createBankAccount,
   createLocation,
   getBankAccounts,
+  getCompanyLogoUrl,
   getCompanyProfile,
   getInvoiceSettings,
   getLocations,
@@ -23,6 +26,7 @@ import {
   updateInvoiceSettings,
   updateLocation,
   updateTaxSettings,
+  uploadCompanyLogo,
 } from "../../services/tenantSetup";
 
 const fieldClass =
@@ -87,6 +91,11 @@ function SettingsPage() {
   });
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoDragging, setLogoDragging] = useState(false);
+  const logoInputRef = useRef(null);
 
   async function load() {
     const [
@@ -105,6 +114,9 @@ function SettingsPage() {
       getOnboarding(),
     ]);
     setProfile(profileData);
+    getCompanyLogoUrl(profileData.id, profileData.logoUrl)
+      .then((url) => setLogoPreview(url))
+      .catch(() => setLogoPreview(profileData.logoUrl || ""));
     setTax({
       ...taxData,
       gstEnabled: taxData.taxSettings?.gstEnabled ?? true,
@@ -130,6 +142,13 @@ function SettingsPage() {
     );
   }, []);
 
+  useEffect(
+    () => () => {
+      if (logoPreview.startsWith("blob:")) URL.revokeObjectURL(logoPreview);
+    },
+    [logoPreview],
+  );
+
   async function run(action, message) {
     setError("");
     setNotice("");
@@ -139,6 +158,34 @@ function SettingsPage() {
       setNotice(message);
     } catch (requestError) {
       setError(getSetupErrorMessage(requestError));
+    }
+  }
+
+  function selectLogo(file) {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setError("Choose a PNG, JPG, or WebP image for the company logo.");
+      return;
+    }
+    setError("");
+    setLogoFile(file);
+  }
+
+  async function saveLogo() {
+    if (!logoFile) return;
+    setError("");
+    setNotice("");
+    setLogoUploading(true);
+    try {
+      await uploadCompanyLogo(profile.id, logoFile);
+      setLogoFile(null);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+      await load();
+      setNotice("Company logo uploaded.");
+    } catch (requestError) {
+      setError(getSetupErrorMessage(requestError));
+    } finally {
+      setLogoUploading(false);
     }
   }
 
@@ -214,16 +261,15 @@ function SettingsPage() {
 
       <SetupSection
         title="Prefix Settings"
-        description="Central numbering and communication prefixes used across Booking, Invoice, and SMS workflows."
+        description="Central numbering and communication prefixes used across Invoice and SMS workflows. Booking numbers are generated automatically."
       >
         <form
-          className="grid gap-4 md:grid-cols-3"
+          className="grid gap-4 md:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
             run(
               () =>
                 updateCompanyProfile({
-                  bookingPrefix: profile.bookingPrefix || null,
                   invoicePrefix: profile.invoicePrefix || null,
                   smsPrefix: profile.smsPrefix || null,
                 }),
@@ -231,24 +277,6 @@ function SettingsPage() {
             );
           }}
         >
-          <TextField
-            label="Booking Prefix"
-            required
-            minLength="4"
-            maxLength="4"
-            pattern="[A-Z0-9]{4}"
-            placeholder="CMFP"
-            value={profile.bookingPrefix || ""}
-            onChange={(value) =>
-              setProfile({
-                ...profile,
-                bookingPrefix: value
-                  .toUpperCase()
-                  .replace(/[^A-Z0-9]/g, "")
-                  .slice(0, 4),
-              })
-            }
-          />
           <TextField
             label="Invoice Prefix"
             maxLength="30"
@@ -278,7 +306,7 @@ function SettingsPage() {
               })
             }
           />
-          <div className="md:col-span-3">
+          <div className="md:col-span-2">
             <button className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white">
               Save Prefix Settings
             </button>
@@ -290,6 +318,107 @@ function SettingsPage() {
         title="Company Profile"
         description="Legal identity, contact details, registered address, and operational defaults."
       >
+        <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="rounded-xl bg-brand-50 p-2.5 text-brand-600">
+              <ImageIcon size={20} />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">
+                Company logo
+              </h3>
+              <p className="text-xs text-slate-500">
+                Optional · shown on generated duty slips
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[160px_1fr]">
+            <div className="flex h-32 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              {logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Company logo"
+                  className="h-full w-full object-contain p-3"
+                />
+              ) : (
+                <div className="text-center text-slate-400">
+                  <ImageIcon className="mx-auto" size={28} strokeWidth={1.5} />
+                  <span className="mt-2 block text-xs">No logo yet</span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <input
+                ref={logoInputRef}
+                className="sr-only"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => selectLogo(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                onDragEnter={() => setLogoDragging(true)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setLogoDragging(true);
+                }}
+                onDragLeave={() => setLogoDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setLogoDragging(false);
+                  selectLogo(event.dataTransfer.files?.[0]);
+                }}
+                className={`flex min-h-32 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-5 py-4 text-center transition ${logoDragging ? "border-brand-400 bg-brand-50" : "border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/40"}`}
+              >
+                <span className="text-sm font-semibold text-slate-700">
+                  Drop your logo here, or{" "}
+                  <span className="text-brand-600">browse</span>
+                </span>
+                <span className="mt-1 text-xs text-slate-400">
+                  PNG, JPG or WebP
+                </span>
+              </button>
+
+              {logoFile && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-brand-100 bg-brand-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {logoFile.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {(logoFile.size / 1024).toFixed(1)} KB · ready to upload
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label="Remove selected logo"
+                      onClick={() => {
+                        setLogoFile(null);
+                        if (logoInputRef.current)
+                          logoInputRef.current.value = "";
+                      }}
+                      className="rounded-lg p-2 text-slate-500 hover:bg-white hover:text-slate-700"
+                    >
+                      <X size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={logoUploading}
+                      onClick={saveLogo}
+                      className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {logoUploading ? "Uploading…" : "Save logo"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         <form
           className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
           onSubmit={(event) => {
@@ -303,7 +432,6 @@ function SettingsPage() {
                   mobile: profile.mobile,
                   alternateNumber: profile.alternateNumber,
                   website: profile.website,
-                  logoUrl: profile.logoUrl,
                   addressLine1: profile.addressLine1,
                   addressLine2: profile.addressLine2,
                   city: profile.city,

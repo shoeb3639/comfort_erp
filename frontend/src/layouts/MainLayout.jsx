@@ -1,3 +1,4 @@
+import "./ai-booking-button.css";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -14,6 +15,7 @@ import {
   ReceiptText,
   Search,
   Settings,
+  Sparkles,
   WalletCards,
   UserRound,
   Users,
@@ -177,8 +179,8 @@ const bottomNavItems = [
 
 const pageMeta = {
   "/dashboard": {
-    eyebrow: "Operations control center",
-    title: "Today overview",
+    eyebrow: "",
+    title: "Business Control Center",
     description: "Monitor bookings, vehicles, billing, and operations.",
   },
   "/bookings": {
@@ -231,6 +233,14 @@ const pageMeta = {
 };
 
 function getPageMeta(pathname) {
+  if (/^\/drivers\/[^/]+\/ledger$/.test(pathname)) {
+    return {
+      eyebrow: "Driver accounts",
+      title: "Driver Accounts",
+      description:
+        "Track customer money held by the driver, fuel spending, returns, and account entries.",
+    };
+  }
   if (/^\/vehicles\/[^/]+\/ledger$/.test(pathname)) {
     return {
       eyebrow: "Fleet profitability",
@@ -1144,17 +1154,40 @@ function MainLayout() {
               </p>
             </div>
 
-            <label className="hidden min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 xl:flex">
-              <Search
-                className="mr-2 text-slate-400"
-                size={18}
-                strokeWidth={2.2}
-              />
-              <input
-                className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
-                placeholder="Bookings, customers, invoices"
-              />
-            </label>
+            {basePath !== "/bookings" && (
+              <label className="hidden min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 xl:flex">
+                <Search
+                  className="mr-2 text-slate-400"
+                  size={18}
+                  strokeWidth={2.2}
+                />
+                <input
+                  className="w-full bg-transparent text-slate-800 outline-none placeholder:text-slate-400"
+                  placeholder="Bookings, customers, invoices"
+                />
+              </label>
+            )}
+
+            {location.pathname === "/bookings" &&
+              topbarActions.some((action) => action.to === "/bookings/new") && (
+                <button
+                  type="button"
+                  className="ai-booking-button"
+                  aria-label="Create Booking with AI — coming soon"
+                  aria-disabled="true"
+                  title="Create Booking with AI — coming soon"
+                >
+                  <span className="ai-booking-button-content">
+                    <Sparkles size={17} strokeWidth={2} aria-hidden="true" />
+                    <span>
+                      <span className="hidden sm:inline">
+                        Create Booking with AI
+                      </span>
+                      <span className="sm:hidden">Book with AI</span>
+                    </span>
+                  </span>
+                </button>
+              )}
 
             {topbarActions.map((action) => {
               const Icon = action.icon;

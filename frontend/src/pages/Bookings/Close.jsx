@@ -1,12 +1,16 @@
+import {
+  localClosingPreview,
+  overnightClosingDate,
+} from "./local-closing-preview.mjs";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, Share2, Upload } from "lucide-react";
+import { ChevronDown, Share2 } from "lucide-react";
+import { uploadFuelReceipt, downloadReceipt } from "../../services/files";
 import {
   closeBooking as closeBookingApi,
   getBooking,
   getBookingErrorMessage,
-  openDutyEvidence,
 } from "../../services/bookings";
 
 const fieldClass =
@@ -68,7 +72,19 @@ function SummaryItem({ label, value, strong = false, tone = "default" }) {
   );
 }
 
-function ReadOnlyField({ label, value }) {
+function ReadOnlyField({ label, value, inputStyle = false }) {
+  if (inputStyle)
+    return (
+      <label>
+        <span className="text-sm font-medium text-slate-700">{label}</span>
+        <input
+          type="text"
+          readOnly
+          className={`${fieldClass} bg-slate-50`}
+          value={value ?? "-"}
+        />
+      </label>
+    );
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -90,12 +106,20 @@ function BillingPaperRow({ label, value, strong = false }) {
   );
 }
 
-function Section({ title, children, className = "" }) {
+function Section({ title, subtitle, action, children, className = "" }) {
   return (
     <section
       className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
     >
-      <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+          {subtitle && (
+            <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          )}
+        </div>
+        {action}
+      </div>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -132,6 +156,8 @@ function CloseBookingPage() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [fuelReceipt, setFuelReceipt] = useState(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const customer = booking
     ? { billingName: booking.customer, displayName: booking.customer }
     : null;
@@ -142,6 +168,7 @@ function CloseBookingPage() {
   const assignmentType =
     booking?.assignmentType || booking?.assignment_type || "own_vehicle";
   const isVendorVehicle = assignmentType === "vendor_vehicle";
+  const isLocal = booking?.booking_type === "local";
 
   const bookingDays = countInclusiveDays(
     booking?.startDate || booking?.pickupDate,
@@ -150,15 +177,23 @@ function CloseBookingPage() {
   const minimumKm = toNumber(booking?.dailyMinimumKm)
     ? toNumber(booking.dailyMinimumKm) * bookingDays
     : toNumber(booking?.includedKm);
-  const defaultTripType =
-    booking?.pricing_basis === "rate_per_km" ||
-    booking?.billing_model === "rate_per_km"
+  const defaultTripType = isLocal
+    ? "Package Based"
+    : booking?.pricing_basis === "rate_per_km" ||
+        booking?.billing_model === "rate_per_km"
       ? "KM Based"
       : "Package Based";
   const defaultRatePerKm =
     booking?.ratePerKm ||
     (defaultTripType === "KM Based" ? booking?.amount : "");
   const defaultTotalKm = booking?.estimatedKm || minimumKm || "";
+  const defaultPackageAmount =
+    isLocal &&
+    (booking?.pricing_basis === "rate_per_km" ||
+      booking?.billing_model === "rate_per_km")
+      ? minimumKm * toNumber(booking?.ratePerKm || booking?.amount)
+      : booking?.fixedAmount ||
+        (defaultTripType === "Package Based" ? booking?.amount : "");
 
   const {
     control,
@@ -166,16 +201,19 @@ function CloseBookingPage() {
     setValue,
     reset,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
+      openingTime: "",
+      closingDate: "",
+      closingTime: "",
+      extraKmRate: "",
+      extraHourRate: "",
       startKm: "",
       endKm: "",
       totalKm: defaultTotalKm,
       ratePerKm: defaultRatePerKm,
-      packageAmount:
-        booking?.fixedAmount ||
-        (defaultTripType === "Package Based" ? booking?.amount : ""),
+      packageAmount: defaultPackageAmount,
       billingTripType: defaultTripType,
       tollTax: 0,
       parking: 0,
@@ -183,31 +221,60 @@ function CloseBookingPage() {
       otherRecoverableCharges: 0,
       gst: 0,
       dieselCost: 0,
+      fuelConsumedLitres: "",
       directVehicleExpense: 0,
       driverCost: 0,
       vendorPayableAmount: booking?.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
       paymentAmount: 0,
+      paymentHolder: "COMPANY",
+      fuelAmount: 0,
       paymentMode: "",
       paymentDate: today(),
       paymentReference: "",
       collectedBy: "",
       remarks: "",
-      attachmentName: "",
     },
   });
 
   const values = useWatch({ control });
   const actualRunningKm =
-    values.endKm && values.startKm
+    values.endKm !== "" &&
+    values.startKm !== "" &&
+    values.endKm != null &&
+    values.startKm != null
       ? Math.max(0, toNumber(values.endKm) - toNumber(values.startKm))
       : toNumber(values.totalKm);
   const billingKm = Math.max(actualRunningKm, minimumKm);
-  const baseFare =
+  const initialFare =
     values.billingTripType === "KM Based"
       ? billingKm * toNumber(values.ratePerKm)
       : toNumber(values.packageAmount);
+  const {
+    includedHours,
+    includedKm,
+    elapsedMinutes,
+    totalMinutes,
+    extraMinutes,
+    complete: timesComplete,
+  } = localClosingPreview(booking, values);
+  const extraKm =
+    isLocal && includedKm != null
+      ? Math.max(
+          0,
+          Math.round((actualRunningKm - toNumber(includedKm)) * 100) / 100,
+        )
+      : 0;
+  const extraKmCharge =
+    isLocal && values.billingTripType === "Package Based"
+      ? Math.round(extraKm * toNumber(values.extraKmRate) * 100) / 100
+      : 0;
+  const extraHourCharge = isLocal
+    ? Math.round((extraMinutes / 60) * toNumber(values.extraHourRate) * 100) /
+      100
+    : 0;
+  const baseFare = initialFare + extraKmCharge + extraHourCharge;
   const tollTax = toNumber(values.tollTax);
   const parking = toNumber(values.parking);
   const driverAllowance = toNumber(values.driverAllowance);
@@ -244,7 +311,9 @@ function CloseBookingPage() {
       toNumber(values.vendorDeduction),
   );
   const vendorBookingProfit = isVendorVehicle
-    ? vendorBookingRevenue - finalVendorPayable
+    ? vendorBookingRevenue -
+      finalVendorPayable -
+      (values.paymentHolder === "DRIVER" ? toNumber(values.fuelAmount) : 0)
     : 0;
   const fixedBillingLabel =
     booking?.booking_type === "local"
@@ -268,13 +337,16 @@ function CloseBookingPage() {
     if (!booking) return;
     const dutyDetails = booking.dutyCompletionDetails || {};
     reset({
+      openingTime: booking.pickupTime || "",
+      closingDate: booking.endDate || booking.startDate,
+      closingTime: "",
+      extraKmRate: "",
+      extraHourRate: "",
       startKm: booking.openingOdometer ?? "",
       endKm: booking.closingOdometer ?? "",
       totalKm: booking.actualDistance || defaultTotalKm,
       ratePerKm: defaultRatePerKm,
-      packageAmount:
-        booking.fixedAmount ||
-        (defaultTripType === "Package Based" ? booking.amount : ""),
+      packageAmount: defaultPackageAmount,
       billingTripType: defaultTripType,
       tollTax: dutyDetails.tollTax || 0,
       parking: dutyDetails.parking || 0,
@@ -282,12 +354,15 @@ function CloseBookingPage() {
       otherRecoverableCharges: dutyDetails.otherRecoverableCharges || 0,
       gst: 0,
       dieselCost: 0,
+      fuelConsumedLitres: "",
       directVehicleExpense: 0,
       driverCost: 0,
       vendorPayableAmount: booking.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
       paymentAmount: dutyDetails.paymentAmount || 0,
+      paymentHolder: "COMPANY",
+      fuelAmount: 0,
       paymentMode: dutyDetails.paymentMode || "",
       paymentDate: dutyDetails.paymentDate
         ? String(dutyDetails.paymentDate).slice(0, 10)
@@ -295,9 +370,15 @@ function CloseBookingPage() {
       paymentReference: dutyDetails.paymentReference || "",
       collectedBy: dutyDetails.collectedBy || "",
       remarks: "",
-      attachmentName: "",
     });
-  }, [booking, defaultRatePerKm, defaultTotalKm, defaultTripType, reset]);
+  }, [
+    booking,
+    defaultRatePerKm,
+    defaultTotalKm,
+    defaultTripType,
+    defaultPackageAmount,
+    reset,
+  ]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => setIsSummaryCollapsed(true), 2000);
@@ -324,19 +405,27 @@ function CloseBookingPage() {
   }
 
   async function closeBooking(formValues) {
+    if (uploadingReceipt) {
+      setLoadError("Wait for the fuel receipt to finish uploading.");
+      return;
+    }
+    setLoadError("");
+    if (
+      formValues.paymentHolder === "DRIVER" &&
+      Number(formValues.fuelAmount) > 0 &&
+      !fuelReceipt
+    ) {
+      setLoadError("Upload the fuel receipt before closing this booking.");
+      return;
+    }
     try {
-      await closeBookingApi(booking.id, formValues);
+      await closeBookingApi(booking.id, {
+        ...formValues,
+        fuelReceiptId: fuelReceipt?.id,
+      });
       navigate("/bookings", {
         state: { notice: `Booking ${booking.id} closed successfully.` },
       });
-    } catch (error) {
-      setLoadError(getBookingErrorMessage(error));
-    }
-  }
-
-  async function viewEvidence(type) {
-    try {
-      await openDutyEvidence(booking.id, type);
     } catch (error) {
       setLoadError(getBookingErrorMessage(error));
     }
@@ -355,9 +444,19 @@ function CloseBookingPage() {
       lines.push(`Total/Billing KM: ${money(billingKm)}`);
       lines.push(`Rate Per KM: x ₹ ${money(values.ratePerKm)}/km`);
     } else if (hasAmount(baseFare)) {
-      lines.push(`${fixedBillingLabel}: ₹ ${money(baseFare)}`);
+      lines.push(`${fixedBillingLabel}: ₹ ${money(initialFare)}`);
     }
 
+    if (isLocal)
+      lines.push(`Closing: ${values.closingDate} ${values.closingTime}`);
+    if (extraKmCharge > 0)
+      lines.push(
+        `Extra KM: ${extraKm} × ₹ ${money(values.extraKmRate)} = ₹ ${money(extraKmCharge)}`,
+      );
+    if (extraHourCharge > 0)
+      lines.push(
+        `Extra Hours: ${money(extraMinutes / 60)} × ₹ ${money(values.extraHourRate)} = ₹ ${money(extraHourCharge)}`,
+      );
     if (hasAmount(tollTax)) lines.push(`Toll Tax: ₹ ${money(tollTax)}`);
     if (hasAmount(driverAllowance))
       lines.push(`Driver Night: ₹ ${money(driverAllowance)}`);
@@ -463,99 +562,83 @@ function CloseBookingPage() {
         </div>
       </CollapsibleSection>
 
-      {booking.dutyEvidence && (
-        <Section title="Duty Evidence — Manager Review">
-          <p className="mb-4 text-sm text-slate-500">
-            Review the driver-submitted evidence before approving and closing
-            this booking.
-          </p>
-          <div className="grid gap-3 md:grid-cols-3">
-            {[
-              ["opening-meter", "Opening Meter", "openingMeter", true],
-              [
-                "closing-meter",
-                "Closing Meter",
-                "closingMeter",
-                booking.requiredDutyDocuments?.includes("CLOSING_METER_PHOTO"),
-              ],
-              [
-                "duty-slip",
-                "Signed Duty Slip",
-                "dutySlip",
-                booking.requiredDutyDocuments?.includes("SIGNED_DUTY_SLIP"),
-              ],
-              [
-                "toll-parking",
-                "Toll and Parking",
-                "tollParkingReceipts",
-                booking.requiredDutyDocuments?.includes(
-                  "TOLL_PARKING_RECEIPTS",
-                ),
-              ],
-            ]
-              .filter(([, , , show]) => show)
-              .map(([type, label, key]) => {
-                const evidence = booking.dutyEvidence[key];
-                return (
-                  <div
-                    key={type}
-                    className="rounded-xl border border-slate-200 p-4"
-                  >
-                    <p className="text-sm font-semibold text-slate-900">
-                      {label}
-                    </p>
-                    <p className="mt-1 truncate text-xs text-slate-500">
-                      {evidence?.originalName || "Not uploaded"}
-                    </p>
-                    {evidence && (
-                      <button
-                        type="button"
-                        className="mt-3 text-sm font-semibold text-brand-600"
-                        onClick={() => viewEvidence(type)}
-                      >
-                        View evidence
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </Section>
-      )}
-
       <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
         <div className="space-y-5">
-          <Section title="Trip Running Details">
+          <Section
+            title={isLocal ? "Local Trip Closing" : "Trip Running Details"}
+            action={
+              isLocal && (
+                <label className="w-36 shrink-0">
+                  <span className="text-xs font-medium text-slate-600">
+                    Base Fare (₹)
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    {...register("packageAmount")}
+                  />
+                </label>
+              )
+            }
+            subtitle={
+              isLocal
+                ? includedHours != null
+                  ? `Local Package · ${includedHours} hours / ${includedKm} km`
+                  : "Local Package · No included limits recorded"
+                : undefined
+            }
+          >
+            {isLocal && (
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Trip Details & Charges
+              </h3>
+            )}
             <div className="grid gap-4 md:grid-cols-3">
+              {!isLocal && (
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Trip Type
+                  </span>
+                  <select
+                    className={fieldClass}
+                    {...register("billingTripType")}
+                  >
+                    <option>KM Based</option>
+                    <option>Package Based</option>
+                  </select>
+                </label>
+              )}
               <label>
                 <span className="text-sm font-medium text-slate-700">
-                  Trip Type
-                </span>
-                <select className={fieldClass} {...register("billingTripType")}>
-                  <option>KM Based</option>
-                  <option>Package Based</option>
-                </select>
-              </label>
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Start KM
+                  Start KM{isLocal ? " *" : ""}
                 </span>
                 <input
                   className={fieldClass}
                   type="number"
                   step="0.01"
-                  {...register("startKm")}
+                  {...register("startKm", {
+                    required: isLocal ? "Start KM is required" : false,
+                    min: 0,
+                  })}
                 />
               </label>
               <label>
                 <span className="text-sm font-medium text-slate-700">
-                  End KM
+                  Closing KM{isLocal ? " *" : ""}
                 </span>
                 <input
                   className={fieldClass}
                   type="number"
                   step="0.01"
-                  {...register("endKm")}
+                  {...register("endKm", {
+                    required: isLocal ? "Closing KM is required" : false,
+                    validate: (value) =>
+                      value === "" ||
+                      toNumber(value) >= toNumber(values.startKm) ||
+                      "Closing KM cannot be below Start KM",
+                  })}
                 />
               </label>
               <label>
@@ -570,43 +653,205 @@ function CloseBookingPage() {
                   readOnly
                 />
               </label>
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Minimum Billing KM
-                </span>
-                <input
-                  className={fieldClass}
-                  type="number"
-                  step="0.01"
-                  value={minimumKm || ""}
-                  readOnly
-                />
-              </label>
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Rate Per KM
-                </span>
-                <input
-                  className={fieldClass}
-                  type="number"
-                  step="0.01"
-                  disabled={values.billingTripType !== "KM Based"}
-                  {...register("ratePerKm")}
-                />
-              </label>
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Package Amount
-                </span>
-                <input
-                  className={fieldClass}
-                  type="number"
-                  step="0.01"
-                  disabled={values.billingTripType !== "Package Based"}
-                  {...register("packageAmount")}
-                />
-              </label>
+              {!isLocal && (
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Minimum Billing KM
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    step="0.01"
+                    value={minimumKm || ""}
+                    readOnly
+                  />
+                </label>
+              )}
+              {!isLocal && (
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Rate Per KM
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    step="0.01"
+                    disabled={values.billingTripType !== "KM Based"}
+                    {...register("ratePerKm")}
+                  />
+                </label>
+              )}
+              {!isLocal && (
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Package Amount
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    step="0.01"
+                    disabled={values.billingTripType !== "Package Based"}
+                    {...register("packageAmount")}
+                  />
+                </label>
+              )}
+              {isLocal && (
+                <>
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Opening Time *
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="time"
+                      {...register("openingTime", {
+                        required: "Opening time is required",
+                      })}
+                    />
+                  </label>
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Closing Time *
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="time"
+                      {...register("closingTime", {
+                        required: "Closing time is required",
+                        onChange: (event) => {
+                          const closingDate = overnightClosingDate(
+                            booking.startDate,
+                            values.closingDate,
+                            values.openingTime,
+                            event.target.value,
+                          );
+                          if (closingDate !== values.closingDate)
+                            setValue("closingDate", closingDate, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                        },
+                        validate: () =>
+                          elapsedMinutes >= 0 ||
+                          "Closing time cannot be before opening time",
+                      })}
+                    />
+                  </label>
+                  <ReadOnlyField
+                    inputStyle
+                    label="Total Hours"
+                    value={
+                      timesComplete
+                        ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+                        : "Enter opening and closing times"
+                    }
+                  />
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Closing Date *
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="date"
+                      min={booking.startDate}
+                      {...register("closingDate", {
+                        required: "Closing date is required",
+                      })}
+                    />
+                  </label>
+                  <ReadOnlyField inputStyle label="Extra KM" value={extraKm} />
+                  <ReadOnlyField
+                    inputStyle
+                    label="Extra Hours"
+                    value={
+                      timesComplete
+                        ? `${Math.floor(extraMinutes / 60)}h ${extraMinutes % 60}m`
+                        : "Enter closing time"
+                    }
+                  />
+                  {values.billingTripType === "Package Based" && (
+                    <label>
+                      <span className="text-sm font-medium text-slate-700">
+                        Extra KM Rate (₹/km)
+                      </span>
+                      <input
+                        className={fieldClass}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Enter rate, or 0 to waive"
+                        {...register("extraKmRate", {
+                          required:
+                            extraKm > 0
+                              ? "Enter an extra KM rate, or 0 to waive"
+                              : false,
+                          min: 0,
+                        })}
+                      />
+                    </label>
+                  )}
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Extra Hour Rate (₹/hour)
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter rate, or 0 to waive"
+                      {...register("extraHourRate", {
+                        required:
+                          extraMinutes > 0
+                            ? "Enter an extra hour rate, or 0 to waive"
+                            : false,
+                        min: 0,
+                      })}
+                    />
+                  </label>
+                  <ReadOnlyField
+                    inputStyle
+                    label="Extra Charges"
+                    value={`₹ ${money(extraKmCharge + extraHourCharge)}`}
+                  />
+                </>
+              )}
             </div>
+            {isLocal && (
+              <div className="mt-3">
+                <p className="text-xs text-slate-500">
+                  Use local opening and closing times. Part hours are charged
+                  proportionally by minute.
+                </p>
+                {values.billingTripType === "KM Based" && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Kilometres are already charged at the billing KM rate; no
+                    extra KM charge is added again.
+                  </p>
+                )}
+                {[
+                  "startKm",
+                  "endKm",
+                  "openingTime",
+                  "closingDate",
+                  "closingTime",
+                  "extraKmRate",
+                  "extraHourRate",
+                ].map(
+                  (field) =>
+                    errors[field] && (
+                      <p
+                        key={field}
+                        className="mt-2 text-xs text-rose-600"
+                        role="alert"
+                      >
+                        {errors[field].message ||
+                          "Enter a valid non-negative value"}
+                      </p>
+                    ),
+                )}
+              </div>
+            )}
           </Section>
 
           <Section title="Recoverable Charges">
@@ -743,7 +988,33 @@ function CloseBookingPage() {
           )}
 
           <Section title="Closing Notes">
-            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            <label className="mb-4 block">
+              <span className="text-sm font-medium text-slate-700">
+                Fuel Consumed (litres)
+              </span>
+              <input
+                className={fieldClass}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Optional — actual litres used on this booking"
+                {...register("fuelConsumedLitres", {
+                  min: {
+                    value: 0,
+                    message: "Fuel consumed cannot be negative",
+                  },
+                })}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Leave blank if unknown. Enter 0 only when no fuel was consumed.
+              </p>
+              {errors.fuelConsumedLitres && (
+                <p className="mt-1 text-xs text-rose-600">
+                  {errors.fuelConsumedLitres.message}
+                </p>
+              )}
+            </label>
+            <div>
               <label>
                 <span className="text-sm font-medium text-slate-700">
                   Remarks
@@ -762,21 +1033,6 @@ function CloseBookingPage() {
                     {errors.remarks.message}
                   </p>
                 )}
-              </label>
-              <label className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <Upload size={16} />
-                  Attachment Upload
-                </span>
-                <input
-                  className="mt-3 block w-full text-sm text-slate-600"
-                  type="file"
-                  onChange={(event) => {
-                    const fileName = event.target.files?.[0]?.name || "";
-                    setValue("attachmentName", fileName);
-                  }}
-                />
-                <input type="hidden" {...register("attachmentName")} />
               </label>
             </div>
           </Section>
@@ -818,8 +1074,20 @@ function CloseBookingPage() {
               )}
               {values.billingTripType !== "KM Based" && hasAmount(baseFare) && (
                 <BillingPaperRow
-                  label={fixedBillingLabel}
-                  value={`₹ ${money(baseFare)}`}
+                  label={isLocal ? "Base Fare" : fixedBillingLabel}
+                  value={`₹ ${money(initialFare)}`}
+                />
+              )}
+              {extraKmCharge > 0 && (
+                <BillingPaperRow
+                  label={`Extra KM (${money(extraKm)} × ₹${money(values.extraKmRate)})`}
+                  value={`₹ ${money(extraKmCharge)}`}
+                />
+              )}
+              {extraHourCharge > 0 && (
+                <BillingPaperRow
+                  label={`Extra Hours (${money(extraMinutes / 60)} × ₹${money(values.extraHourRate)})`}
+                  value={`₹ ${money(extraHourCharge)}`}
                 />
               )}
               {hasAmount(tollTax) && (
@@ -857,6 +1125,10 @@ function CloseBookingPage() {
           </Section>
 
           <Section title="Payment at Closing">
+            <p className="mb-4 text-sm text-slate-600">
+              Record the full customer payment, including any amount the driver
+              used for fuel.
+            </p>
             <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
               <span className="text-sm font-medium text-slate-600">
                 Payment Status
@@ -874,6 +1146,39 @@ function CloseBookingPage() {
               </span>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
+              <label className="md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Payment received by
+                </span>
+                <select
+                  className={fieldClass}
+                  {...register("paymentHolder")}
+                  onChange={(event) => {
+                    setValue("paymentHolder", event.target.value);
+                    if (
+                      event.target.value === "DRIVER" &&
+                      ["CARD", "CHEQUE"].includes(values.paymentMode)
+                    )
+                      setValue("paymentMode", "");
+                    if (
+                      event.target.value === "DRIVER" &&
+                      booking.driver !== "Unassigned"
+                    )
+                      setValue("collectedBy", booking.driver || "");
+                  }}
+                >
+                  <option value="COMPANY">Company / Office</option>
+                  <option value="DRIVER" disabled={!booking.driverId}>
+                    Driver (cash or driver's UPI / bank account)
+                  </option>
+                </select>
+                {!booking.driverId && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Assign a driver to the booking to track money in their
+                    accounts.
+                  </p>
+                )}
+              </label>
               <label>
                 <span className="text-sm font-medium text-slate-700">
                   Received Amount
@@ -915,8 +1220,12 @@ function CloseBookingPage() {
                   <option value="CASH">Cash</option>
                   <option value="UPI">UPI</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="CARD">Card</option>
-                  <option value="CHEQUE">Cheque</option>
+                  {values.paymentHolder !== "DRIVER" && (
+                    <option value="CARD">Card</option>
+                  )}
+                  {values.paymentHolder !== "DRIVER" && (
+                    <option value="CHEQUE">Cheque</option>
+                  )}
                 </select>
                 {errors.paymentMode && (
                   <p className="mt-1 text-xs font-medium text-rose-600">
@@ -963,6 +1272,7 @@ function CloseBookingPage() {
                   className={fieldClass}
                   disabled={!hasAmount(receivedAmount)}
                   placeholder="Name of the person who received payment"
+                  readOnly={values.paymentHolder === "DRIVER"}
                   {...register("collectedBy", {
                     required: hasAmount(receivedAmount)
                       ? "Collector name is required"
@@ -976,6 +1286,114 @@ function CloseBookingPage() {
                 )}
               </label>
             </div>
+            {values.paymentHolder === "DRIVER" && hasAmount(receivedAmount) && (
+              <div className="mt-4 space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <h5 className="font-semibold text-slate-900">
+                  Driver funds and fuel proof
+                </h5>
+                <p className="text-sm text-slate-600">
+                  Collected By identifies the driver responsible for this money.
+                  Accounts records any handover after closing.
+                </p>
+                <label className="block">
+                  <span className="text-sm font-medium">
+                    Fuel spent from this payment
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    min="0"
+                    max={receivedAmount}
+                    step="0.01"
+                    {...register("fuelAmount", {
+                      min: {
+                        value: 0,
+                        message: "Fuel amount cannot be negative",
+                      },
+                      max: {
+                        value: receivedAmount,
+                        message:
+                          "Fuel amount cannot exceed the customer payment",
+                      },
+                      onChange: (event) => {
+                        const amount = Number(event.target.value || 0);
+                        const costField = isVendorVehicle
+                          ? "vendorDeduction"
+                          : "dieselCost";
+                        if (amount > Number(values[costField] || 0))
+                          setValue(costField, amount);
+                      },
+                    })}
+                  />
+                  {errors.fuelAmount && (
+                    <p className="text-sm text-rose-700">
+                      {errors.fuelAmount.message}
+                    </p>
+                  )}
+                </label>
+                <p className="text-xs text-slate-600">
+                  {isVendorVehicle
+                    ? "This fuel amount is included in Vendor Deduction."
+                    : "This fuel amount is included in Total Diesel Cost; it is not an additional expense."}
+                </p>
+                {Number(values.fuelAmount) > 0 && (
+                  <label className="block">
+                    <span className="text-sm font-medium">
+                      Fuel receipt (required)
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      disabled={uploadingReceipt || isSubmitting}
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        setUploadingReceipt(true);
+                        setLoadError("");
+                        setFuelReceipt(null);
+                        try {
+                          setFuelReceipt(
+                            await uploadFuelReceipt(booking.databaseId, file),
+                          );
+                        } catch (error) {
+                          setLoadError(getBookingErrorMessage(error));
+                        } finally {
+                          setUploadingReceipt(false);
+                        }
+                      }}
+                    />
+                    {uploadingReceipt && (
+                      <p className="text-sm">Uploading receipt…</p>
+                    )}
+                    {fuelReceipt && (
+                      <button
+                        type="button"
+                        className="mt-2 text-sm font-semibold text-brand-700"
+                        onClick={() =>
+                          downloadReceipt(fuelReceipt).catch((error) =>
+                            setLoadError(getBookingErrorMessage(error)),
+                          )
+                        }
+                      >
+                        Download uploaded receipt:{" "}
+                        {fuelReceipt.originalFileName}
+                      </button>
+                    )}
+                  </label>
+                )}
+                <SummaryItem label="Customer paid" value={receivedAmount} />
+                <SummaryItem
+                  label="Fuel spent"
+                  value={Number(values.fuelAmount || 0)}
+                />
+                <SummaryItem
+                  label="Balance held by driver"
+                  value={receivedAmount - Number(values.fuelAmount || 0)}
+                  strong
+                />
+              </div>
+            )}
             {hasAmount(receivedAmount) && (
               <div className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
                 <div className="flex justify-between text-slate-600">
@@ -1053,6 +1471,13 @@ function CloseBookingPage() {
                   label="Final Vendor Payable"
                   value={finalVendorPayable}
                 />
+                {values.paymentHolder === "DRIVER" &&
+                  Number(values.fuelAmount) > 0 && (
+                    <SummaryItem
+                      label="Fuel paid from customer payment"
+                      value={Number(values.fuelAmount)}
+                    />
+                  )}
                 <SummaryItem
                   label="Vendor Booking Profit"
                   value={vendorBookingProfit}

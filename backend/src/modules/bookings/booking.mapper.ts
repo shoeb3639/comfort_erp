@@ -1,18 +1,11 @@
 import { toTitleCase } from '../../shared/text/title-case'
 import { BOOKING_STATUS_LABELS } from './booking.constants'
 import type * as repository from './booking.repository'
-import type { DutyEvidence } from './booking.types'
 
 type BookingRecord = NonNullable<Awaited<ReturnType<typeof repository.find>>>
 
 function packageKm(bookingPackage: string) {
   return Number(bookingPackage.match(/\d+/g)?.at(-1) ?? 0)
-}
-
-export function asDutyEvidence(value: unknown): DutyEvidence {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value
-    : {}
 }
 
 export function mapBookingInvoice(
@@ -73,6 +66,24 @@ export function mapBooking(record: BookingRecord | null) {
     id: collection.id,
     collectionDate: collection.collectionDate.toISOString().slice(0, 10),
     amount: Number(collection.amount),
+    paymentHolder: collection.paymentHolder,
+    fuelAmount: Number(collection.fuelAmount),
+    returnedAmount: Number(collection.returnedAmount),
+    driverBalance:
+      collection.paymentHolder === 'DRIVER'
+        ? Math.round(
+            (Number(collection.amount) -
+              Number(collection.fuelAmount) -
+              Number(collection.returnedAmount)) *
+              100,
+          ) / 100
+        : 0,
+    fuelReceipt: collection.fuelReceipt
+      ? {
+          id: collection.fuelReceipt.id,
+          name: collection.fuelReceipt.originalFileName,
+        }
+      : null,
     paymentMode: collection.paymentMode.split('_').map(toTitleCase).join(' '),
     collectedBy: collection.collectedByName,
     receiverName: collection.receiverName,
@@ -101,6 +112,7 @@ export function mapBooking(record: BookingRecord | null) {
     .filter(
       (collection) =>
         collection.paymentMode === 'CASH' &&
+        collection.paymentHolder !== 'DRIVER' &&
         ['PENDING', 'WITH_MANAGER'].includes(collection.status),
     )
     .reduce((total, collection) => total + Number(collection.amount), 0)
@@ -108,7 +120,7 @@ export function mapBooking(record: BookingRecord | null) {
   return {
     ...record,
     databaseId: record.id,
-    id: record.bookingNumber,
+    id: record.bookingNumber || record.id,
     bookingId: record.id,
     customer_type: record.customer.type
       .split('_')
@@ -123,6 +135,9 @@ export function mapBooking(record: BookingRecord | null) {
     duty_package: record.bookingPackage,
     dailyMinimumKm: record.bookingPackage?.startsWith('outstation_min_')
       ? packageKm(record.bookingPackage)
+      : null,
+    includedHours: record.bookingPackage?.startsWith('local_')
+      ? Number(record.bookingPackage.split('_')[1])
       : null,
     includedKm: record.bookingPackage?.startsWith('local_')
       ? packageKm(record.bookingPackage)
@@ -175,7 +190,6 @@ export function mapBooking(record: BookingRecord | null) {
     closingOdometer:
       record.closingOdometer === null ? null : Number(record.closingOdometer),
     dutyCompletionDetails: record.dutyCompletionDetails,
-    dutyEvidence: record.dutyEvidence,
     requiredDutyDocuments: record.requiredDutyDocuments,
     actualDistance:
       record.openingOdometer !== null && record.closingOdometer !== null
@@ -187,6 +201,7 @@ export function mapBooking(record: BookingRecord | null) {
     cancellationReason: record.cancellationReason,
     closeDetails: closure
       ? {
+          localPackageBilling: closure.localPackageBilling,
           billingTripType:
             closure.billingTripType === 'KM_BASED'
               ? 'KM Based'
@@ -211,6 +226,10 @@ export function mapBooking(record: BookingRecord | null) {
           gst: Number(closure.gstAmount),
           totalBillAmount,
           dieselCost: Number(closure.dieselCost),
+          fuelConsumedLitres:
+            closure.fuelConsumedLitres === null
+              ? null
+              : Number(closure.fuelConsumedLitres),
           directVehicleExpense: Number(closure.directVehicleExpense),
           driverCost: Number(closure.driverCost),
           allocatedOfficeExpense: Number(closure.allocatedOfficeExpense),

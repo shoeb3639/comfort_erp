@@ -1,4 +1,12 @@
 import Joi from 'joi'
+
+export const driverReturnSchema = Joi.object({
+  amount: Joi.number().precision(2).greater(0).required(),
+  paymentMode: Joi.string().valid('CASH', 'UPI', 'BANK_TRANSFER').required(),
+  returnDate: Joi.date().iso().required(),
+  referenceNumber: Joi.string().trim().min(3).max(150).required(),
+  remarks: Joi.string().trim().max(5000).allow('', null),
+})
 import { paginationQueryFields } from '../../shared/pagination'
 
 export const referenceValidationSchema = Joi.object({

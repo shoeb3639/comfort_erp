@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Download, MessageCircle, Printer } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { getBooking } from "../../services/bookings";
-import { getCompanyProfile } from "../../services/tenantSetup";
+import {
+  getCompanyLogoUrl,
+  getCompanyProfile,
+} from "../../services/tenantSetup";
 import { createDutySlipPdf, dutySlipFileName } from "./dutySlipPdf";
 
 function date(value) {
@@ -34,14 +37,18 @@ export default function DutySlipPage() {
 
   useEffect(() => {
     Promise.all([getBooking(id), getCompanyProfile()])
-      .then(([booking, profile]) => {
+      .then(async ([booking, profile]) => {
         if (!booking.vehicleId || !booking.driverId) {
           setError(
             "Assign both a vehicle and driver before generating the duty slip.",
           );
           return;
         }
-        setData({ booking, profile });
+        const logoUrl = await getCompanyLogoUrl(
+          profile.id,
+          profile.logoUrl,
+        ).catch(() => profile.logoUrl || "");
+        setData({ booking, profile: { ...profile, logoUrl } });
       })
       .catch((requestError) =>
         setError(
@@ -50,6 +57,14 @@ export default function DutySlipPage() {
         ),
       );
   }, [id]);
+
+  useEffect(
+    () => () => {
+      const logoUrl = data?.profile.logoUrl || "";
+      if (logoUrl.startsWith("blob:")) URL.revokeObjectURL(logoUrl);
+    },
+    [data],
+  );
 
   if (error) {
     return (
@@ -199,16 +214,25 @@ export default function DutySlipPage() {
 
       <article className="duty-slip-page mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white p-8 text-slate-950 shadow-sm">
         <div className="grid grid-cols-[3fr_2.5fr] border border-slate-950">
-          <div className="border-r border-slate-950 px-2 py-1.5">
-            <h1 className="text-3xl font-black tracking-wide">
-              {companyName?.toUpperCase()}
-            </h1>
-            <h2 className="text-xl font-bold">DUTY SLIP</h2>
-            <p className="mt-2 text-sm font-semibold">
-              {[profile.mobile, profile.alternateNumber]
-                .filter(Boolean)
-                .join(", ")}
-            </p>
+          <div className="flex items-center gap-3 border-r border-slate-950 px-2 py-1.5">
+            {profile.logoUrl && (
+              <img
+                src={profile.logoUrl}
+                alt=""
+                className="h-20 w-24 shrink-0 object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-3xl font-black tracking-wide">
+                {companyName?.toUpperCase()}
+              </h1>
+              <h2 className="text-xl font-bold">DUTY SLIP</h2>
+              <p className="mt-2 text-sm font-semibold">
+                {[profile.mobile, profile.alternateNumber]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+            </div>
           </div>
           <div className="grid grid-rows-2">
             <p className="flex items-center border-b border-slate-950 px-2 py-1.5">

@@ -15,6 +15,16 @@ export async function getAccountsFoundation() {
   return (await api.get("/tenant/accounts/foundation", config())).data.data;
 }
 
+export async function recordDriverReturn(collectionId, values) {
+  return (
+    await api.post(
+      `/tenant/accounts/collections/${collectionId}/driver-returns`,
+      { ...values, amount: Number(values.amount) },
+      config(),
+    )
+  ).data.data;
+}
+
 export async function validateAccountReference(referenceNumber) {
   return (
     await api.post(
@@ -162,8 +172,8 @@ export async function getAccountsAudit() {
 }
 
 export async function resolveAuditException(body) {
-  return (await api.patch("/tenant/accounts/audit/resolve", body, config())).data
-    .data;
+  return (await api.patch("/tenant/accounts/audit/resolve", body, config()))
+    .data.data;
 }
 
 export function getAccountsErrorMessage(error) {

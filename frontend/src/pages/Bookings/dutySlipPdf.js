@@ -89,6 +89,7 @@ function logTable(document, dates, startY) {
 export async function createDutySlipPdf(booking, profile) {
   const { jsPDF } = await import("jspdf");
   const document = new jsPDF({ unit: "mm", format: "a4" });
+  const logo = await optionalImageDataUrl(profile.logoUrl);
   const companyName = profile.tradeName || profile.legalName || "Company";
   const contact = [profile.mobile, profile.alternateNumber]
     .filter(Boolean)
@@ -120,14 +121,19 @@ export async function createDutySlipPdf(booking, profile) {
   document.rect(15, 15, 180, 24);
   document.line(102, 15, 102, 39);
   document.line(102, 27, 195, 27);
+  if (logo) document.addImage(logo, 17, 17, 28, 18, undefined, "FAST");
+  const companyTextX = logo ? 48 : 17;
+  const companyTextWidth = logo ? 51 : 82;
   document.setFont("helvetica", "bold");
   document.setFontSize(20);
-  text(document, companyName.toUpperCase(), 17, 24, { maxWidth: 82 });
+  text(document, companyName.toUpperCase(), companyTextX, 24, {
+    maxWidth: companyTextWidth,
+  });
   document.setFontSize(14);
-  text(document, "DUTY SLIP", 17, 31);
+  text(document, "DUTY SLIP", companyTextX, 31);
   document.setFont("helvetica", "normal");
   document.setFontSize(8.5);
-  text(document, contact, 17, 36, { maxWidth: 82 });
+  text(document, contact, companyTextX, 36, { maxWidth: companyTextWidth });
   document.setFontSize(10);
   text(document, `Sr. No : DS-${booking.id}`, 105, 23, { maxWidth: 87 });
   text(document, `Booking Id : ${booking.id}`, 105, 35, { maxWidth: 87 });
@@ -171,4 +177,20 @@ export async function createDutySlipPdf(booking, profile) {
 
 export function dutySlipFileName(booking) {
   return `Duty-Slip-${booking.id}.pdf`;
+}
+async function optionalImageDataUrl(url) {
+  if (!url) return null;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
 }

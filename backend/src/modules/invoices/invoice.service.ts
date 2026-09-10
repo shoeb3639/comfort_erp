@@ -41,13 +41,22 @@ export interface InvoiceInput {
   }>
 }
 
-function financialYear(date = new Date()) {
-  const startYear =
-    date.getUTCMonth() >= 3 ? date.getUTCFullYear() : date.getUTCFullYear() - 1
-  return `${startYear}-${String(startYear + 1).slice(-2)}`
-}
-
 export function mapInvoice(invoice: InvoiceRecord) {
+  const payments = new Map(
+    invoice.collections.map((entry) => [entry.id, Number(entry.amount)]),
+  )
+  for (const entry of invoice.booking?.collections ?? []) {
+    if (!entry.invoiceId || entry.invoiceId === invoice.id)
+      payments.set(entry.id, Number(entry.amount))
+  }
+  const totalCollected = [...payments.values()].reduce(
+    (total, amount) => total + amount,
+    0,
+  )
+  const pendingBalance =
+    invoice.status === 'CANCELLED'
+      ? 0
+      : Math.max(0, Number(invoice.netPayable) - totalCollected)
   const bank = invoice.tenant.bankAccounts[0]
   const gst = invoice.tenant.gstRegistrations[0]
   return {
@@ -57,6 +66,8 @@ export function mapInvoice(invoice: InvoiceRecord) {
       ? invoice.displaySnapshot
       : {}),
     id: invoice.id,
+    totalCollected,
+    pendingBalance,
     invoice_source: invoice.bookingId ? 'booking' : 'direct',
     invoiceSource: invoice.bookingId ? 'booking' : 'direct',
     invoiceNumber:
@@ -376,7 +387,6 @@ export async function generate(context: Context, invoiceId: string) {
         context.tenantId,
         invoiceId,
         context.userId,
-        financialYear(),
       )
       if (!invoice)
         throw new AppError(
@@ -391,6 +401,12 @@ export async function generate(context: Context, invoiceId: string) {
         (error.code === 'P2002' || error.code === 'P2034')
       )
         continue
+      if (error instanceof Error && error.message === 'INVALID_INVOICE_PREFIX')
+        throw new AppError(
+          'Invoice prefix must contain 1 to 3 uppercase letters.',
+          'INVALID_INVOICE_PREFIX',
+          400,
+        )
       throw error
     }
   }

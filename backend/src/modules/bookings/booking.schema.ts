@@ -102,6 +102,11 @@ export const cancellationSchema = Joi.object({
 })
 
 export const closeBookingSchema = Joi.object({
+  openingTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/),
+  closingDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+  closingTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/),
+  extraKmRate: money,
+  extraHourRate: money,
   billingTripType: Joi.string().valid('KM_BASED', 'PACKAGE_BASED').required(),
   startKm: money.allow(null),
   endKm: money.allow(null),
@@ -113,6 +118,7 @@ export const closeBookingSchema = Joi.object({
   otherRecoverableCharges: money.default(0),
   gst: money.default(0),
   dieselCost: money.default(0),
+  fuelConsumedLitres: money.allow(null),
   directVehicleExpense: money.default(0),
   driverCost: money.default(0),
   allocatedOfficeExpense: money.default(0),
@@ -120,6 +126,9 @@ export const closeBookingSchema = Joi.object({
   vendorExtraCharges: money.default(0),
   vendorDeduction: money.default(0),
   paymentAmount: money.default(0),
+  paymentHolder: Joi.string().valid('COMPANY', 'DRIVER').default('COMPANY'),
+  fuelAmount: money.default(0),
+  fuelReceiptId: Joi.string().uuid().allow(null),
   paymentMode: Joi.string()
     .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
     .when('paymentAmount', {
@@ -191,13 +200,10 @@ export const collectionVerificationSchema = Joi.object({
 export const bookingParamsSchema = Joi.object({
   bookingId: Joi.string()
     .trim()
-    .pattern(/^(?:[0-9a-f-]{36}|[A-Z0-9]{4}-\d{6})$/i)
-    .required(),
-})
-
-export const dutyEvidenceParamsSchema = bookingParamsSchema.keys({
-  evidenceType: Joi.string()
-    .valid('opening-meter', 'closing-meter', 'duty-slip', 'toll-parking')
+    .max(36)
+    .pattern(
+      /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|\d{2}-\d{7,}|[A-Z0-9]{4}-\d{6}|CMF\d{2}-(?:\d{5,6}|\d{4}-\d{3}))$/i,
+    )
     .required(),
 })
 
@@ -218,12 +224,4 @@ export const bookingQuerySchema = Joi.object({
     'CANCELLED',
   ),
   view: Joi.string().valid('ACTIVE', 'CLOSED'),
-})
-
-export const bookingPrefixSchema = Joi.object({
-  bookingPrefix: Joi.string()
-    .trim()
-    .uppercase()
-    .pattern(/^[A-Z0-9]{4}$/)
-    .required(),
 })

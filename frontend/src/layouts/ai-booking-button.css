@@ -1,0 +1,61 @@
+.ai-booking-button {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 0 14px;
+  color: #6d28d9;
+  background: #ddd6fe;
+  box-shadow: 0 2px 10px rgb(139 92 246 / 12%);
+}
+.ai-booking-button::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  width: 220%;
+  aspect-ratio: 1;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 230deg,
+    #c4b5fd 260deg,
+    #8b5cf6 290deg,
+    #38bdf8 320deg,
+    transparent 360deg
+  );
+  animation: ai-booking-border 3.5s linear infinite;
+}
+.ai-booking-button::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  z-index: -1;
+  border-radius: 8.5px;
+  background: linear-gradient(115deg, #fff, #faf5ff);
+}
+.ai-booking-button-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-booking-button:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 3px;
+}
+@keyframes ai-booking-border {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-booking-button::before {
+    animation: none;
+  }
+}

@@ -48,9 +48,6 @@ export function bookingPayload(values) {
         ? values.ratePerKm
         : values.fixedAmount,
     ),
-    requiredDutyDocuments: values.supportingDocumentsRequired
-      ? values.requiredDutyDocuments || []
-      : [],
     notes: values.notes || null,
   };
 }
@@ -133,44 +130,6 @@ export async function completeBookingDuty(id, values) {
   ).data.data;
 }
 
-export async function uploadDutyEvidence(id, evidenceType, file) {
-  return (
-    await api.post(
-      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
-      file,
-      {
-        headers: {
-          ...config().headers,
-          "Content-Type": file.type,
-          "X-File-Name": encodeURIComponent(file.name),
-        },
-      },
-    )
-  ).data.data;
-}
-
-export async function openDutyEvidence(id, evidenceType) {
-  const preview = window.open("", "_blank");
-  try {
-    const response = await api.get(
-      `/tenant/bookings/${id}/duty-evidence/${evidenceType}`,
-      { ...config(), responseType: "blob" },
-    );
-    const url = URL.createObjectURL(response.data);
-    if (preview) preview.location.href = url;
-    else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.target = "_blank";
-      link.click();
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-  } catch (error) {
-    preview?.close();
-    throw error;
-  }
-}
-
 export async function cancelBooking(id, reason) {
   return (
     await api.patch(`/tenant/bookings/${id}/cancel`, { reason }, config())
@@ -180,6 +139,19 @@ export async function cancelBooking(id, reason) {
 export async function closeBooking(id, values) {
   const paymentAmount = Number(values.paymentAmount || 0);
   const payload = {
+    ...(values.closingTime
+      ? {
+          openingTime: values.openingTime,
+          closingDate: values.closingDate,
+          closingTime: values.closingTime,
+        }
+      : {}),
+    ...(values.extraKmRate !== "" && values.extraKmRate != null
+      ? { extraKmRate: Number(values.extraKmRate) }
+      : {}),
+    ...(values.extraHourRate !== "" && values.extraHourRate != null
+      ? { extraHourRate: Number(values.extraHourRate) }
+      : {}),
     billingTripType:
       values.billingTripType === "KM Based" ? "KM_BASED" : "PACKAGE_BASED",
     startKm: values.startKm === "" ? null : Number(values.startKm),
@@ -193,6 +165,10 @@ export async function closeBooking(id, values) {
     otherRecoverableCharges: Number(values.otherRecoverableCharges || 0),
     gst: Number(values.gst || 0),
     dieselCost: Number(values.dieselCost || 0),
+    fuelConsumedLitres:
+      values.fuelConsumedLitres === "" || values.fuelConsumedLitres == null
+        ? null
+        : Number(values.fuelConsumedLitres),
     directVehicleExpense: Number(values.directVehicleExpense || 0),
     driverCost: Number(values.driverCost || 0),
     allocatedOfficeExpense: Number(values.allocatedOfficeExpense || 0),
@@ -200,6 +176,18 @@ export async function closeBooking(id, values) {
     vendorExtraCharges: Number(values.vendorExtraCharges || 0),
     vendorDeduction: Number(values.vendorDeduction || 0),
     paymentAmount,
+    paymentHolder:
+      paymentAmount > 0 ? values.paymentHolder || "COMPANY" : "COMPANY",
+    fuelAmount:
+      paymentAmount > 0 && values.paymentHolder === "DRIVER"
+        ? Number(values.fuelAmount || 0)
+        : 0,
+    fuelReceiptId:
+      paymentAmount > 0 &&
+      values.paymentHolder === "DRIVER" &&
+      Number(values.fuelAmount) > 0
+        ? values.fuelReceiptId || null
+        : null,
     paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
     paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
     paymentReference: values.paymentReference || null,
@@ -275,16 +263,6 @@ export async function voidBookingCollection(bookingId, collectionId) {
       `/tenant/bookings/${bookingId}/collections/${collectionId}`,
       config(),
     )
-  ).data.data;
-}
-
-export async function getBookingSettings() {
-  return (await api.get("/tenant/bookings/settings", config())).data.data;
-}
-
-export async function updateBookingSettings(bookingPrefix) {
-  return (
-    await api.patch("/tenant/bookings/settings", { bookingPrefix }, config())
   ).data.data;
 }
 

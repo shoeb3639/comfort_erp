@@ -36,6 +36,13 @@ driverRouter.post(
   controller.create,
 )
 driverRouter.get(
+  '/:driverId/ledger',
+  authorizePermission('driver.view'),
+  authorizePermission('accounts.ledger.view'),
+  validateParams(driverParamsSchema),
+  controller.ledger,
+)
+driverRouter.get(
   '/:driverId',
   authorizePermission('driver.view'),
   validateParams(driverParamsSchema),

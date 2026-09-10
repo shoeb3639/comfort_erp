@@ -129,6 +129,13 @@ export const createOwnerSchema = Joi.object({
 const optionalText = (maximum: number) =>
   Joi.string().trim().max(maximum).empty('').allow(null)
 
+const invoicePrefix = Joi.string()
+  .trim()
+  .uppercase()
+  .pattern(/^[A-Z]{1,3}$/)
+  .empty('')
+  .allow(null)
+
 export const updateTenantSchema = Joi.object({
   legalName: Joi.string().trim().min(2).max(200),
   tradeName: optionalText(200),
@@ -152,7 +159,7 @@ export const updateTenantSchema = Joi.object({
   timeZone: Joi.string().trim().min(2).max(100),
   financialYearStartMonth: Joi.number().integer().min(1).max(12),
   dateFormat: Joi.string().trim().min(2).max(30),
-  invoicePrefix: optionalText(30),
+  invoicePrefix,
   invoiceNumberLength: Joi.number().integer().min(1).max(12),
 }).min(1)
 

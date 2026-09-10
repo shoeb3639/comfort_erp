@@ -82,6 +82,31 @@ async function patch(path, body) {
   return request("patch", path, body);
 }
 
+async function storageRequest(options) {
+  const session = readStoredSession();
+  try {
+    return await api.request({
+      ...options,
+      url: `/tenant/files${options.path || ""}`,
+      ...config(session?.accessToken),
+    });
+  } catch (error) {
+    if (error.response?.status !== 401 || !session?.refreshToken) throw error;
+
+    try {
+      const refreshed = await getFreshSession(session);
+      return await api.request({
+        ...options,
+        url: `/tenant/files${options.path || ""}`,
+        ...config(refreshed.accessToken),
+      });
+    } catch (refreshError) {
+      clearSession();
+      throw refreshError;
+    }
+  }
+}
+
 export const getCompanyProfile = () => get("/company-profile");
 export const updateCompanyProfile = (body) => patch("/company-profile", body);
 export const getTaxSettings = () => get("/tax-settings");
@@ -89,6 +114,30 @@ export const updateTaxSettings = (body) => patch("/tax-settings", body);
 export const getInvoiceSettings = () => get("/invoice-settings");
 export const updateInvoiceSettings = (body) => patch("/invoice-settings", body);
 export const getOnboarding = () => get("/onboarding");
+
+export async function uploadCompanyLogo(tenantId, file) {
+  const body = new FormData();
+  body.append("entityType", "COMPANY");
+  body.append("entityId", tenantId);
+  body.append("documentType", "LOGO");
+  body.append("file", file);
+  return (await storageRequest({ method: "post", data: body })).data.data;
+}
+
+export async function getCompanyLogoUrl(tenantId, fallbackUrl = "") {
+  const response = await storageRequest({
+    method: "get",
+    params: { entityType: "COMPANY", entityId: tenantId, documentType: "LOGO" },
+  });
+  const logo = response.data.data?.[0];
+  if (!logo) return fallbackUrl || "";
+  const fileResponse = await storageRequest({
+    method: "get",
+    path: `/${logo.id}/view`,
+    responseType: "blob",
+  });
+  return URL.createObjectURL(fileResponse.data);
+}
 
 export const getLocations = () => get("/locations");
 export const createLocation = (body) => post("/locations", body);

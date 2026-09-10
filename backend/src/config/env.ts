@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import Joi from 'joi'
+import { isAbsolute, relative, resolve } from 'node:path'
 import { RATE_LIMIT_DEFAULTS } from '../shared/security/rate-limit.constants'
 
 interface EnvironmentVariables {
@@ -19,6 +20,11 @@ interface EnvironmentVariables {
   RATE_LIMIT_GLOBAL_MAX: number
   RATE_LIMIT_AUTH_WINDOW_MS: number
   RATE_LIMIT_AUTH_MAX: number
+  STORAGE_DRIVER: 'local'
+  STORAGE_LOCAL_ROOT: string
+  STORAGE_TEMP_ROOT: string
+  STORAGE_MAX_FILE_SIZE_MB: number
+  STORAGE_MAX_FILES_PER_REQUEST: number
 }
 
 const envSchema = Joi.object<EnvironmentVariables>({
@@ -60,6 +66,15 @@ const envSchema = Joi.object<EnvironmentVariables>({
     .min(1)
     .max(10_000)
     .default(RATE_LIMIT_DEFAULTS.authentication.limit),
+  STORAGE_DRIVER: Joi.string().valid('local').default('local'),
+  STORAGE_LOCAL_ROOT: Joi.string().trim().min(1).default('./storage'),
+  STORAGE_TEMP_ROOT: Joi.string().trim().min(1).default('./storage-temp'),
+  STORAGE_MAX_FILE_SIZE_MB: Joi.number().integer().min(1).max(100).default(10),
+  STORAGE_MAX_FILES_PER_REQUEST: Joi.number()
+    .integer()
+    .min(1)
+    .max(20)
+    .default(5),
 })
   .unknown(true)
   .required()
@@ -76,6 +91,29 @@ if (validationResult.error) {
 }
 
 const validatedEnvironment = validationResult.value
+
+if (validatedEnvironment.NODE_ENV === 'production') {
+  const applicationRoot = resolve(process.cwd())
+  for (const [name, value] of [
+    ['STORAGE_LOCAL_ROOT', validatedEnvironment.STORAGE_LOCAL_ROOT],
+    ['STORAGE_TEMP_ROOT', validatedEnvironment.STORAGE_TEMP_ROOT],
+  ] as const) {
+    const resolved = resolve(value)
+    const relativeToApplication = relative(applicationRoot, resolved)
+    if (
+      !isAbsolute(value) ||
+      (!relativeToApplication.startsWith('..') && relativeToApplication !== '')
+    )
+      throw new Error(
+        `${name} must be an absolute path outside the application directory in production`,
+      )
+  }
+}
+if (
+  resolve(validatedEnvironment.STORAGE_LOCAL_ROOT) ===
+  resolve(validatedEnvironment.STORAGE_TEMP_ROOT)
+)
+  throw new Error('STORAGE_LOCAL_ROOT and STORAGE_TEMP_ROOT must be different')
 const databaseName = decodeURIComponent(
   new URL(validatedEnvironment.DATABASE_URL).pathname.replace(/^\//, ''),
 )
@@ -115,6 +153,13 @@ interface Environment {
     global: { windowMs: number; limit: number }
     authentication: { windowMs: number; limit: number }
   }
+  storage: {
+    driver: 'local'
+    localRoot: string
+    tempRoot: string
+    maxFileSizeBytes: number
+    maxFilesPerRequest: number
+  }
 }
 
 export const env: Environment = Object.freeze({
@@ -139,5 +184,13 @@ export const env: Environment = Object.freeze({
       windowMs: validatedEnvironment.RATE_LIMIT_AUTH_WINDOW_MS,
       limit: validatedEnvironment.RATE_LIMIT_AUTH_MAX,
     }),
+  }),
+  storage: Object.freeze({
+    driver: validatedEnvironment.STORAGE_DRIVER,
+    localRoot: validatedEnvironment.STORAGE_LOCAL_ROOT,
+    tempRoot: validatedEnvironment.STORAGE_TEMP_ROOT,
+    maxFileSizeBytes:
+      validatedEnvironment.STORAGE_MAX_FILE_SIZE_MB * 1024 * 1024,
+    maxFilesPerRequest: validatedEnvironment.STORAGE_MAX_FILES_PER_REQUEST,
   }),
 })

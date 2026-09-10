@@ -103,7 +103,6 @@ function DetailModal({
     depositDate: new Date().toISOString().slice(0, 10),
     depositMode: "CASH_DEPOSIT",
     bankReference: "",
-    attachmentName: "",
     depositedBy: userName || "Accounts User",
     verifiedAmount: deposit.depositedAmount,
     verifiedBy: userName || "Accounts User",
@@ -127,7 +126,6 @@ function DetailModal({
           depositDate: form.depositDate,
           depositMode: form.depositMode,
           bankReference: form.bankReference,
-          attachmentName: form.attachmentName || null,
           depositedBy: form.depositedBy,
           remarks: form.remarks || null,
         });
@@ -162,7 +160,12 @@ function DetailModal({
     ["Deposit Mode", deposit.depositModeLabel || "—"],
     ["Bank Reference", deposit.bankReference || "—"],
     ["Deposited By", deposit.depositedBy || "—"],
-    ["Verified Amount", deposit.verifiedAmount === null ? "—" : `₹ ${money(deposit.verifiedAmount)}`],
+    [
+      "Verified Amount",
+      deposit.verifiedAmount === null
+        ? "—"
+        : `₹ ${money(deposit.verifiedAmount)}`,
+    ],
     ["Verified By", deposit.verifiedBy || "—"],
     ["Mismatch", `₹ ${money(deposit.mismatchAmount)}`],
   ];
@@ -297,7 +300,9 @@ function DetailModal({
                       />
                     </label>
                     <label>
-                      <span className="text-sm font-semibold">Deposit Date</span>
+                      <span className="text-sm font-semibold">
+                        Deposit Date
+                      </span>
                       <input
                         required
                         type="date"
@@ -312,7 +317,9 @@ function DetailModal({
                       />
                     </label>
                     <label>
-                      <span className="text-sm font-semibold">Deposit Mode</span>
+                      <span className="text-sm font-semibold">
+                        Deposit Mode
+                      </span>
                       <select
                         className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
                         value={form.depositMode}
@@ -357,20 +364,6 @@ function DetailModal({
                           setForm((current) => ({
                             ...current,
                             depositedBy: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      <span className="text-sm font-semibold">Attachment</span>
-                      <input
-                        type="file"
-                        className="mt-2 block w-full text-sm"
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            attachmentName:
-                              event.target.files?.[0]?.name || "",
                           }))
                         }
                       />
@@ -536,7 +529,10 @@ export default function BookingCashDepositPage() {
   async function changed(updated, action) {
     setDetail(updated);
     setNotice({
-      tone: action === "verify" && updated.status === "MISMATCH" ? "warning" : "success",
+      tone:
+        action === "verify" && updated.status === "MISMATCH"
+          ? "warning"
+          : "success",
       message:
         updated.status === "MISMATCH"
           ? "Deposit mismatch recorded for resolution."
@@ -558,12 +554,35 @@ export default function BookingCashDepositPage() {
         onDismiss={() => setNotice(null)}
       />
       <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <SummaryCard title="Total Cash Collected" value={summary.totalCashCollected} />
-        <SummaryCard title="Cash With Manager" value={summary.cashWithManager} tone="warning" />
-        <SummaryCard title="Deposited Amount" value={summary.depositedAmount} tone="success" />
-        <SummaryCard title="Verified Amount" value={summary.verifiedAmount} tone="success" />
-        <SummaryCard title="Pending Deposit" value={summary.pendingDeposit} tone="warning" />
-        <SummaryCard title="Mismatch Amount" value={summary.mismatchAmount} tone="danger" />
+        <SummaryCard
+          title="Total Cash Collected"
+          value={summary.totalCashCollected}
+        />
+        <SummaryCard
+          title="Cash With Manager"
+          value={summary.cashWithManager}
+          tone="warning"
+        />
+        <SummaryCard
+          title="Deposited Amount"
+          value={summary.depositedAmount}
+          tone="success"
+        />
+        <SummaryCard
+          title="Verified Amount"
+          value={summary.verifiedAmount}
+          tone="success"
+        />
+        <SummaryCard
+          title="Pending Deposit"
+          value={summary.pendingDeposit}
+          tone="warning"
+        />
+        <SummaryCard
+          title="Mismatch Amount"
+          value={summary.mismatchAmount}
+          tone="danger"
+        />
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
@@ -584,7 +603,10 @@ export default function BookingCashDepositPage() {
             placeholder="Search booking or customer"
             value={filters.search}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, search: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                search: event.target.value,
+              }))
             }
           />
           <input
@@ -592,30 +614,43 @@ export default function BookingCashDepositPage() {
             placeholder="Booking ID"
             value={filters.booking}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, booking: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                booking: event.target.value,
+              }))
             }
           />
           <select
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             value={filters.status}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, status: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                status: event.target.value,
+              }))
             }
           >
             <option value="">All statuses</option>
-            {["COLLECTED", "WITH_MANAGER", "DEPOSITED", "VERIFIED", "MISMATCH"].map(
-              (status) => (
-                <option key={status} value={status}>
-                  {label(status)}
-                </option>
-              ),
-            )}
+            {[
+              "COLLECTED",
+              "WITH_MANAGER",
+              "DEPOSITED",
+              "VERIFIED",
+              "MISMATCH",
+            ].map((status) => (
+              <option key={status} value={status}>
+                {label(status)}
+              </option>
+            ))}
           </select>
           <select
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             value={filters.managerId}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, managerId: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                managerId: event.target.value,
+              }))
             }
           >
             <option value="">All receiver managers</option>
@@ -629,7 +664,10 @@ export default function BookingCashDepositPage() {
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             value={filters.customerId}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, customerId: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                customerId: event.target.value,
+              }))
             }
           >
             <option value="">All customers</option>
@@ -644,7 +682,10 @@ export default function BookingCashDepositPage() {
             type="date"
             value={filters.dateFrom}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, dateFrom: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                dateFrom: event.target.value,
+              }))
             }
           />
           <input
@@ -652,7 +693,10 @@ export default function BookingCashDepositPage() {
             type="date"
             value={filters.dateTo}
             onChange={(event) =>
-              setFilters((current) => ({ ...current, dateTo: event.target.value }))
+              setFilters((current) => ({
+                ...current,
+                dateTo: event.target.value,
+              }))
             }
           />
           <div className="flex gap-2">

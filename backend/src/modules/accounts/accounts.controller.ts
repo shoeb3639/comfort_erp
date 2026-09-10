@@ -3,6 +3,28 @@ import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './accounts.service'
 import * as operations from './accounts.operations'
+import {
+  receiveDriverReturn,
+  type DriverReturnInput,
+} from '../bookings/driver-return.service'
+
+export const recordDriverReturn: RequestHandler = async (request, response) => {
+  const { tenantId, userId } = context(request)
+  await receiveDriverReturn(
+    tenantId,
+    userId,
+    String(request.params.collectionId),
+    request.body as DriverReturnInput,
+  )
+  response.json({
+    success: true,
+    message: 'Driver return received',
+    data: await service.getCollection(
+      tenantId,
+      String(request.params.collectionId),
+    ),
+  })
+}
 import type {
   CreateFundReleaseInput,
   CreateManagerLedgerInput,

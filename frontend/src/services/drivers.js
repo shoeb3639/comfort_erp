@@ -17,3 +17,5 @@ export const updateDriver = async (id, payload) =>
   (await api.patch(`/tenant/drivers/${id}`, payload, config())).data.data;
 export const deleteDriver = (id) =>
   api.delete(`/tenant/drivers/${id}`, config());
+export const getDriverLedger = async (id) =>
+  (await api.get(`/tenant/drivers/${id}/ledger`, config())).data.data;

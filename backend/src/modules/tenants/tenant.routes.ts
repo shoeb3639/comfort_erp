@@ -14,6 +14,9 @@ import { bookingRouter } from '../bookings/booking.routes'
 import { invoiceRouter } from '../invoices/invoice.routes'
 import { accountsRouter } from '../accounts/accounts.routes'
 import { reportRouter } from '../reports/report.routes'
+import { storageRouter } from '../storage/storage.routes'
+
+import { dashboardRouter } from '../dashboard/dashboard.routes'
 
 export const tenantRouter = Router()
 
@@ -36,6 +39,8 @@ tenantRouter.use('/bookings', bookingRouter)
 tenantRouter.use('/invoices', invoiceRouter)
 tenantRouter.use('/accounts', accountsRouter)
 tenantRouter.use('/reports', reportRouter)
+tenantRouter.use('/files', storageRouter)
+tenantRouter.use('/dashboard', dashboardRouter)
 
 tenantRouter.get(
   '/access',

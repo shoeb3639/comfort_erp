@@ -317,9 +317,9 @@ export function ProgressList({ title, subtitle, data }) {
   )
 }
 
-export function DataTableWidget({ title, subtitle, columns, rows }) {
+export function DataTableWidget({ title, subtitle, columns, rows, action, emptyMessage = 'No records available' }) {
   return (
-    <WidgetCard title={title} subtitle={subtitle} className="overflow-hidden">
+    <WidgetCard title={title} subtitle={subtitle} action={action} className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[620px] text-left text-sm">
           <thead>
@@ -343,7 +343,7 @@ export function DataTableWidget({ title, subtitle, columns, rows }) {
             )) : (
               <tr>
                 <td className="px-3 py-6 text-center text-sm text-slate-500" colSpan={columns.length}>
-                  No records available
+                  {emptyMessage}
                 </td>
               </tr>
             )}
@@ -357,7 +357,7 @@ export function DataTableWidget({ title, subtitle, columns, rows }) {
 export function CashFlowWidget({ title, subtitle, steps, cards }) {
   return (
     <WidgetCard title={title} subtitle={subtitle}>
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="dashboard-mobile-cards grid gap-3 md:grid-cols-5">
         {steps.map((step, index) => (
           <div key={step.label} className="flex items-center gap-3 md:block">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
@@ -365,12 +365,12 @@ export function CashFlowWidget({ title, subtitle, steps, cards }) {
               <p className="mt-2 text-sm font-semibold text-slate-950">{step.value}</p>
             </div>
             {index < steps.length - 1 && (
-              <span className="text-slate-300 md:mt-3 md:block md:text-center">↓</span>
+              <span className="inline-block -rotate-90 text-slate-300 md:mt-3 md:block md:rotate-0 md:text-center">↓</span>
             )}
           </div>
         ))}
       </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="dashboard-mobile-cards mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
           <div key={card.label} className="rounded-lg border border-slate-100 bg-white p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{card.label}</p>
@@ -409,7 +409,7 @@ export function TimelineWidget({ title, subtitle, items }) {
 export function AlertList({ title, subtitle, alerts }) {
   return (
     <WidgetCard title={title} subtitle={subtitle}>
-      <div className="space-y-3">
+      <div className="dashboard-mobile-cards space-y-3">
         {alerts.map((alert) => (
           <div key={alert.id} className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
             <span className={cx('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', alert.iconTone)}>

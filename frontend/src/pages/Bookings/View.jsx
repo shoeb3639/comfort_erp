@@ -222,6 +222,33 @@ function BookingViewPage() {
         </Section>
       </div>
 
+      {booking.closeDetails?.localPackageBilling && (
+        <Section title="Local Package Closing">
+          <div className="grid gap-4 md:grid-cols-3">
+            <ReadOnlyField
+              label="Opening Time"
+              value={`${booking.closeDetails.localPackageBilling.startDate} ${booking.closeDetails.localPackageBilling.openingTime}`}
+            />
+            <ReadOnlyField
+              label="Closing Time"
+              value={`${booking.closeDetails.localPackageBilling.closingDate} ${booking.closeDetails.localPackageBilling.closingTime}`}
+            />
+            <ReadOnlyField
+              label="Duration"
+              value={`${Math.floor(booking.closeDetails.localPackageBilling.totalMinutes / 60)}h ${booking.closeDetails.localPackageBilling.totalMinutes % 60}m`}
+            />
+            <ReadOnlyField
+              label="Extra Kilometres"
+              value={`${booking.closeDetails.localPackageBilling.extraKm} km · ₹ ${money(booking.closeDetails.localPackageBilling.extraKmCharge)}`}
+            />
+            <ReadOnlyField
+              label="Extra Hours"
+              value={`${Math.floor(booking.closeDetails.localPackageBilling.extraMinutes / 60)}h ${booking.closeDetails.localPackageBilling.extraMinutes % 60}m · ₹ ${money(booking.closeDetails.localPackageBilling.extraHourCharge)}`}
+            />
+          </div>
+        </Section>
+      )}
+
       <Section title="Duty Execution">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReadOnlyField
