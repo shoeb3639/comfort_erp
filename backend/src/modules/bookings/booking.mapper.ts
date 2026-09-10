@@ -136,6 +136,9 @@ export function mapBooking(record: BookingRecord | null) {
     dailyMinimumKm: record.bookingPackage?.startsWith('outstation_min_')
       ? packageKm(record.bookingPackage)
       : null,
+    includedHours: record.bookingPackage?.startsWith('local_')
+      ? Number(record.bookingPackage.split('_')[1])
+      : null,
     includedKm: record.bookingPackage?.startsWith('local_')
       ? packageKm(record.bookingPackage)
       : null,
@@ -198,6 +201,7 @@ export function mapBooking(record: BookingRecord | null) {
     cancellationReason: record.cancellationReason,
     closeDetails: closure
       ? {
+          localPackageBilling: closure.localPackageBilling,
           billingTripType:
             closure.billingTripType === 'KM_BASED'
               ? 'KM Based'

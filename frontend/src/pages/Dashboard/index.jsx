@@ -15,7 +15,6 @@ import { listDrivers } from "../../services/drivers";
 import { listInvoices } from "../../services/invoices";
 import { getCompanyProfile } from "../../services/tenantSetup";
 import {
-  AlertList,
   Badge,
   BarChart,
   CashFlowWidget,
@@ -501,27 +500,6 @@ function buildDashboardData(source) {
       metricRecord("Individual Outstanding", formatCurrency(retailOutstanding)),
     ],
     vehiclePerformance,
-    profitCards: [
-      metricRecord(
-        "Average Profit Per Booking",
-        formatCurrency(
-          bookingProfitRows.length
-            ? totalBookingProfit / bookingProfitRows.length
-            : 0,
-        ),
-      ),
-      metricRecord(
-        "Today's Booking Profit",
-        formatCurrency(todayVehicleProfit),
-      ),
-      metricRecord("Monthly Booking Profit", formatCurrency(monthlyProfit)),
-    ],
-    topProfitableBookings: [...bookingProfitRows]
-      .sort((a, b) => b.profit - a.profit)
-      .slice(0, 5),
-    lowestProfitBookings: [...bookingProfitRows]
-      .sort((a, b) => a.profit - b.profit)
-      .slice(0, 5),
     managerCards: [
       metricRecord("Current Balance", formatCurrency(managerBalance)),
       metricRecord("Today's Expenses", formatCurrency(todayExpenseAmount)),
@@ -543,19 +521,31 @@ function buildDashboardData(source) {
     ),
     expenseChart: asChartData(categoryTotals),
     expenseCards: [
-      metricRecord("Today's Expense", formatCurrency(todayExpenseAmount)),
-      metricRecord("Monthly Expense", formatCurrency(monthlyExpense)),
+      metricRecord("Total Expenses Today", formatCurrency(todayExpenseAmount)),
+      metricRecord("Total Expenses This Month", formatCurrency(monthlyExpense)),
       metricRecord(
-        "Fuel %",
-        `${expenseTotal ? Math.round((fuelTotal / expenseTotal) * 100) : 0}%`,
+        "Office Expenses Today",
+        formatCurrency(
+          sum(
+            todayExpenses.filter(
+              (expense) =>
+                normalizeExpenseCategory(expense.category) === "Office",
+            ),
+            (expense) => parseAmount(expense.amount),
+          ),
+        ),
       ),
       metricRecord(
-        "Office %",
-        `${expenseTotal ? Math.round((officeTotal / expenseTotal) * 100) : 0}%`,
-      ),
-      metricRecord(
-        "Driver %",
-        `${expenseTotal ? Math.round((driverTotal / expenseTotal) * 100) : 0}%`,
+        "Office Expenses This Month",
+        formatCurrency(
+          sum(
+            monthExpenses.filter(
+              (expense) =>
+                normalizeExpenseCategory(expense.category) === "Office",
+            ),
+            (expense) => parseAmount(expense.amount),
+          ),
+        ),
       ),
     ],
     fuelCards: [
@@ -604,74 +594,6 @@ function buildDashboardData(source) {
       "date",
       (expense) => parseAmount(expense.amount),
     ),
-    officeCards: [
-      metricRecord(
-        "Office Expense Today",
-        formatCurrency(
-          sum(
-            todayExpenses.filter(
-              (expense) =>
-                normalizeExpenseCategory(expense.category) === "Office",
-            ),
-            (expense) => parseAmount(expense.amount),
-          ),
-        ),
-      ),
-      metricRecord(
-        "Month Expense",
-        formatCurrency(
-          sum(
-            monthExpenses.filter(
-              (expense) =>
-                normalizeExpenseCategory(expense.category) === "Office",
-            ),
-            (expense) => parseAmount(expense.amount),
-          ),
-        ),
-      ),
-      metricRecord("Pending Allocation", formatCurrency(officeTotal)),
-      metricRecord("Allocated Expense", formatCurrency(0)),
-    ],
-    driverCards: [
-      metricRecord(
-        "Drivers Working Today",
-        new Set(todayBookings.map((booking) => booking.driver).filter(Boolean))
-          .size,
-      ),
-      metricRecord("Pending Salary", formatCurrency(0)),
-      metricRecord("Advance Outstanding", formatCurrency(0)),
-      metricRecord(
-        "Top Driver by Revenue",
-        Object.entries(
-          amountBy(
-            bookings,
-            (booking) => booking.driver,
-            (booking) => parseAmount(booking.fixedAmount || booking.amount),
-          ),
-        ).sort((a, b) => b[1] - a[1])[0]?.[0] || "-",
-      ),
-      metricRecord(
-        "Lowest Performing Driver",
-        Object.entries(
-          amountBy(
-            bookings,
-            (booking) => booking.driver,
-            (booking) => parseAmount(booking.fixedAmount || booking.amount),
-          ),
-        ).sort((a, b) => a[1] - b[1])[0]?.[0] || "-",
-      ),
-    ],
-    partnerCards: [
-      metricRecord(
-        "Partner Withdrawals",
-        formatCurrency(categoryTotals["Partner Withdrawal"] || 0),
-      ),
-      metricRecord("Current Partner Balance", formatCurrency(0)),
-      metricRecord(
-        "Pending Settlement",
-        partners.filter((partner) => partner.status !== "Inactive").length,
-      ),
-    ],
     cashFlow: {
       steps: [
         {
@@ -696,30 +618,6 @@ function buildDashboardData(source) {
         ),
       ],
     },
-    alerts: [
-      {
-        id: "pending-collections",
-        title: "Pending collections",
-        description: `${pendingInvoices.length} invoices are not fully collected.`,
-        iconTone: "bg-amber-100 text-amber-700",
-      },
-      {
-        id: "cash-deposit",
-        title: "Cash deposit control",
-        description: deposits.length
-          ? "Booking cash deposit records are available for verification."
-          : "No booking cash deposit records yet.",
-        iconTone: "bg-sky-100 text-sky-700",
-      },
-      {
-        id: "audit",
-        title: "Audit exceptions",
-        description: auditExceptions.length
-          ? `${auditExceptions.length} exceptions need action.`
-          : "No audit exceptions in mock data.",
-        iconTone: "bg-rose-100 text-rose-700",
-      },
-    ],
     timeline: sortByDate(bookings, "pickupDate")
       .slice(-6)
       .reverse()
@@ -752,22 +650,6 @@ function SmallMetricGrid({ items, threeColumns = false }) {
     </div>
   );
 }
-
-const profitColumns = [
-  { key: "booking", label: "Booking" },
-  { key: "customer", label: "Customer" },
-  {
-    key: "revenue",
-    label: "Revenue",
-    render: (row) => formatCurrency(row.revenue),
-  },
-  {
-    key: "profit",
-    label: "Profit",
-    render: (row) => formatCurrency(row.profit),
-  },
-  { key: "margin", label: "Margin", render: (row) => `${row.margin}%` },
-];
 
 const managerColumns = [
   { key: "manager", label: "Manager" },
@@ -920,24 +802,7 @@ function DashboardPage() {
 
       <section className="space-y-4">
         <SectionHeader title="Vehicle Performance" />
-        <VehiclePerformanceTable />
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader title="Booking Profit" />
-        <SmallMetricGrid items={dashboard.profitCards} />
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <DataTableWidget
-            title="Top 5 Profitable Bookings"
-            columns={profitColumns}
-            rows={dashboard.topProfitableBookings}
-          />
-          <DataTableWidget
-            title="Lowest Profit Bookings"
-            columns={profitColumns}
-            rows={dashboard.lowestProfitBookings}
-          />
-        </div>
+        <VehiclePerformanceTable today={dashboard.businessDate} />
       </section>
 
       <section className="space-y-4">
@@ -976,32 +841,12 @@ function DashboardPage() {
       </section>
 
       <section className="space-y-4">
-        <SectionHeader title="Office Expense" />
-        <SmallMetricGrid items={dashboard.officeCards} />
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader title="Driver Summary" />
-        <SmallMetricGrid items={dashboard.driverCards} />
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader title="Partner Summary" />
-        <SmallMetricGrid items={dashboard.partnerCards} />
-      </section>
-
-      <section className="space-y-4">
         <SectionHeader title="Cash Flow" />
         <CashFlowWidget
           title="Cash Movement Flow"
           steps={dashboard.cashFlow.steps}
           cards={dashboard.cashFlow.cards}
         />
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader title="Alerts & Pending Actions" />
-        <AlertList title="Control Alerts" alerts={dashboard.alerts} />
       </section>
 
       <section className="space-y-4">

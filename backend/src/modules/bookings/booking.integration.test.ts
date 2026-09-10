@@ -1,3 +1,4 @@
+import { tenantBusinessDate } from '../../shared/date/tenant-business-date'
 import { vehiclePerformance } from '../dashboard/vehicle-performance'
 import { outstandingCustomers } from '../dashboard/outstanding-customers'
 import { cardMetric, metricKeys } from '../dashboard/card-metrics'
@@ -167,7 +168,7 @@ function repositoryBookingData(
   return {
     tenantId: targetTenantId,
     customerId: targetCustomerId,
-    bookingType: 'LOCAL' as const,
+    bookingType: 'OUTSTATION' as const,
     bookingPackage: null,
     tripType: 'ONE_WAY' as const,
     serviceCity: 'New Delhi',
@@ -308,6 +309,8 @@ describe('booking and duty assignment APIs', () => {
       `/api/v1/tenant/bookings/${created.body.data.id as string}/close`,
     ).send({
       billingTripType: 'PACKAGE_BASED',
+      closingDate: '2026-08-01',
+      closingTime: '18:00',
       startKm: 12500.5,
       endKm: 12620.75,
       packageAmount: 2500,
@@ -775,7 +778,7 @@ describe('driver customer-payment settlement', () => {
       })
       expect(invalidReceipt.body.code).toBe('INVALID_FUEL_RECEIPT')
       const previousPerformance = (
-        await vehiclePerformance(tenantId)
+        await vehiclePerformance(tenantId, 'OWN', '1900-01-01', '2100-12-31')
       ).items.find((item) => item.id === vehicleId)
       const beforeCollected = await cardMetric(
         tenantId,
@@ -794,9 +797,9 @@ describe('driver customer-payment settlement', () => {
         fuelReceiptId: receiptId,
       })
       expect(closed.status).toBe(200)
-      const performance = (await vehiclePerformance(tenantId)).items.find(
-        (item) => item.id === vehicleId,
-      )!
+      const performance = (
+        await vehiclePerformance(tenantId, 'OWN', '1900-01-01', '2100-12-31')
+      ).items.find((item) => item.id === vehicleId)!
       expect(performance.revenue - (previousPerformance?.revenue ?? 0)).toBe(
         10000,
       )
@@ -1309,7 +1312,12 @@ describe('finalized vehicle performance', () => {
       '/api/v1/tenant/dashboard/vehicle-performance',
     )
     expect(api.status).toBe(200)
-    const report = await vehiclePerformance(tenantId)
+    const report = await vehiclePerformance(
+      tenantId,
+      'OWN',
+      '1900-01-01',
+      '2100-12-31',
+    )
     const row = report.items.find((item) => item.id === vehicle.id)!
     expect(row).toMatchObject({
       revenue: 4150,
@@ -1320,6 +1328,41 @@ describe('finalized vehicle performance', () => {
       netProfit: 2350,
       profitPercent: 56.63,
     })
+    const dated = await vehiclePerformance(
+      tenantId,
+      'OWN',
+      '2030-01-20',
+      '2030-01-20',
+    )
+    expect(dated.items.find((item) => item.id === vehicle.id)).toEqual(row)
+    expect(
+      (
+        await vehiclePerformance(tenantId, 'OWN', '2030-01-21', '2030-01-31')
+      ).items.some((item) => item.id === vehicle.id),
+    ).toBe(false)
+    const tenant = await prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+    })
+    const today = tenantBusinessDate(tenant.timeZone)
+    const defaults = await vehiclePerformance(tenantId)
+    expect(defaults).toMatchObject({
+      ownership: 'OWN',
+      start: `${today.slice(0, 7)}-01`,
+      end: today,
+    })
+    const invalid = await authorized(
+      'get',
+      '/api/v1/tenant/dashboard/vehicle-performance?start=2030-02-30&end=2030-03-01',
+    )
+    expect(invalid.status).toBe(400)
+    expect(
+      (
+        await authorized(
+          'get',
+          '/api/v1/tenant/dashboard/vehicle-performance?start=2030-01-01',
+        )
+      ).status,
+    ).toBe(400)
     const unclosed = await bookingRepository.create(
       {
         ...repositoryBookingData(tenantId, customerId),
@@ -1331,17 +1374,17 @@ describe('finalized vehicle performance', () => {
     )
     expect(unclosed.id).toBeDefined()
     expect(
-      (await vehiclePerformance(tenantId)).items.find(
-        (item) => item.id === vehicle.id,
-      ),
+      (
+        await vehiclePerformance(tenantId, 'OWN', '1900-01-01', '2100-12-31')
+      ).items.find((item) => item.id === vehicle.id),
     ).toEqual(row)
     await prisma.bookingClosure.update({
       where: { bookingId: booking.id },
       data: { totalBillAmount: 350 },
     })
-    const zero = (await vehiclePerformance(tenantId)).items.find(
-      (item) => item.id === vehicle.id,
-    )!
+    const zero = (
+      await vehiclePerformance(tenantId, 'OWN', '1900-01-01', '2100-12-31')
+    ).items.find((item) => item.id === vehicle.id)!
     expect(zero).toMatchObject({
       revenue: 0,
       netProfit: -1800,
@@ -1371,13 +1414,13 @@ describe('finalized vehicle performance', () => {
       },
     })
     expect(
-      (await vehiclePerformance(tenantId)).items.some(
-        (item) => item.id === vehicle.id,
-      ),
+      (
+        await vehiclePerformance(tenantId, 'OWN', '1900-01-01', '2100-12-31')
+      ).items.some((item) => item.id === vehicle.id),
     ).toBe(false)
-    const vendorRow = (await vehiclePerformance(tenantId, 'VENDOR')).items.find(
-      (item) => item.id === vehicle.id,
-    )!
+    const vendorRow = (
+      await vehiclePerformance(tenantId, 'VENDOR', '1900-01-01', '2100-12-31')
+    ).items.find((item) => item.id === vehicle.id)!
     expect(vendorRow).toMatchObject({
       revenue: 19000,
       vendorCost: 16000,
@@ -1404,9 +1447,14 @@ describe('finalized vehicle performance', () => {
       where: { id: { not: tenantId } },
     })
     expect(
-      (await vehiclePerformance(otherTenant.id)).items.some(
-        (item) => item.id === vehicle.id,
-      ),
+      (
+        await vehiclePerformance(
+          otherTenant.id,
+          'OWN',
+          '1900-01-01',
+          '2100-12-31',
+        )
+      ).items.some((item) => item.id === vehicle.id),
     ).toBe(false)
   })
 })
@@ -1457,5 +1505,93 @@ describe('business profit card', () => {
       ownProfit: 20000,
       vendorProfit: 5000,
     })
+  })
+})
+
+describe('local package closing extras', () => {
+  it('requires closing readings and time and bills 65 extra km and two extra hours', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId },
+    })
+    const booking = await bookingRepository.create(
+      {
+        ...repositoryBookingData(tenantId, customerId),
+        bookingType: 'LOCAL',
+        bookingPackage: 'local_12_120',
+        startDate: new Date('2048-02-01'),
+        endDate: new Date('2048-02-01'),
+        pickupTime: '08:00',
+        vehicleId,
+      },
+      '2048-02-01',
+      user.id,
+    )
+    const path = `/api/v1/tenant/bookings/${booking.id}/close`
+    const closing = {
+      billingTripType: 'PACKAGE_BASED',
+      packageAmount: 5000,
+      startKm: 1000,
+      endKm: 1185,
+      closingDate: '2048-02-01',
+      extraKmRate: 20,
+      extraHourRate: 200,
+      dieselCost: 1000,
+    }
+    expect((await authorized('post', path).send(closing)).status).toBe(400)
+    expect(
+      (
+        await authorized('post', path).send({
+          ...closing,
+          closingTime: '07:00',
+        })
+      ).status,
+    ).toBe(400)
+    const response = await authorized('post', path).send({
+      ...closing,
+      closingTime: '22:00',
+    })
+    expect(response.status).toBe(200)
+    expect(response.body.data.closeDetails).toMatchObject({
+      totalBillAmount: 6700,
+      baseFare: 6700,
+      netVehicleProfit: 5700,
+      localPackageBilling: {
+        totalMinutes: 840,
+        includedHours: 12,
+        includedKm: 120,
+        extraKm: 65,
+        extraHours: 2,
+        extraKmCharge: 1300,
+        extraHourCharge: 400,
+        closingTime: '22:00',
+      },
+    })
+    const invoice = await prisma.invoice.findFirstOrThrow({
+      where: { tenantId, bookingId: booking.id },
+      include: { items: true },
+    })
+    expect(Number(invoice.netPayable)).toBe(6700)
+    expect(
+      invoice.items.map((item) => ({
+        description: item.description,
+        amount: Number(item.amount),
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        { description: 'Package Fare', amount: 5000 },
+        { description: 'Extra Kilometres', amount: 1300 },
+        { description: 'Extra Hours', amount: 400 },
+      ]),
+    )
+    expect(
+      invoice.items.reduce((sum, item) => sum + Number(item.amount), 0),
+    ).toBe(6700)
+    const detail = await authorized(
+      'get',
+      `/api/v1/tenant/bookings/${booking.id}`,
+    )
+    expect(detail.body.data.closeDetails.localPackageBilling.extraKmRate).toBe(
+      20,
+    )
   })
 })

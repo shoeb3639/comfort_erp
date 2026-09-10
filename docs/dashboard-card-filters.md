@@ -1,10 +1,10 @@
 # Independent dashboard card filters
 
 Each Business Overview card has a calendar button alongside its existing icon.
-Filters default to today in the company timezone and apply only to that card.
+Filters default to the current month through today in the company timezone and apply only to that card.
 Presets include Today, Yesterday, This Month (to date), and This Year (to date).
-Custom ranges include both start and end dates. Reset returns the card to today.
-Filters last while the dashboard is open; reloading resets them.
+Custom ranges include both start and end dates. Reset returns the card to the current month through today.
+Filters last while the dashboard is open; reloading resets them to the current month through today.
 
 Activity cards use a date range. Pending Collections and Manager Ledger Balance
 use an as-of date because they include balances carried forward from earlier dates.

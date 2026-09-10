@@ -35,3 +35,9 @@ show billing revenue, vendor payable excluding the three recoverable charges,
 company-paid fuel, additional costs, profit/commission, and profit percentage.
 Additional costs combine recorded maintenance, driver and office/other costs;
 vendor payable is displayed separately. Switching ownership reloads the table.
+
+The default date range is the current company month through today. Optional
+`start=YYYY-MM-DD&end=YYYY-MM-DD` parameters must be supplied together. Both
+boundaries are inclusive. Booking totals use service start date; unlinked vehicle
+expenses use transaction date. The header calendar filters both ownership views;
+switching ownership retains the selected range. Reset restores month to date.

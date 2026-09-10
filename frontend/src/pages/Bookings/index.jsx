@@ -541,6 +541,18 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
     : isComplete
       ? "Complete Duty"
       : "Cancel Booking";
+  const tripStart = booking.startDate || booking.pickupDate;
+  const tripEnd = booking.endDate || tripStart;
+  const routeStops = (booking.routeStops || "")
+    .split(">")
+    .map((stop) => stop.trim())
+    .filter(Boolean);
+  const routeLocations = [
+    booking.travellingFrom || booking.pickupReportingAddress,
+    ...(routeStops.length
+      ? routeStops
+      : [booking.travellingTo || "Destination not fixed"]),
+  ];
 
   function updateCompletion(name, value) {
     setCompletion((current) => ({ ...current, [name]: value }));
@@ -580,6 +592,33 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
             <X size={20} />
           </button>
         </div>
+
+        {isComplete && (
+          <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5">
+            <dt className="text-slate-500">Trip</dt>
+            <dd className="font-medium text-slate-800">
+              {formatDate(tripStart, { year: true })}
+              {tripEnd &&
+                tripStart?.slice(0, 10) !== tripEnd.slice(0, 10) &&
+                ` – ${formatDate(tripEnd, { year: true })}`}
+              {(booking.pickupTime || booking.reportingTime) &&
+                ` · ${booking.pickupTime || booking.reportingTime}`}
+            </dd>
+            <dt className="text-slate-500">Assignment</dt>
+            <dd className="break-words font-medium text-slate-800">
+              {isOwn ? "Own" : "Vendor"}
+              {!isOwn && booking.vendor && ` · ${booking.vendor}`}
+              {" · "}
+              {booking.vehicleRegistrationNo || "Vehicle pending"}
+              {" · "}
+              {booking.driver || "Driver pending"}
+            </dd>
+            <dt className="text-slate-500">Route</dt>
+            <dd className="break-words font-medium text-slate-800">
+              {routeLocations.filter(Boolean).join(" → ") || "—"}
+            </dd>
+          </dl>
+        )}
 
         {!isCancel && (
           <label className="mt-5 block text-sm font-medium text-slate-700">

@@ -1,3 +1,4 @@
+import { localPackageBilling } from './local-package-billing'
 import { Prisma } from '../../generated/prisma/client'
 import type {
   BookingStatus,
@@ -540,6 +541,26 @@ export async function close(
     )
   const actualRunningKm =
     startKm !== null && endKm !== null ? endKm - startKm : 0
+  if (booking.bookingType === 'LOCAL' && (startKm === null || endKm === null))
+    throw new AppError(
+      'Start and closing KM are required for local bookings',
+      'INVALID_LOCAL_CLOSING',
+      400,
+    )
+  const localBilling =
+    booking.bookingType === 'LOCAL'
+      ? localPackageBilling({
+          bookingPackage: booking.bookingPackage,
+          startDate: booking.startDate.toISOString().slice(0, 10),
+          openingTime: input.openingTime ?? booking.pickupTime,
+          closingDate: input.closingDate,
+          closingTime: input.closingTime,
+          actualKm: actualRunningKm,
+          packageBased: input.billingTripType === 'PACKAGE_BASED',
+          extraKmRate: input.extraKmRate,
+          extraHourRate: input.extraHourRate,
+        })
+      : null
   const minimumKm = minimumBillingKm(
     booking.bookingPackage,
     booking.startDate,
@@ -564,10 +585,14 @@ export async function close(
       'VALIDATION_ERROR',
       400,
     )
-  const baseFare =
+  const initialFare =
     input.billingTripType === 'KM_BASED'
       ? billingKm * ratePerKm!
       : packageAmount!
+  const baseFare =
+    initialFare +
+    (localBilling?.extraKmCharge ?? 0) +
+    (localBilling?.extraHourCharge ?? 0)
   const tollTax = nonNegative(input.tollTax)
   const parking = nonNegative(input.parking)
   const driverAllowance = nonNegative(input.driverAllowance)
@@ -681,8 +706,8 @@ export async function close(
           : 'Package Fare',
       quantity: input.billingTripType === 'KM_BASED' ? billingKm : 1,
       unit: input.billingTripType === 'KM_BASED' ? 'KM' : 'Package',
-      rate: input.billingTripType === 'KM_BASED' ? ratePerKm! : baseFare,
-      amount: baseFare,
+      rate: input.billingTripType === 'KM_BASED' ? ratePerKm! : initialFare,
+      amount: initialFare,
       sortOrder: 0,
     },
     ...charges
@@ -699,12 +724,43 @@ export async function close(
       })),
   ]
 
+  if (localBilling) {
+    for (const [description, quantity, unit, rate, amount] of [
+      [
+        'Extra Kilometres',
+        localBilling.extraKm,
+        'KM',
+        localBilling.extraKmRate,
+        localBilling.extraKmCharge,
+      ],
+      [
+        'Extra Hours',
+        localBilling.extraMinutes / 60,
+        'Hour',
+        localBilling.extraHourRate,
+        localBilling.extraHourCharge,
+      ],
+    ] as const) {
+      if (amount > 0)
+        invoiceItems.push({
+          dateType: 'single',
+          serviceDate: new Date(`${localBilling.closingDate}T00:00:00Z`),
+          description,
+          quantity,
+          unit,
+          rate,
+          amount,
+          sortOrder: invoiceItems.length,
+        })
+    }
+  }
   const closed = await repository.closeBooking(
     context.tenantId,
     booking.id,
     context.userId,
     {
       closure: {
+        ...(localBilling ? { localPackageBilling: localBilling } : {}),
         fuelConsumedLitres: input.fuelConsumedLitres ?? null,
         billingTripType: input.billingTripType,
         startKm,

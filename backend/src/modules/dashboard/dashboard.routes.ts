@@ -59,13 +59,15 @@ dashboardRouter.get('/outstanding-customers', async (req, res) => {
 })
 
 const vehicleSchema = Joi.object({
+  start: Joi.string(),
+  end: Joi.string(),
   ownership: Joi.string().valid('OWN', 'VENDOR').default('OWN'),
-})
+}).and('start', 'end')
 dashboardRouter.get('/vehicle-performance', async (req, res) => {
   const result = vehicleSchema.validate(req.query)
   if (result.error)
     throw new AppError(
-      'Select Own Vehicle or Vendor Vehicle',
+      'Select a valid vehicle type and date range',
       'VALIDATION_ERROR',
       400,
     )
@@ -74,6 +76,8 @@ dashboardRouter.get('/vehicle-performance', async (req, res) => {
     data: await vehiclePerformance(
       req.auth!.tenantId!,
       (result.value as { ownership: 'OWN' | 'VENDOR' }).ownership,
+      (result.value as { start?: string }).start,
+      (result.value as { end?: string }).end,
     ),
   })
 })

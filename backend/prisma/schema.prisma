@@ -720,6 +720,7 @@ model BookingSequence {
 }
 
 model BookingClosure {
+  localPackageBilling Json? @map("local_package_billing")
   fuelConsumedLitres      Decimal?                @map("fuel_consumed_litres") @db.Decimal(12, 2)
   id                      String                  @id @default(uuid()) @db.Uuid
   tenantId                String                  @map("tenant_id") @db.Uuid

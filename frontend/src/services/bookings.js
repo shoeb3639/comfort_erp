@@ -139,6 +139,19 @@ export async function cancelBooking(id, reason) {
 export async function closeBooking(id, values) {
   const paymentAmount = Number(values.paymentAmount || 0);
   const payload = {
+    ...(values.closingTime
+      ? {
+          openingTime: values.openingTime,
+          closingDate: values.closingDate,
+          closingTime: values.closingTime,
+        }
+      : {}),
+    ...(values.extraKmRate !== "" && values.extraKmRate != null
+      ? { extraKmRate: Number(values.extraKmRate) }
+      : {}),
+    ...(values.extraHourRate !== "" && values.extraHourRate != null
+      ? { extraHourRate: Number(values.extraHourRate) }
+      : {}),
     billingTripType:
       values.billingTripType === "KM Based" ? "KM_BASED" : "PACKAGE_BASED",
     startKm: values.startKm === "" ? null : Number(values.startKm),

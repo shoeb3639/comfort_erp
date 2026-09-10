@@ -59,7 +59,8 @@ const shift = (date, days) =>
   new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10);
 
 export default function FilteredSummaryCard({ card, metric, today }) {
-  const [range, setRange] = useState({ start: today, end: today });
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const [range, setRange] = useState({ start: monthStart, end: today });
   const [draft, setDraft] = useState(range);
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -356,9 +357,9 @@ export default function FilteredSummaryCard({ card, metric, today }) {
                 <button
                   type="button"
                   className="text-xs text-slate-600 underline"
-                  onClick={() => select(today, today)}
+                  onClick={() => select(monthStart, today)}
                 >
-                  Reset to today
+                  Reset to this month
                 </button>
                 <button
                   type="submit"

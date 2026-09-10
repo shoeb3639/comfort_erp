@@ -84,6 +84,11 @@ export type DutyEvidence = Partial<
 >
 
 export interface CloseBookingInput {
+  openingTime?: string
+  closingDate?: string
+  closingTime?: string
+  extraKmRate?: number
+  extraHourRate?: number
   billingTripType: BillingTripType
   startKm?: number | null
   endKm?: number | null

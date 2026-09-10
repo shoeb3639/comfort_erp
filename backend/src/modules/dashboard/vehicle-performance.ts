@@ -1,3 +1,5 @@
+import { cardRange } from './card-metrics'
+import { tenantBusinessDate } from '../../shared/date/tenant-business-date'
 import { prisma } from '../../config/prisma'
 
 type Row = {
@@ -17,7 +19,15 @@ type Row = {
 export async function vehiclePerformance(
   tenantId: string,
   ownership: 'OWN' | 'VENDOR' = 'OWN',
+  start?: string,
+  end?: string,
 ) {
+  const tenant = await prisma.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: { timeZone: true },
+  })
+  const today = tenantBusinessDate(tenant.timeZone)
+  const range = cardRange(start ?? `${today.slice(0, 7)}-01`, end ?? today)
   const rows = await prisma.$queryRaw<Row[]>`
     WITH bookings_by_vehicle AS (
       SELECT b.vehicle_id, COUNT(*) FILTER (WHERE c.profit_data_status <> 'AVAILABLE')::int AS excluded,
@@ -30,6 +40,7 @@ export async function vehiclePerformance(
         SUM(CASE WHEN b.assignment_source = 'VENDOR' THEN c.final_vendor_payable - c.toll_tax - c.parking - c.driver_allowance ELSE 0 END) FILTER (WHERE c.profit_data_status = 'AVAILABLE') AS vendor_cost
       FROM bookings b JOIN booking_closures c ON c.booking_id = b.id AND c.tenant_id = b.tenant_id
       WHERE b.tenant_id = ${tenantId}::uuid AND b.deleted_at IS NULL AND b.status = 'CLOSED' AND b.vehicle_id IS NOT NULL
+        AND b.start_date >= ${range.start}::date AND b.start_date < ${range.until}::date
       GROUP BY b.vehicle_id
     ), expenses_by_vehicle AS (
       SELECT vehicle_id, COUNT(*)::int AS records,
@@ -38,6 +49,7 @@ export async function vehiclePerformance(
         SUM(amount) FILTER (WHERE category = 'DRIVER_PAYMENT') AS driver,
         SUM(amount) FILTER (WHERE category IN ('OFFICE_EXPENSE', 'OTHER') OR category IS NULL) AS other
       FROM account_transactions WHERE tenant_id = ${tenantId}::uuid AND booking_id IS NULL AND vehicle_id IS NOT NULL
+        AND transaction_date >= ${range.start}::date AND transaction_date < ${range.until}::date
         AND transaction_type = 'EXPENSE' AND direction = 'DEBIT'
         AND (category IN ('FUEL', 'VEHICLE_MAINTENANCE', 'DRIVER_PAYMENT', 'OFFICE_EXPENSE', 'OTHER') OR category IS NULL)
       GROUP BY vehicle_id
@@ -59,6 +71,8 @@ export async function vehiclePerformance(
   `
   return {
     ownership,
+    start: range.start,
+    end: range.end,
     items: rows.map((row) => ({
       ...row,
       revenue: Number(row.revenue),

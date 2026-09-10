@@ -102,6 +102,11 @@ export const cancellationSchema = Joi.object({
 })
 
 export const closeBookingSchema = Joi.object({
+  openingTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/),
+  closingDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+  closingTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/),
+  extraKmRate: money,
+  extraHourRate: money,
   billingTripType: Joi.string().valid('KM_BASED', 'PACKAGE_BASED').required(),
   startKm: money.allow(null),
   endKm: money.allow(null),
