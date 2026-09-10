@@ -113,6 +113,7 @@ export const closeBookingSchema = Joi.object({
   otherRecoverableCharges: money.default(0),
   gst: money.default(0),
   dieselCost: money.default(0),
+  fuelConsumedLitres: money.allow(null),
   directVehicleExpense: money.default(0),
   driverCost: money.default(0),
   allocatedOfficeExpense: money.default(0),
@@ -120,6 +121,9 @@ export const closeBookingSchema = Joi.object({
   vendorExtraCharges: money.default(0),
   vendorDeduction: money.default(0),
   paymentAmount: money.default(0),
+  paymentHolder: Joi.string().valid('COMPANY', 'DRIVER').default('COMPANY'),
+  fuelAmount: money.default(0),
+  fuelReceiptId: Joi.string().uuid().allow(null),
   paymentMode: Joi.string()
     .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
     .when('paymentAmount', {

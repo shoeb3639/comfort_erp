@@ -5,7 +5,18 @@ import { pageWindow } from '../../shared/pagination'
 import { formatInvoiceNumber, getFinancialYear } from './invoice-numbering'
 
 export const invoiceInclude = {
-  booking: true,
+  booking: {
+    include: {
+      collections: {
+        where: { status: { not: 'VOID' as const } },
+        select: { id: true, invoiceId: true, amount: true },
+      },
+    },
+  },
+  collections: {
+    where: { status: { not: 'VOID' as const } },
+    select: { id: true, amount: true },
+  },
   customer: true,
   items: { orderBy: { sortOrder: 'asc' as const } },
   tenant: {

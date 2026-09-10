@@ -66,6 +66,24 @@ export function mapBooking(record: BookingRecord | null) {
     id: collection.id,
     collectionDate: collection.collectionDate.toISOString().slice(0, 10),
     amount: Number(collection.amount),
+    paymentHolder: collection.paymentHolder,
+    fuelAmount: Number(collection.fuelAmount),
+    returnedAmount: Number(collection.returnedAmount),
+    driverBalance:
+      collection.paymentHolder === 'DRIVER'
+        ? Math.round(
+            (Number(collection.amount) -
+              Number(collection.fuelAmount) -
+              Number(collection.returnedAmount)) *
+              100,
+          ) / 100
+        : 0,
+    fuelReceipt: collection.fuelReceipt
+      ? {
+          id: collection.fuelReceipt.id,
+          name: collection.fuelReceipt.originalFileName,
+        }
+      : null,
     paymentMode: collection.paymentMode.split('_').map(toTitleCase).join(' '),
     collectedBy: collection.collectedByName,
     receiverName: collection.receiverName,
@@ -94,6 +112,7 @@ export function mapBooking(record: BookingRecord | null) {
     .filter(
       (collection) =>
         collection.paymentMode === 'CASH' &&
+        collection.paymentHolder !== 'DRIVER' &&
         ['PENDING', 'WITH_MANAGER'].includes(collection.status),
     )
     .reduce((total, collection) => total + Number(collection.amount), 0)
@@ -203,6 +222,10 @@ export function mapBooking(record: BookingRecord | null) {
           gst: Number(closure.gstAmount),
           totalBillAmount,
           dieselCost: Number(closure.dieselCost),
+          fuelConsumedLitres:
+            closure.fuelConsumedLitres === null
+              ? null
+              : Number(closure.fuelConsumedLitres),
           directVehicleExpense: Number(closure.directVehicleExpense),
           driverCost: Number(closure.driverCost),
           allocatedOfficeExpense: Number(closure.allocatedOfficeExpense),

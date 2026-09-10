@@ -48,6 +48,7 @@ import VendorsPage from "../pages/Vendors";
 import VehiclesPage from "../pages/Vehicles";
 import VehicleLedgerPage from "../pages/Vehicles/Ledger";
 import DriversPage from "../pages/Drivers";
+import DriverLedgerPage from "../pages/Drivers/Ledger";
 
 function AppRoutes() {
   return (
@@ -124,6 +125,16 @@ function AppRoutes() {
             element={<VehicleLedgerPage />}
           />
           <Route path="/drivers" element={<DriversPage />} />
+          <Route
+            path="/drivers/:driverId/ledger"
+            element={
+              <PermissionRoute anyOf={["driver.view"]}>
+                <PermissionRoute anyOf={["accounts.ledger.view"]}>
+                  <DriverLedgerPage />
+                </PermissionRoute>
+              </PermissionRoute>
+            }
+          />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/invoices/new" element={<InvoiceFormPage />} />
           <Route

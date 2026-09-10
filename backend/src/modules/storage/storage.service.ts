@@ -90,6 +90,17 @@ export async function upload(context: StorageContext, input: UploadRequest) {
     mimeType: input.mimeType,
     contents: input.contents,
   })
+  if (
+    input.documentType === 'FUEL_RECEIPT' &&
+    !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(
+      mimeType,
+    )
+  )
+    throw new AppError(
+      'Fuel receipts must be PDF, JPEG, PNG or WebP files',
+      'INVALID_FILE_TYPE',
+      400,
+    )
   const id = randomUUID()
   const storedFileName = `${id}.${extension}`
   const invoice =
@@ -246,6 +257,12 @@ export async function getTenantStorageUsage(tenantId: string) {
 export async function purge(context: StorageContext, fileId: string) {
   const file = await repository.findAny(context.tenantId, fileId)
   if (!file) throw new AppError('File was not found', 'FILE_NOT_FOUND', 404)
+  if (file.documentType === 'FUEL_RECEIPT')
+    throw new AppError(
+      'Fuel receipts cannot be purged',
+      'IMMUTABLE_DOCUMENT',
+      409,
+    )
   if (file.entityType === 'INVOICE' && file.documentType === 'FINAL_PDF')
     throw new AppError(
       'Final invoice documents cannot be purged',

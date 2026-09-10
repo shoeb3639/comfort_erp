@@ -13,6 +13,7 @@ import {
   validateReference,
 } from '../accounts/accounts.service'
 import { mapBooking } from './booking.mapper'
+import { validateDriverFunds } from './driver-funds'
 import * as repository from './booking.repository'
 import type {
   AssignmentInput,
@@ -607,7 +608,16 @@ export async function close(
       )
   }
   const isVendor = booking.assignmentSource === 'VENDOR'
-  const dieselCost = isVendor ? 0 : nonNegative(input.dieselCost)
+  if (input.paymentHolder === 'DRIVER' && !booking.driverId)
+    throw new AppError(
+      'Assign the responsible driver before closing with driver-held customer money',
+      'DRIVER_ASSIGNMENT_REQUIRED',
+      400,
+    )
+  validateDriverFunds(input, isVendor)
+  const dieselCost = isVendor
+    ? nonNegative(input.fuelAmount)
+    : nonNegative(input.dieselCost)
   const directVehicleExpense = isVendor
     ? 0
     : nonNegative(input.directVehicleExpense)
@@ -644,7 +654,7 @@ export async function close(
       })
     : { recoverableCharges: 0, revenue: 0, finalPayable: 0, profit: 0 }
   const finalVendorPayable = vendorCost.finalPayable
-  const vendorBookingProfit = vendorCost.profit
+  const vendorBookingProfit = vendorCost.profit - (isVendor ? dieselCost : 0)
 
   const charges = [
     ['Toll Tax', tollTax],
@@ -695,6 +705,7 @@ export async function close(
     context.userId,
     {
       closure: {
+        fuelConsumedLitres: input.fuelConsumedLitres ?? null,
         billingTripType: input.billingTripType,
         startKm,
         endKm,
@@ -746,13 +757,23 @@ export async function close(
               collectionDate: input.paymentDate!,
               amount: paymentAmount,
               paymentMode: input.paymentMode!,
-              collectedByName: toTitleCase(input.collectedBy!),
+              collectedByName:
+                input.paymentHolder === 'DRIVER'
+                  ? booking.driver!.name
+                  : toTitleCase(input.collectedBy!),
               referenceNumber: paymentReference,
               normalizedReferenceNumber: paymentReference
                 ? normalizeReferenceNumber(paymentReference)
                 : null,
               status:
-                input.paymentMode === 'CASH' ? 'PENDING' : 'DIRECTLY_RECEIVED',
+                input.paymentHolder === 'DRIVER' || input.paymentMode === 'CASH'
+                  ? 'PENDING'
+                  : 'DIRECTLY_RECEIVED',
+              paymentHolder: input.paymentHolder ?? 'COMPANY',
+              custodianDriverId:
+                input.paymentHolder === 'DRIVER' ? booking.driverId : null,
+              fuelAmount: input.fuelAmount ?? 0,
+              fuelReceiptId: input.fuelReceiptId ?? null,
             }
           : null,
     },
@@ -914,6 +935,7 @@ export async function verifyCollection(
   )
   if (
     collection?.paymentMode === 'CASH' &&
+    collection.paymentHolder !== 'DRIVER' &&
     collection.cashDeposit?.status !== 'DEPOSITED'
   )
     throw new AppError(

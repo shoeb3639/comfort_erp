@@ -1,3 +1,7 @@
+import "./mobile-cards.css";
+import VehiclePerformanceTable from "./VehiclePerformanceTable";
+import OutstandingCards from "./OutstandingCards";
+import FilteredSummaryCard, { summaryMetrics } from "./FilteredSummaryCard";
 import { useEffect, useState } from "react";
 import {
   getAccountsAudit,
@@ -12,13 +16,11 @@ import { listInvoices } from "../../services/invoices";
 import { getCompanyProfile } from "../../services/tenantSetup";
 import {
   AlertList,
-  AreaChart,
   Badge,
   BarChart,
   CashFlowWidget,
   DataTableWidget,
   DonutChart,
-  KpiCard,
   LineChart,
   ProgressList,
   SectionHeader,
@@ -123,12 +125,6 @@ function previousCalendarDate(currentDate) {
   const value = new Date(`${currentDate}T00:00:00.000Z`);
   value.setUTCDate(value.getUTCDate() - 1);
   return value.toISOString().slice(0, 10);
-}
-
-function percentageChange(current, previous) {
-  if (!previous && !current) return 0;
-  if (!previous) return 100;
-  return Math.round(((current - previous) / Math.abs(previous)) * 100);
 }
 
 function seriesByDate(records, dateKey, amountResolver) {
@@ -301,10 +297,11 @@ function buildDashboardData(source) {
       parseAmount(booking.fixedAmount || booking.amount),
     ) - yesterdayExpenseAmount;
   const pendingInvoices = invoices.filter(
-    (invoice) => !["Paid", "Cancelled"].includes(invoice.status),
+    (invoice) =>
+      invoice.status !== "Cancelled" && parseAmount(invoice.pendingBalance) > 0,
   );
   const pendingCollections = sum(pendingInvoices, (invoice) =>
-    parseAmount(invoice.total),
+    parseAmount(invoice.pendingBalance),
   );
   const managerBalance = sum(
     managerLedgerEntries,
@@ -342,22 +339,8 @@ function buildDashboardData(source) {
   const monthlyProfit = monthlyRevenue - monthlyExpense;
 
   const vehiclePerformance = buildVehiclePerformance(bookings, expenses);
-  const topVehicle = vehiclePerformance[0] || {};
-  const highestRevenueVehicle =
-    [...vehiclePerformance].sort((a, b) => b.revenue - a.revenue)[0] || {};
   const highestFuelVehicle =
     [...vehiclePerformance].sort((a, b) => b.fuelCost - a.fuelCost)[0] || {};
-  const highestMaintenanceVehicle =
-    [...vehiclePerformance].sort((a, b) => b.maintenance - a.maintenance)[0] ||
-    {};
-  const runningKmByVehicle = amountBy(
-    bookings,
-    (booking) => booking.vehicleRegistrationNo,
-    (booking) => parseAmount(booking.estimatedKm),
-  );
-  const highestKmVehicle =
-    Object.entries(runningKmByVehicle).sort((a, b) => b[1] - a[1])[0] || [];
-
   const bookingProfitRows = bookings.map((booking) => {
     const revenue = parseAmount(booking.fixedAmount || booking.amount);
     const estimatedExpense =
@@ -384,44 +367,22 @@ function buildDashboardData(source) {
       const booking = bookings.find((item) => item.id === invoice.booking);
       return booking?.customer_type === "Corporate";
     }),
-    (invoice) => parseAmount(invoice.total),
+    (invoice) => parseAmount(invoice.pendingBalance),
   );
   const agentOutstanding = sum(
     pendingInvoices.filter((invoice) => {
       const booking = bookings.find((item) => item.id === invoice.booking);
       return booking?.customer_type === "Travel Agent";
     }),
-    (invoice) => parseAmount(invoice.total),
+    (invoice) => parseAmount(invoice.pendingBalance),
   );
   const retailOutstanding = sum(
     pendingInvoices.filter((invoice) => {
       const booking = bookings.find((item) => item.id === invoice.booking);
       return booking?.customer_type === "Individuals";
     }),
-    (invoice) => parseAmount(invoice.total),
+    (invoice) => parseAmount(invoice.pendingBalance),
   );
-  const bookingStatusCounts = {
-    Total: bookings.length,
-    Draft: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Draft",
-    ).length,
-    Confirmed: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Confirmed",
-    ).length,
-    Running: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Running",
-    ).length,
-    Completed: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Completed",
-    ).length,
-    Closed: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Closed",
-    ).length,
-    Cancelled: bookings.filter(
-      (booking) => normalizeBookingStatus(booking.status) === "Cancelled",
-    ).length,
-  };
-
   return {
     businessDate,
     summaryCards: [
@@ -485,7 +446,7 @@ function buildDashboardData(source) {
         previous: pendingCollections,
         current: pendingCollections,
         sparkline: sparkline(pendingInvoices, "dueDate", (invoice) =>
-          parseAmount(invoice.total),
+          parseAmount(invoice.pendingBalance),
         ),
         icon: summaryIcons.invoices,
         tone: "rose",
@@ -528,14 +489,7 @@ function buildDashboardData(source) {
         tone: "slate",
       },
     ],
-    bookingOverviewCards: Object.entries(bookingStatusCounts).map(
-      ([label, value]) => metricRecord(label, value),
-    ),
     revenueCards: [
-      metricRecord("Revenue Today", formatCurrency(todayRevenue)),
-      metricRecord("Revenue This Month", formatCurrency(monthlyRevenue)),
-      metricRecord("Collections Received", formatCurrency(monthlyCollections)),
-      metricRecord("Pending Collections", formatCurrency(pendingCollections)),
       metricRecord(
         "Corporate Outstanding",
         formatCurrency(corporateOutstanding),
@@ -546,40 +500,7 @@ function buildDashboardData(source) {
       ),
       metricRecord("Individual Outstanding", formatCurrency(retailOutstanding)),
     ],
-    revenueTrend: seriesByDate(invoices, "dueDate", (invoice) =>
-      parseAmount(invoice.total),
-    ),
-    collectionTrend: seriesByDate(
-      invoices.filter((invoice) => invoice.status === "Paid"),
-      "dueDate",
-      (invoice) => parseAmount(invoice.total),
-    ),
     vehiclePerformance,
-    vehicleCards: [
-      metricRecord(
-        "Highest Revenue Vehicle",
-        highestRevenueVehicle.vehicle || "-",
-      ),
-      metricRecord("Highest Profit Vehicle", topVehicle.vehicle || "-"),
-      metricRecord(
-        "Highest Running KM",
-        highestKmVehicle[0]
-          ? `${highestKmVehicle[0]} (${highestKmVehicle[1]} KM)`
-          : "-",
-      ),
-      metricRecord(
-        "Highest Fuel Cost",
-        highestFuelVehicle.vehicle
-          ? `${highestFuelVehicle.vehicle} ${formatCurrency(highestFuelVehicle.fuelCost)}`
-          : "-",
-      ),
-      metricRecord(
-        "Highest Maintenance Cost",
-        highestMaintenanceVehicle.vehicle
-          ? `${highestMaintenanceVehicle.vehicle} ${formatCurrency(highestMaintenanceVehicle.maintenance)}`
-          : "-",
-      ),
-    ],
     profitCards: [
       metricRecord(
         "Average Profit Per Booking",
@@ -815,9 +736,11 @@ function buildDashboardData(source) {
   };
 }
 
-function SmallMetricGrid({ items }) {
+function SmallMetricGrid({ items, threeColumns = false }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div
+      className={`dashboard-mobile-cards dashboard-mobile-metrics grid grid-cols-1 gap-3 ${threeColumns ? "md:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-4"}`}
+    >
       {items.map((item) => (
         <SummaryCard
           key={item.label}
@@ -829,40 +752,6 @@ function SmallMetricGrid({ items }) {
     </div>
   );
 }
-
-const vehicleColumns = [
-  { key: "vehicle", label: "Vehicle" },
-  {
-    key: "revenue",
-    label: "Revenue",
-    render: (row) => formatCurrency(row.revenue),
-  },
-  {
-    key: "fuelCost",
-    label: "Fuel Cost",
-    render: (row) => formatCurrency(row.fuelCost),
-  },
-  {
-    key: "maintenance",
-    label: "Maintenance",
-    render: (row) => formatCurrency(row.maintenance),
-  },
-  {
-    key: "driverCost",
-    label: "Driver Cost",
-    render: (row) => formatCurrency(row.driverCost),
-  },
-  {
-    key: "netProfit",
-    label: "Net Profit",
-    render: (row) => formatCurrency(row.netProfit),
-  },
-  {
-    key: "profitPercent",
-    label: "Profit %",
-    render: (row) => `${row.profitPercent}%`,
-  },
-];
 
 const profitColumns = [
   { key: "booking", label: "Booking" },
@@ -1007,87 +896,44 @@ function DashboardPage() {
 
   return (
     <div className="space-y-7">
-      <section>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {dashboard.summaryCards.map((card) => (
-            <KpiCard
-              key={card.label}
-              label={card.label}
-              value={card.value}
-              comparisonValue={percentageChange(
-                card.current ?? card.value,
-                card.previous,
-              )}
-              sparkline={card.sparkline}
-              icon={card.icon}
-              tone={card.tone}
+      <section className="space-y-4">
+        <SectionHeader title="Business Overview" />
+        <div
+          className="dashboard-mobile-cards grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+          aria-label="Business overview cards — swipe to browse"
+        >
+          {dashboard.summaryCards.map((card, index) => (
+            <FilteredSummaryCard
+              key={summaryMetrics[index].key}
+              card={card}
+              metric={summaryMetrics[index]}
+              today={dashboard.businessDate}
             />
           ))}
         </div>
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Booking Overview"
-          subtitle="Booking pipeline and status distribution"
-        />
-        <SmallMetricGrid items={dashboard.bookingOverviewCards} />
+        <SectionHeader title="Current Outstanding Balances" />
+        <OutstandingCards />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Revenue & Collection"
-          subtitle="Billing, collection and outstanding split"
-        />
-        <SmallMetricGrid items={dashboard.revenueCards} />
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-4">
-          <div className="xl:col-span-2">
-            <LineChart
-              title="Monthly Revenue"
-              subtitle="Invoice due-date trend"
-              data={dashboard.revenueTrend}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <AreaChart
-              title="Monthly Revenue vs Collections"
-              subtitle="Paid collections trend from invoice records"
-              data={dashboard.collectionTrend}
-            />
-          </div>
-        </div>
+        <SectionHeader title="Vehicle Performance" />
+        <VehiclePerformanceTable />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Vehicle Performance"
-          subtitle="Vehicle profitability and cost impact"
-        />
-        <SmallMetricGrid items={dashboard.vehicleCards} />
-        <DataTableWidget
-          title="Top 10 Most Profitable Vehicles"
-          subtitle="Revenue less allocated fuel, maintenance and driver cost"
-          columns={vehicleColumns}
-          rows={dashboard.vehiclePerformance.slice(0, 10)}
-        />
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader
-          title="Booking Profit"
-          subtitle="Per-booking profit control"
-        />
+        <SectionHeader title="Booking Profit" />
         <SmallMetricGrid items={dashboard.profitCards} />
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <DataTableWidget
             title="Top 5 Profitable Bookings"
-            subtitle="Highest estimated net booking profit"
             columns={profitColumns}
             rows={dashboard.topProfitableBookings}
           />
           <DataTableWidget
             title="Lowest Profit Bookings"
-            subtitle="Bookings needing margin review"
             columns={profitColumns}
             rows={dashboard.lowestProfitBookings}
           />
@@ -1095,37 +941,28 @@ function DashboardPage() {
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Manager Ledger"
-          subtitle="Manager cash/account control"
-        />
+        <SectionHeader title="Manager Ledger" />
         <SmallMetricGrid items={dashboard.managerCards} />
         <DataTableWidget
           title="Manager Wise Balance"
-          subtitle="Running balance by manager ledger records"
           columns={managerColumns}
           rows={dashboard.managerRows}
         />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Expense Overview"
-          subtitle="Operational spend by category"
-        />
+        <SectionHeader title="Expense Overview" />
         <SmallMetricGrid items={dashboard.expenseCards} />
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="dashboard-mobile-cards grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           <div className="xl:col-span-2">
             <DonutChart
               title="Expense Category Pie"
-              subtitle="Fuel, driver, maintenance, office and other"
               data={dashboard.expenseChart}
             />
           </div>
           <div className="xl:col-span-2">
             <ProgressList
               title="Expense Category Weight"
-              subtitle="Category share by amount"
               data={dashboard.expenseChart}
             />
           </div>
@@ -1133,77 +970,43 @@ function DashboardPage() {
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Fuel Analysis"
-          subtitle="Fuel trend and cost efficiency"
-        />
+        <SectionHeader title="Fuel Analysis" />
         <SmallMetricGrid items={dashboard.fuelCards} />
-        <LineChart
-          title="Fuel Trend Line Chart"
-          subtitle="Fuel cost by date from expense records"
-          data={dashboard.fuelTrend}
-        />
+        <LineChart title="Fuel Trend Line Chart" data={dashboard.fuelTrend} />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Office Expense"
-          subtitle="Office costs and allocation readiness"
-        />
+        <SectionHeader title="Office Expense" />
         <SmallMetricGrid items={dashboard.officeCards} />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Driver Summary"
-          subtitle="Driver work, salary and revenue indicators"
-        />
+        <SectionHeader title="Driver Summary" />
         <SmallMetricGrid items={dashboard.driverCards} />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Partner Summary"
-          subtitle="Partner withdrawal and settlement control"
-        />
+        <SectionHeader title="Partner Summary" />
         <SmallMetricGrid items={dashboard.partnerCards} />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Cash Flow"
-          subtitle="Customer collection to company bank to manager ledger to expenses"
-        />
+        <SectionHeader title="Cash Flow" />
         <CashFlowWidget
           title="Cash Movement Flow"
-          subtitle="Customer Collection -> Company Bank -> Manager Ledger -> Expenses -> Remaining Balance"
           steps={dashboard.cashFlow.steps}
           cards={dashboard.cashFlow.cards}
         />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Alerts & Pending Actions"
-          subtitle="Exceptions and control items requiring action"
-        />
-        <AlertList
-          title="Control Alerts"
-          subtitle="Pending actions from collections, deposits and audit records"
-          alerts={dashboard.alerts}
-        />
+        <SectionHeader title="Alerts & Pending Actions" />
+        <AlertList title="Control Alerts" alerts={dashboard.alerts} />
       </section>
 
       <section className="space-y-4">
-        <SectionHeader
-          title="Recent Activities"
-          subtitle="Latest booking movement timeline"
-        />
-        <TimelineWidget
-          title="Activity Timeline"
-          subtitle="Recent operational events from booking records"
-          items={dashboard.timeline}
-        />
+        <SectionHeader title="Recent Activities" />
+        <TimelineWidget title="Activity Timeline" items={dashboard.timeline} />
       </section>
     </div>
   );

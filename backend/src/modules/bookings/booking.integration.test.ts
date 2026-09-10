@@ -1,3 +1,6 @@
+import { vehiclePerformance } from '../dashboard/vehicle-performance'
+import { outstandingCustomers } from '../dashboard/outstanding-customers'
+import { cardMetric, metricKeys } from '../dashboard/card-metrics'
 import request from 'supertest'
 import { app } from '../../app'
 import { prisma } from '../../config/prisma'
@@ -17,6 +20,7 @@ async function clean() {
   await prisma.bookingCashDeposit.deleteMany()
   await prisma.accountReference.deleteMany()
   await prisma.bookingCollection.deleteMany()
+  await prisma.storedFile.deleteMany()
   await prisma.invoiceItem.deleteMany()
   await prisma.invoice.deleteMany()
   await prisma.invoiceSequence.deleteMany()
@@ -698,5 +702,760 @@ describe('booking and duty assignment APIs', () => {
     expect(firstTenantBooking.bookingNumber).toBe('30-0102001')
     expect(secondTenantBooking.bookingNumber).toBe('30-0102001')
     expect(nextDayBooking.bookingNumber).toBe('30-0103001')
+  })
+})
+
+describe('driver customer-payment settlement', () => {
+  it.each(['CASH', 'UPI', 'VENDOR_UPI'])(
+    'tracks fuel proof, driver balance and returns for %s',
+    async (scenario) => {
+      const isVendor = scenario === 'VENDOR_UPI'
+      const paymentMode = scenario === 'CASH' ? 'CASH' : 'UPI'
+      const user = await prisma.tenantUser.findFirstOrThrow({
+        where: { tenantId },
+      })
+      const vendor = isVendor
+        ? await prisma.vendor.create({
+            data: {
+              tenantId,
+              vendorCode: 'FUEL-VENDOR',
+              name: 'Fuel Vendor',
+              recordType: 'COMPANY',
+              category: 'Transport',
+              phone: '9999999900',
+              city: 'New Delhi',
+            },
+          })
+        : null
+      const booking = await bookingRepository.create(
+        {
+          ...repositoryBookingData(tenantId, customerId),
+          driverId,
+          vehicleId,
+          customerRate: 10000,
+          assignmentSource: isVendor ? 'VENDOR' : 'OWN',
+          vendorPayableAmount: isVendor ? 9000 : 0,
+          vendorId: vendor?.id ?? null,
+        },
+        '2026-08-03',
+        user.id,
+      )
+      const closePath = `/api/v1/tenant/bookings/${booking.id}/close`
+      const closing = {
+        billingTripType: 'PACKAGE_BASED',
+        packageAmount: 10000,
+        paymentAmount: 3000,
+        paymentMode,
+        paymentDate: '2026-08-03',
+        paymentHolder: 'DRIVER',
+        collectedBy: 'Test Driver',
+        dieselCost: 2500,
+        fuelConsumedLitres: 25,
+        fuelAmount: 2500,
+        vendorDeduction: isVendor ? 2500 : 0,
+        vendorPayableAmount: isVendor ? 9000 : 0,
+      }
+      const missingProof = await authorized('post', closePath).send(closing)
+      expect(missingProof.status).toBe(400)
+      expect(missingProof.body.code).toBe('FUEL_RECEIPT_REQUIRED')
+
+      const uploaded = await authorized('post', '/api/v1/tenant/files')
+        .field('entityType', 'BOOKING')
+        .field('entityId', booking.id)
+        .field('documentType', 'FUEL_RECEIPT')
+        .attach('file', Buffer.from('%PDF-1.4\nfuel receipt'), {
+          filename: 'fuel.pdf',
+          contentType: 'application/pdf',
+        })
+      expect(uploaded.status).toBe(201)
+      const receiptId = uploaded.body.data.id as string
+      const invalidReceipt = await authorized('post', closePath).send({
+        ...closing,
+        fuelReceiptId: booking.id,
+      })
+      expect(invalidReceipt.body.code).toBe('INVALID_FUEL_RECEIPT')
+      const previousPerformance = (
+        await vehiclePerformance(tenantId)
+      ).items.find((item) => item.id === vehicleId)
+      const beforeCollected = await cardMetric(
+        tenantId,
+        'collections',
+        '2026-08-03',
+        '2026-08-03',
+      )
+      const beforeExpenses = await cardMetric(
+        tenantId,
+        'expenses',
+        '2026-08-03',
+        '2026-08-03',
+      )
+      const closed = await authorized('post', closePath).send({
+        ...closing,
+        fuelReceiptId: receiptId,
+      })
+      expect(closed.status).toBe(200)
+      const performance = (await vehiclePerformance(tenantId)).items.find(
+        (item) => item.id === vehicleId,
+      )!
+      expect(performance.revenue - (previousPerformance?.revenue ?? 0)).toBe(
+        10000,
+      )
+      expect(performance.fuelCost - (previousPerformance?.fuelCost ?? 0)).toBe(
+        2500,
+      )
+      expect(
+        performance.netProfit - (previousPerformance?.netProfit ?? 0),
+      ).toBe(isVendor ? 1000 : 7500)
+
+      expect(
+        (await cardMetric(tenantId, 'collections', '2026-08-03', '2026-08-03'))
+          .value - beforeCollected.value,
+      ).toBe(3000)
+      expect(
+        (await cardMetric(tenantId, 'expenses', '2026-08-03', '2026-08-03'))
+          .value - beforeExpenses.value,
+      ).toBe(2500)
+      if (scenario === 'CASH')
+        expect(
+          (await cardMetric(tenantId, 'cash', '2026-08-03', '2026-08-03'))
+            .value,
+        ).toBe(500)
+
+      const closure = await prisma.bookingClosure.findUniqueOrThrow({
+        where: { bookingId: booking.id },
+      })
+      expect(Number(closure.fuelConsumedLitres)).toBe(25)
+      const invoiceList = await authorized(
+        'get',
+        '/api/v1/tenant/invoices?limit=100',
+      )
+      expect(invoiceList.status).toBe(200)
+      const paidInvoice = (
+        invoiceList.body.data.items as Array<{
+          bookingRecordId: string
+          totalCollected: number
+          pendingBalance: number
+        }>
+      ).find(
+        (item: { bookingRecordId: string }) =>
+          item.bookingRecordId === booking.id,
+      )
+      expect(paidInvoice).toMatchObject({
+        totalCollected: 3000,
+        pendingBalance: 7000,
+      })
+      expect(closed.body.data.collectionSummary).toMatchObject({
+        totalCollected: 3000,
+        pendingBalance: 7000,
+        cashPendingDeposit: 0,
+      })
+      expect(closed.body.data.closeDetails.netVehicleProfit).toBe(
+        isVendor ? 0 : 7500,
+      )
+      if (isVendor)
+        expect(closed.body.data.closeDetails).toMatchObject({
+          finalVendorPayable: 6500,
+          vendorBookingProfit: 1000,
+          dieselCost: 2500,
+        })
+      const collection = closed.body.data.collections[0]
+      expect(collection).toMatchObject({
+        paymentHolder: 'DRIVER',
+        fuelAmount: 2500,
+        returnedAmount: 0,
+        driverBalance: 500,
+        depositStatus: 'Pending',
+      })
+      expect(
+        await prisma.bookingCashDeposit.count({
+          where: { collectionId: collection.id },
+        }),
+      ).toBe(0)
+      const verifyPath = `/api/v1/tenant/bookings/${booking.id}/collections/${collection.id}/verify`
+      const driverLedgerPath = `/api/v1/tenant/drivers/${driverId}/ledger`
+      const driverLedgerBefore = await authorized('get', driverLedgerPath)
+      expect(driverLedgerBefore.status).toBe(200)
+      expect(driverLedgerBefore.body.data.summary.heldByDriver).toBe(500)
+      expect(driverLedgerBefore.body.data.collections).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: collection.id,
+            driverBalance: 500,
+            fuelAmount: 2500,
+          }),
+        ]),
+      )
+      const auditBefore = await authorized(
+        'get',
+        '/api/v1/tenant/accounts/audit',
+      )
+      expect(auditBefore.body.data.exceptions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: `DRIVER:${collection.id}`,
+            amount: 500,
+            status: 'OPEN',
+          }),
+        ]),
+      )
+      const premature = await authorized('patch', verifyPath).send({})
+      expect(premature.body.code).toBe('DRIVER_BALANCE_PENDING')
+      const deletedReceipt = await authorized(
+        'delete',
+        `/api/v1/tenant/files/${receiptId}`,
+      )
+      expect(deletedReceipt.status).toBe(409)
+      expect(
+        (await authorized('get', `/api/v1/tenant/files/${receiptId}/download`))
+          .status,
+      ).toBe(200)
+
+      const returnPath = `/api/v1/tenant/accounts/collections/${collection.id}/driver-returns`
+      const returnData = {
+        amount: 200,
+        paymentMode: 'CASH',
+        returnDate: '2026-08-04',
+        referenceNumber: `${scenario}-RETURN-ONE`,
+      }
+      const returned = await authorized('post', returnPath).send(returnData)
+      expect(returned.status).toBe(200)
+      expect(returned.body.data).toMatchObject({
+        amount: 3000,
+        returnedAmount: 200,
+        driverBalance: 300,
+      })
+      expect(
+        (await authorized('get', driverLedgerPath)).body.data.summary
+          .heldByDriver,
+      ).toBe(300)
+      const duplicate = await authorized('post', returnPath).send(returnData)
+      expect(duplicate.status).toBe(409)
+      expect(duplicate.body.code).toBe('DUPLICATE_REFERENCE')
+      const over = await authorized('post', returnPath).send({
+        ...returnData,
+        amount: 301,
+        referenceNumber: `${paymentMode}-OVER`,
+      })
+      expect(over.body.code).toBe('RETURN_EXCEEDS_BALANCE')
+
+      // Concurrent attempts cannot receive the same remaining balance twice.
+      const results = await Promise.all(
+        [1, 2].map((index) =>
+          authorized('post', returnPath).send({
+            ...returnData,
+            amount: 300,
+            paymentMode: 'UPI',
+            referenceNumber: `${scenario}-RETURN-${index + 1}`,
+          }),
+        ),
+      )
+      expect(results.map((row) => row.status).sort()).toEqual([200, 409])
+      const verified = await authorized('patch', verifyPath).send({
+        verifiedBy: 'Accounts Reviewer',
+      })
+      expect(verified.status).toBe(200)
+      const detail = await authorized(
+        'get',
+        `/api/v1/tenant/accounts/collections/${collection.id}`,
+      )
+      expect(detail.body.data).toMatchObject({
+        amount: 3000,
+        fuelAmount: 2500,
+        returnedAmount: 500,
+        driverBalance: 0,
+        status: 'VERIFIED',
+      })
+      const driverLedgerAfter = await authorized('get', driverLedgerPath)
+      expect(driverLedgerAfter.body.data.summary.heldByDriver).toBe(0)
+      expect(driverLedgerAfter.body.data.collections).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: collection.id,
+            amount: 3000,
+            returnedAmount: 500,
+            driverBalance: 0,
+          }),
+        ]),
+      )
+      const auditAfter = await authorized(
+        'get',
+        '/api/v1/tenant/accounts/audit',
+      )
+      expect(auditAfter.body.data.exceptions).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: `DRIVER:${collection.id}` }),
+        ]),
+      )
+      expect(
+        (detail.body.data.auditTrail as Array<{ action: string }>).filter(
+          (row: { action: string }) => row.action === 'DRIVER_RETURN',
+        ),
+      ).toHaveLength(2)
+      expect(
+        (
+          await authorized(
+            'delete',
+            `/api/v1/tenant/bookings/${booking.id}/collections/${collection.id}`,
+          )
+        ).body.code,
+      ).toBe('DRIVER_SETTLEMENT_EXISTS')
+      const register = await authorized(
+        'get',
+        `/api/v1/tenant/accounts/collections?booking=${booking.bookingNumber}`,
+      )
+      expect(register.body.data.summary).toMatchObject({
+        totalBilled: 10000,
+        totalCollected: 3000,
+        outstandingBalance: 7000,
+        fuelFromCollections: 2500,
+        driverReturns: 500,
+        driverBalance: 0,
+      })
+      expect(register.body.data.driverSummaries[0]).toMatchObject({
+        collected: 3000,
+        fuel: 2500,
+        returned: 500,
+        balance: 0,
+      })
+    },
+  )
+})
+
+describe('independent dashboard card filters', () => {
+  it('supports every metric and validates dates and metric names', async () => {
+    for (const metric of metricKeys) {
+      const response = await authorized(
+        'get',
+        `/api/v1/tenant/dashboard/card?metric=${metric}&start=2026-01-01&end=2026-12-31`,
+      )
+      expect(response.status).toBe(200)
+      expect(typeof response.body.data.value).toBe('number')
+    }
+    for (const query of [
+      'metric=unknown&start=2026-01-01&end=2026-01-02',
+      'metric=bookings&start=2026-02-30&end=2026-03-01',
+      'metric=bookings&start=2026-03-02&end=2026-03-01',
+    ]) {
+      expect(
+        (await authorized('get', `/api/v1/tenant/dashboard/card?${query}`))
+          .status,
+      ).toBe(400)
+    }
+  })
+  it('aggregates over 100 bookings with inclusive boundaries and tenant isolation', async () => {
+    await prisma.booking.createMany({
+      data: Array.from({ length: 105 }, (_, index) => ({
+        ...repositoryBookingData(tenantId, customerId),
+        bookingNumber: `41-0401${String(index + 1).padStart(3, '0')}`,
+        startDate: new Date('2041-04-01'),
+        endDate: new Date('2041-04-01'),
+      })),
+    })
+    expect(
+      (await cardMetric(tenantId, 'bookings', '2041-04-01', '2041-04-01'))
+        .value,
+    ).toBe(105)
+    expect(
+      (await cardMetric(tenantId, 'bookings', '2041-04-02', '2041-04-02'))
+        .value,
+    ).toBe(0)
+    const otherTenant = await prisma.tenant.findFirstOrThrow({
+      where: { id: { not: tenantId } },
+    })
+    expect(
+      (await cardMetric(otherTenant.id, 'bookings', '2041-04-01', '2041-04-01'))
+        .value,
+    ).toBe(0)
+  })
+  it('carries older unpaid invoices forward and excludes future payments from earlier balances', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId },
+    })
+    const before = await cardMetric(
+      tenantId,
+      'pending',
+      '2042-05-01',
+      '2042-05-01',
+    )
+    const beforeLater = await cardMetric(
+      tenantId,
+      'pending',
+      '2042-05-02',
+      '2042-05-02',
+    )
+    const booking = await bookingRepository.create(
+      repositoryBookingData(tenantId, customerId),
+      '2042-04-01',
+      user.id,
+    )
+    const closed = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${booking.id}/close`,
+    ).send({ billingTripType: 'PACKAGE_BASED', packageAmount: 1000 })
+    expect(closed.status).toBe(200)
+    const invoice = await prisma.invoice.findFirstOrThrow({
+      where: { tenantId, bookingId: booking.id },
+    })
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { invoiceDate: new Date('2042-04-01') },
+    })
+    await prisma.bookingCollection.createMany({
+      data: [
+        {
+          tenantId,
+          bookingId: booking.id,
+          invoiceId: invoice.id,
+          collectionDate: new Date('2042-04-15'),
+          amount: 400,
+          paymentMode: 'UPI',
+          collectedByName: 'Accounts',
+          status: 'DIRECTLY_RECEIVED',
+          recordedById: user.id,
+        },
+        {
+          tenantId,
+          bookingId: booking.id,
+          invoiceId: invoice.id,
+          collectionDate: new Date('2042-05-02'),
+          amount: 600,
+          paymentMode: 'UPI',
+          collectedByName: 'Accounts',
+          status: 'DIRECTLY_RECEIVED',
+          recordedById: user.id,
+        },
+      ],
+    })
+    expect(
+      (await cardMetric(tenantId, 'pending', '2042-05-01', '2042-05-01'))
+        .value - before.value,
+    ).toBe(600)
+    expect(
+      (await cardMetric(tenantId, 'pending', '2042-05-02', '2042-05-02'))
+        .value - beforeLater.value,
+    ).toBe(0)
+  })
+
+  it('requires report permission', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId, email: 'booking-user@example.com' },
+    })
+    const permission = await prisma.permission.findUniqueOrThrow({
+      where: { permissionKey: 'reports.view' },
+    })
+    const grant = await prisma.tenantRolePermission.findFirstOrThrow({
+      where: { tenantId, roleId: user.roleId, permissionId: permission.id },
+    })
+    await prisma.tenantRolePermission.delete({ where: { id: grant.id } })
+    try {
+      expect(
+        (
+          await authorized(
+            'get',
+            '/api/v1/tenant/dashboard/card?metric=bookings&start=2026-01-01&end=2026-01-01',
+          )
+        ).status,
+      ).toBe(403)
+    } finally {
+      await prisma.tenantRolePermission.create({ data: grant })
+    }
+  })
+})
+
+describe('outstanding customer rankings', () => {
+  it('ranks the top five customers per type and totals all customers after payments', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId },
+    })
+    const before = await outstandingCustomers(tenantId, '2044-05-01')
+    const baseline = before.groups.find(
+      (group) => group.type === 'TRAVEL_AGENT',
+    )!.total
+    const ids: string[] = []
+    for (let index = 0; index < 6; index++) {
+      const customer = await prisma.customer.create({
+        data: {
+          tenantId,
+          customerCode: `TOP-${index}`,
+          type: 'TRAVEL_AGENT',
+          name: `Top customer ${index}`,
+          billingName: `Top customer ${index}`,
+          phone: '9999999911',
+          billingAddress: 'Test address',
+        },
+      })
+      ids.push(customer.id)
+      for (const amount of index === 0 ? [1000, 10000] : [(index + 1) * 1000]) {
+        const booking = await bookingRepository.create(
+          repositoryBookingData(tenantId, customer.id),
+          '2044-04-01',
+          user.id,
+        )
+        const response = await authorized(
+          'post',
+          `/api/v1/tenant/bookings/${booking.id}/close`,
+        ).send({ billingTripType: 'PACKAGE_BASED', packageAmount: amount })
+        expect(response.status).toBe(200)
+        const invoice = await prisma.invoice.findFirstOrThrow({
+          where: { tenantId, bookingId: booking.id },
+        })
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { invoiceDate: new Date('2044-04-01') },
+        })
+        if (index === 1)
+          await prisma.bookingCollection.create({
+            data: {
+              tenantId,
+              bookingId: booking.id,
+              invoiceId: invoice.id,
+              collectionDate: new Date('2044-04-15'),
+              amount: 1000,
+              paymentMode: 'UPI',
+              collectedByName: 'Accounts',
+              status: 'DIRECTLY_RECEIVED',
+              recordedById: user.id,
+            },
+          })
+      }
+    }
+    const result = await outstandingCustomers(tenantId, '2044-05-01')
+    const group = result.groups.find((item) => item.type === 'TRAVEL_AGENT')!
+    expect(group.total - baseline).toBe(30000)
+    expect(group.customers).toHaveLength(5)
+    expect(group.customers.map((customer) => customer.amount)).toEqual([
+      11000, 6000, 5000, 4000, 3000,
+    ])
+    expect(group.customers[0]!.id).toBe(ids[0])
+    expect(
+      result.groups
+        .filter((item) => item.type !== 'TRAVEL_AGENT')
+        .flatMap((item) => item.customers)
+        .some((customer) => ids.includes(customer.id)),
+    ).toBe(false)
+    const response = await authorized(
+      'get',
+      '/api/v1/tenant/dashboard/outstanding-customers?date=2044-05-01',
+    )
+    expect(response.status).toBe(200)
+    expect(response.body.data.asOf).toBe('2044-05-01')
+    expect(
+      (
+        await authorized(
+          'get',
+          '/api/v1/tenant/dashboard/outstanding-customers?date=2044-02-30',
+        )
+      ).status,
+    ).toBe(400)
+    const otherTenant = await prisma.tenant.findFirstOrThrow({
+      where: { id: { not: tenantId } },
+    })
+    expect(
+      (await outstandingCustomers(otherTenant.id, '2044-05-01')).groups
+        .flatMap((item) => item.customers)
+        .some((customer) => ids.includes(customer.id)),
+    ).toBe(false)
+  })
+})
+
+describe('finalized vehicle performance', () => {
+  it('uses total kilometre billing less excluded charges and recorded costs', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId },
+    })
+    const existingVehicle = await prisma.vehicle.findUniqueOrThrow({
+      where: { id: vehicleId },
+    })
+    const vehicle = await prisma.vehicle.create({
+      data: {
+        tenantId,
+        ownershipType: 'OWN',
+        vehicleCode: 'PERF-TEST',
+        registrationNumber: 'PERF-TEST',
+        vehicleTypeId: existingVehicle.vehicleTypeId,
+      },
+    })
+    const booking = await bookingRepository.create(
+      {
+        ...repositoryBookingData(tenantId, customerId),
+        vehicleId: vehicle.id,
+        pricingBasis: 'RATE_PER_KM',
+        customerRate: 20,
+      },
+      '2045-01-01',
+      user.id,
+    )
+    const response = await authorized(
+      'post',
+      `/api/v1/tenant/bookings/${booking.id}/close`,
+    ).send({
+      billingTripType: 'KM_BASED',
+      startKm: 100,
+      endKm: 300,
+      ratePerKm: 20,
+      tollTax: 100,
+      parking: 50,
+      driverAllowance: 200,
+      otherRecoverableCharges: 50,
+      gst: 100,
+      dieselCost: 1000,
+      directVehicleExpense: 200,
+      driverCost: 500,
+      allocatedOfficeExpense: 100,
+    })
+    expect(response.status).toBe(200)
+    const api = await authorized(
+      'get',
+      '/api/v1/tenant/dashboard/vehicle-performance',
+    )
+    expect(api.status).toBe(200)
+    const report = await vehiclePerformance(tenantId)
+    const row = report.items.find((item) => item.id === vehicle.id)!
+    expect(row).toMatchObject({
+      revenue: 4150,
+      fuelCost: 1000,
+      maintenance: 200,
+      driverCost: 500,
+      otherCost: 100,
+      netProfit: 2350,
+      profitPercent: 56.63,
+    })
+    const unclosed = await bookingRepository.create(
+      {
+        ...repositoryBookingData(tenantId, customerId),
+        vehicleId: vehicle.id,
+        customerRate: 999999,
+      },
+      '2045-01-02',
+      user.id,
+    )
+    expect(unclosed.id).toBeDefined()
+    expect(
+      (await vehiclePerformance(tenantId)).items.find(
+        (item) => item.id === vehicle.id,
+      ),
+    ).toEqual(row)
+    await prisma.bookingClosure.update({
+      where: { bookingId: booking.id },
+      data: { totalBillAmount: 350 },
+    })
+    const zero = (await vehiclePerformance(tenantId)).items.find(
+      (item) => item.id === vehicle.id,
+    )!
+    expect(zero).toMatchObject({
+      revenue: 0,
+      netProfit: -1800,
+      profitPercent: null,
+    })
+    const vendor = await prisma.vendor.findFirstOrThrow({ where: { tenantId } })
+    await prisma.vehicle.update({
+      where: { id: vehicle.id },
+      data: { ownershipType: 'VENDOR', vendorId: vendor.id },
+    })
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: { assignmentSource: 'VENDOR', vendorId: vendor.id },
+    })
+    await prisma.bookingClosure.update({
+      where: { bookingId: booking.id },
+      data: {
+        totalBillAmount: 20450,
+        tollTax: 750,
+        parking: 100,
+        driverAllowance: 600,
+        finalVendorPayable: 17450,
+        dieselCost: 0,
+        directVehicleExpense: 0,
+        driverCost: 0,
+        allocatedOfficeExpense: 0,
+      },
+    })
+    expect(
+      (await vehiclePerformance(tenantId)).items.some(
+        (item) => item.id === vehicle.id,
+      ),
+    ).toBe(false)
+    const vendorRow = (await vehiclePerformance(tenantId, 'VENDOR')).items.find(
+      (item) => item.id === vehicle.id,
+    )!
+    expect(vendorRow).toMatchObject({
+      revenue: 19000,
+      vendorCost: 16000,
+      fuelCost: 0,
+      extraCost: 0,
+      netProfit: 3000,
+      profitPercent: 15.79,
+    })
+    const vendorApi = await authorized(
+      'get',
+      '/api/v1/tenant/dashboard/vehicle-performance?ownership=VENDOR',
+    )
+    expect(vendorApi.status).toBe(200)
+    expect(vendorApi.body.data.ownership).toBe('VENDOR')
+    expect(
+      (
+        await authorized(
+          'get',
+          '/api/v1/tenant/dashboard/vehicle-performance?ownership=INVALID',
+        )
+      ).status,
+    ).toBe(400)
+    const otherTenant = await prisma.tenant.findFirstOrThrow({
+      where: { id: { not: tenantId } },
+    })
+    expect(
+      (await vehiclePerformance(otherTenant.id)).items.some(
+        (item) => item.id === vehicle.id,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('business profit card', () => {
+  it('adds own and vendor profits and returns their breakdown for the same date range', async () => {
+    const user = await prisma.tenantUser.findFirstOrThrow({
+      where: { tenantId },
+    })
+    const vendor = await prisma.vendor.findFirstOrThrow({ where: { tenantId } })
+    for (const assignmentSource of ['OWN', 'VENDOR'] as const) {
+      const booking = await bookingRepository.create(
+        {
+          ...repositoryBookingData(tenantId, customerId),
+          assignmentSource,
+          vendorId: assignmentSource === 'VENDOR' ? vendor.id : null,
+          vendorPayableAmount: assignmentSource === 'VENDOR' ? 15000 : 0,
+          startDate: new Date('2047-01-15'),
+          endDate: new Date('2047-01-15'),
+        },
+        '2047-01-15',
+        user.id,
+      )
+      const response = await authorized(
+        'post',
+        `/api/v1/tenant/bookings/${booking.id}/close`,
+      ).send({
+        billingTripType: 'PACKAGE_BASED',
+        packageAmount: assignmentSource === 'OWN' ? 25000 : 20000,
+        dieselCost: assignmentSource === 'OWN' ? 5000 : 0,
+        vendorPayableAmount: assignmentSource === 'VENDOR' ? 15000 : 0,
+      })
+      expect(response.status).toBe(200)
+    }
+    expect(
+      await cardMetric(tenantId, 'profit', '2047-01-15', '2047-01-15'),
+    ).toMatchObject({ value: 25000, ownProfit: 20000, vendorProfit: 5000 })
+    expect(
+      await cardMetric(tenantId, 'profit', '2047-01-16', '2047-01-16'),
+    ).toMatchObject({ value: 0, ownProfit: 0, vendorProfit: 0 })
+    const response = await authorized(
+      'get',
+      '/api/v1/tenant/dashboard/card?metric=profit&start=2047-01-01&end=2047-01-31',
+    )
+    expect(response.status).toBe(200)
+    expect(response.body.data).toMatchObject({
+      value: 25000,
+      ownProfit: 20000,
+      vendorProfit: 5000,
+    })
   })
 })

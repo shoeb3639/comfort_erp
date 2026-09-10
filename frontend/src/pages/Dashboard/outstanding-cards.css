@@ -1,0 +1,53 @@
+.outstanding-viewport {
+  position: relative;
+  height: 24px;
+  overflow: hidden;
+}
+.outstanding-scrolling .outstanding-track {
+  animation: outstanding-scroll 40s linear infinite;
+}
+.outstanding-scrolling:hover .outstanding-track,
+.outstanding-scrolling:focus-within .outstanding-track,
+.outstanding-paused .outstanding-track {
+  animation-play-state: paused;
+}
+.outstanding-paused {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+@keyframes outstanding-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outstanding-scrolling {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .outstanding-scrolling .outstanding-track {
+    animation: none;
+  }
+  .outstanding-duplicate,
+  .outstanding-motion-control {
+    display: none;
+  }
+}
+
+.outstanding-paused .outstanding-track {
+  animation: none;
+}
+.outstanding-paused .outstanding-duplicate {
+  display: none;
+}
+
+.outstanding-track {
+  display: flex;
+  width: max-content;
+}
+.outstanding-duplicate {
+  flex-shrink: 0;
+}

@@ -42,6 +42,21 @@ export interface InvoiceInput {
 }
 
 export function mapInvoice(invoice: InvoiceRecord) {
+  const payments = new Map(
+    invoice.collections.map((entry) => [entry.id, Number(entry.amount)]),
+  )
+  for (const entry of invoice.booking?.collections ?? []) {
+    if (!entry.invoiceId || entry.invoiceId === invoice.id)
+      payments.set(entry.id, Number(entry.amount))
+  }
+  const totalCollected = [...payments.values()].reduce(
+    (total, amount) => total + amount,
+    0,
+  )
+  const pendingBalance =
+    invoice.status === 'CANCELLED'
+      ? 0
+      : Math.max(0, Number(invoice.netPayable) - totalCollected)
   const bank = invoice.tenant.bankAccounts[0]
   const gst = invoice.tenant.gstRegistrations[0]
   return {
@@ -51,6 +66,8 @@ export function mapInvoice(invoice: InvoiceRecord) {
       ? invoice.displaySnapshot
       : {}),
     id: invoice.id,
+    totalCollected,
+    pendingBalance,
     invoice_source: invoice.bookingId ? 'booking' : 'direct',
     invoiceSource: invoice.bookingId ? 'booking' : 'direct',
     invoiceNumber:

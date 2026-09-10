@@ -8,9 +8,10 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import ActionNotice from "../../components/ActionNotice";
+import DriverSettlement from "../../components/DriverSettlement";
 import {
   getAccountCollection,
   getAccountsErrorMessage,
@@ -123,6 +124,8 @@ function Modal({ title, children, onClose, wide = false }) {
 }
 
 export default function AccountsCollectionsPage() {
+  const [searchParams] = useSearchParams();
+  const receiptId = searchParams.get("receipt");
   const { user } = useAuth();
   const permissions = new Set(user?.permissions || []);
   const canCreate = permissions.has("collection.create");
@@ -157,6 +160,10 @@ export default function AccountsCollectionsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (receiptId) viewCollection(receiptId);
+  }, [receiptId]);
 
   const selectedBooking = useMemo(
     () =>
@@ -284,6 +291,23 @@ export default function AccountsCollectionsPage() {
         <SummaryCard label="Unpaid" value={data?.summary.unpaidBookings || 0} />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-3">
+        <SummaryCard
+          label="Fuel from customer payments"
+          value={`₹ ${money(data?.summary.fuelFromCollections)}`}
+        />
+        <SummaryCard
+          label="Returned by drivers"
+          value={`₹ ${money(data?.summary.driverReturns)}`}
+          tone="success"
+        />
+        <SummaryCard
+          label="Still held by drivers"
+          value={`₹ ${money(data?.summary.driverBalance)}`}
+          tone="warning"
+        />
+      </div>
+
       <form
         className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
         onSubmit={applyFilters}
@@ -322,7 +346,9 @@ export default function AccountsCollectionsPage() {
           <select
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             value={filters.paymentMode}
-            onChange={(event) => updateFilter("paymentMode", event.target.value)}
+            onChange={(event) =>
+              updateFilter("paymentMode", event.target.value)
+            }
           >
             <option value="">All payment modes</option>
             {["CASH", "UPI", "BANK_TRANSFER", "CARD", "CHEQUE"].map((mode) => (
@@ -451,9 +477,7 @@ export default function AccountsCollectionsPage() {
                     <td className="px-4 py-3 text-slate-700">
                       {collection.customer.name}
                     </td>
-                    <td className="px-4 py-3">
-                      {collection.paymentModeLabel}
-                    </td>
+                    <td className="px-4 py-3">{collection.paymentModeLabel}</td>
                     <td className="px-4 py-3 text-slate-600">
                       {collection.referenceNumber || "—"}
                     </td>
@@ -462,6 +486,12 @@ export default function AccountsCollectionsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={collection.status} />
+                      {collection.paymentHolder === "DRIVER" && (
+                        <p className="mt-1 text-xs text-amber-800">
+                          {collection.collectedBy}: ₹{" "}
+                          {money(collection.driverBalance)} held
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -526,9 +556,7 @@ export default function AccountsCollectionsPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="border-b border-slate-200 px-5 py-4">
-          <h2 className="font-bold text-slate-950">
-            Booking Payment Tracking
-          </h2>
+          <h2 className="font-bold text-slate-950">Booking Payment Tracking</h2>
           <p className="text-sm text-slate-500">
             Includes paid, partially paid and unpaid closed bookings.
           </p>
@@ -543,6 +571,7 @@ export default function AccountsCollectionsPage() {
                   "Billed",
                   "Collected",
                   "Balance",
+                  "With Driver",
                   "Payment Status",
                   "Manage",
                 ].map((column) => (
@@ -567,6 +596,9 @@ export default function AccountsCollectionsPage() {
                   </td>
                   <td className="px-4 py-3 text-amber-700">
                     ₹ {money(booking.balance)}
+                  </td>
+                  <td className="px-4 py-3 text-amber-700">
+                    ₹ {money(booking.driverBalance)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={booking.paymentStatus} />
@@ -603,8 +635,55 @@ export default function AccountsCollectionsPage() {
         </div>
       </section>
 
+      {!!data?.driverSummaries?.length && (
+        <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="font-bold text-slate-950">Driver balances</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            Customer payments, fuel spending and returns across the selected
+            bookings.
+          </p>
+          <table className="w-full min-w-[650px] text-left text-sm">
+            <thead className="text-slate-500">
+              <tr>
+                {[
+                  "Driver",
+                  "Customer payments",
+                  "Fuel spent",
+                  "Returned to company",
+                  "Still with driver",
+                ].map((label) => (
+                  <th className="p-3" key={label}>
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.driverSummaries.map((driver) => (
+                <tr key={driver.id} className="border-t border-slate-100">
+                  <td className="p-3 font-semibold">{driver.name}</td>
+                  {[
+                    driver.collected,
+                    driver.fuel,
+                    driver.returned,
+                    driver.balance,
+                  ].map((amount, index) => (
+                    <td key={index} className="p-3">
+                      ₹ {money(amount)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {showAdd && (
-        <Modal title="Record Booking Collection" onClose={() => setShowAdd(false)}>
+        <Modal
+          title="Record Booking Collection"
+          onClose={() => setShowAdd(false)}
+        >
           <form className="grid gap-4 md:grid-cols-2" onSubmit={addCollection}>
             <label className="md:col-span-2">
               <span className="text-sm font-semibold text-slate-700">
@@ -629,8 +708,8 @@ export default function AccountsCollectionsPage() {
                       key={booking.bookingId}
                       value={booking.bookingNumber}
                     >
-                      {booking.bookingNumber} — {booking.customerName} — Balance ₹{" "}
-                      {money(booking.balance)}
+                      {booking.bookingNumber} — {booking.customerName} — Balance
+                      ₹ {money(booking.balance)}
                     </option>
                   ))}
               </select>
@@ -774,7 +853,8 @@ export default function AccountsCollectionsPage() {
                     <Printer size={16} /> Print
                   </button>
                   {canVerify &&
-                    !["VERIFIED", "VOID"].includes(detail.status) && (
+                    !["VERIFIED", "VOID"].includes(detail.status) &&
+                    detail.driverBalance === 0 && (
                       <button
                         className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
                         onClick={verifyCollection}
@@ -783,15 +863,18 @@ export default function AccountsCollectionsPage() {
                         <ShieldCheck size={16} /> Verify
                       </button>
                     )}
-                  {canCreate && detail.status !== "VOID" && (
-                    <button
-                      className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
-                      onClick={voidCollection}
-                      type="button"
-                    >
-                      Void
-                    </button>
-                  )}
+                  {canCreate &&
+                    detail.status !== "VOID" &&
+                    !detail.fuelAmount &&
+                    !detail.returnedAmount && (
+                      <button
+                        className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
+                        onClick={voidCollection}
+                        type="button"
+                      >
+                        Void
+                      </button>
+                    )}
                 </div>
               </div>
 
@@ -819,6 +902,15 @@ export default function AccountsCollectionsPage() {
                 ))}
               </div>
 
+              <DriverSettlement
+                key={detail.id}
+                collection={detail}
+                onUpdated={async (updated) => {
+                  setDetail(updated);
+                  await load();
+                }}
+              />
+
               <section>
                 <h4 className="font-bold text-slate-950">Audit Trail</h4>
                 <div className="mt-3 space-y-3">
@@ -836,6 +928,20 @@ export default function AccountsCollectionsPage() {
                             {event.actor?.name || "System"} ·{" "}
                             {new Date(event.createdAt).toLocaleString("en-IN")}
                           </p>
+                          {event.action === "DRIVER_RETURN" && (
+                            <p className="mt-1 text-sm text-slate-700">
+                              ₹ {money(event.newValues.amount)} received via{" "}
+                              {label(event.newValues.paymentMode)} on{" "}
+                              {event.newValues.returnDate} · Reference:{" "}
+                              {event.newValues.referenceNumber} · Driver
+                              balance: ₹ {money(event.newValues.driverBalance)}
+                            </p>
+                          )}
+                          {event.remarks && (
+                            <p className="text-sm text-slate-600">
+                              {event.remarks}
+                            </p>
+                          )}
                         </div>
                         {event.newValues?.status && (
                           <StatusBadge status={event.newValues.status} />

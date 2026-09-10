@@ -4,6 +4,7 @@ import type {
 } from '../../generated/prisma/client'
 import { toTitleCase } from '../../shared/text/title-case'
 import type * as repository from './accounts.repository'
+import { driverBalance } from '../bookings/driver-funds'
 
 function collectionStatusLabel(status: CollectionStatus) {
   return status.split('_').map(toTitleCase).join(' ')
@@ -25,6 +26,21 @@ export function mapCollection(
     receiptNumber: `COL-${record.createdAt.getUTCFullYear()}-${record.id.slice(0, 8).toUpperCase()}`,
     collectionDate: record.collectionDate.toISOString().slice(0, 10),
     amount: Number(record.amount),
+    paymentHolder: record.paymentHolder,
+    custodianDriverId: record.custodianDriverId,
+    fuelAmount: Number(record.fuelAmount),
+    returnedAmount: Number(record.returnedAmount),
+    driverBalance:
+      record.paymentHolder === 'DRIVER' && record.status !== 'VOID'
+        ? driverBalance(
+            Number(record.amount),
+            Number(record.fuelAmount),
+            Number(record.returnedAmount),
+          )
+        : 0,
+    fuelReceipt: record.fuelReceipt
+      ? { id: record.fuelReceipt.id, name: record.fuelReceipt.originalFileName }
+      : null,
     paymentMode: record.paymentMode,
     paymentModeLabel: paymentModeLabel(record.paymentMode),
     status: record.status,

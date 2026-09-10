@@ -494,46 +494,81 @@ export async function setDailyClosingStatus(
 }
 
 export async function getAudit(tenantId: string) {
-  const [ledgers, deposits, transactions, resolutions, trail] =
-    await Promise.all([
-      prisma.managerLedger.findMany({
-        where: { tenantId, deletedAt: null },
-        include: {
-          manager: { select: { id: true, name: true } },
-          location: { select: { id: true, name: true } },
+  const [
+    ledgers,
+    deposits,
+    transactions,
+    resolutions,
+    trail,
+    driverCollections,
+  ] = await Promise.all([
+    prisma.managerLedger.findMany({
+      where: { tenantId, deletedAt: null },
+      include: {
+        manager: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.bookingCashDeposit.findMany({
+      where: { tenantId, status: { not: 'VOID' } },
+      include: {
+        collection: {
+          include: { booking: { select: { bookingNumber: true } } },
         },
-      }),
-      prisma.bookingCashDeposit.findMany({
-        where: { tenantId, status: { not: 'VOID' } },
-        include: {
-          collection: {
-            include: { booking: { select: { bookingNumber: true } } },
-          },
+      },
+    }),
+    prisma.accountTransaction.findMany({ where: { tenantId } }),
+    prisma.accountAuditResolution.findMany({ where: { tenantId } }),
+    prisma.tenantAuditLog.findMany({
+      where: {
+        tenantId,
+        module: {
+          in: [
+            'ACCOUNT_TRANSACTION',
+            'DAILY_CLOSING',
+            'BOOKING_CASH_DEPOSIT',
+            'BOOKING_COLLECTION',
+            'MANAGER_LEDGER',
+          ],
         },
-      }),
-      prisma.accountTransaction.findMany({ where: { tenantId } }),
-      prisma.accountAuditResolution.findMany({ where: { tenantId } }),
-      prisma.tenantAuditLog.findMany({
-        where: {
-          tenantId,
-          module: {
-            in: [
-              'ACCOUNT_TRANSACTION',
-              'DAILY_CLOSING',
-              'BOOKING_CASH_DEPOSIT',
-              'MANAGER_LEDGER',
-            ],
-          },
-        },
-        include: { actor: { select: { name: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-    ])
+      },
+      include: { actor: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
+    prisma.bookingCollection.findMany({
+      where: {
+        tenantId,
+        paymentHolder: 'DRIVER',
+        status: { notIn: ['VOID', 'VERIFIED'] },
+      },
+      include: { booking: { select: { bookingNumber: true } } },
+    }),
+  ])
   const resolutionMap = new Map(
     resolutions.map((row) => [row.exceptionKey, row]),
   )
   const exceptions: Array<Record<string, unknown>> = []
+  for (const collection of driverCollections) {
+    const balance =
+      Math.round(
+        (Number(collection.amount) -
+          Number(collection.fuelAmount) -
+          Number(collection.returnedAmount)) *
+          100,
+      ) / 100
+    exceptions.push({
+      key: `DRIVER:${collection.id}`,
+      type:
+        balance > 0
+          ? 'Driver Balance Pending'
+          : 'Driver Settlement Not Verified',
+      reference: `${collection.booking.bookingNumber} / ${collection.collectedByName}`,
+      amount: balance,
+      severity: 'MEDIUM',
+      status: 'OPEN',
+    })
+  }
   for (const deposit of deposits) {
     if (!['VERIFIED'].includes(deposit.status)) {
       const key = `CASH:${deposit.id}`
@@ -611,6 +646,12 @@ export async function resolveAuditException(
   exceptionKey: string,
   resolution: string,
 ) {
+  if (exceptionKey.startsWith('DRIVER:'))
+    throw new AppError(
+      'Receive the driver balance and verify the collection to resolve this exception',
+      'DRIVER_SETTLEMENT_REQUIRED',
+      409,
+    )
   await prisma.accountAuditResolution.upsert({
     where: { tenantId_exceptionKey: { tenantId, exceptionKey } },
     create: {

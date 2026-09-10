@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Edit, Plus, Search, Trash2, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 import ActionNotice from "../../components/ActionNotice";
 import Pagination from "../../components/Pagination";
 import {
@@ -24,6 +26,10 @@ const empty = {
 };
 const field = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 export default function DriversPage() {
+  const { user } = useAuth();
+  const canViewAccounts =
+    user?.permissions?.includes("driver.view") &&
+    user?.permissions?.includes("accounts.ledger.view");
   const [tab, setTab] = useState("");
   const [search, setSearch] = useState("");
   const [records, setRecords] = useState([]);
@@ -178,6 +184,14 @@ export default function DriversPage() {
                 <td className="px-4 py-3">{r.status}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
+                    {canViewAccounts && (
+                      <Link
+                        className="font-semibold text-brand-700"
+                        to={`/drivers/${r.id}/ledger`}
+                      >
+                        Accounts
+                      </Link>
+                    )}
                     <button
                       onClick={() =>
                         setForm({

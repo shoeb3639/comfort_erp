@@ -1,5 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
+import { AppError } from '../../shared/errors/app-error'
 import type { StorageEntityType } from './storage.types'
 
 export async function entityBelongsToTenant(
@@ -127,6 +128,16 @@ export function softDelete(tenantId: string, id: string, actorUserId: string) {
       data: { deletedAt: new Date(), deletedById: actorUserId },
     })
     if (!result.count) return null
+    if (
+      await transaction.bookingCollection.count({
+        where: { tenantId, fuelReceiptId: id },
+      })
+    )
+      throw new AppError(
+        'Fuel receipts linked to collections must be retained for audit',
+        'IMMUTABLE_DOCUMENT',
+        409,
+      )
     const file = await transaction.storedFile.findUniqueOrThrow({
       where: { tenantId_id: { tenantId, id } },
     })

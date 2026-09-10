@@ -720,6 +720,7 @@ model BookingSequence {
 }
 
 model BookingClosure {
+  fuelConsumedLitres      Decimal?                @map("fuel_consumed_litres") @db.Decimal(12, 2)
   id                      String                  @id @default(uuid()) @db.Uuid
   tenantId                String                  @map("tenant_id") @db.Uuid
   bookingId               String                  @unique(map: "booking_closures_booking_key") @map("booking_id") @db.Uuid
@@ -768,6 +769,12 @@ model BookingClosure {
 }
 
 model BookingCollection {
+  paymentHolder          String                @default("COMPANY") @map("payment_holder") @db.VarChar(20)
+  custodianDriverId      String?               @map("custodian_driver_id") @db.Uuid
+  fuelAmount             Decimal               @default(0) @map("fuel_amount") @db.Decimal(12, 2)
+  fuelReceiptId          String?               @map("fuel_receipt_id") @db.Uuid
+  returnedAmount         Decimal               @default(0) @map("returned_amount") @db.Decimal(12, 2)
+  fuelReceipt            StoredFile?           @relation(fields: [tenantId, fuelReceiptId], references: [tenantId, id], onDelete: Restrict)
   id                     String                @id @default(uuid()) @db.Uuid
   tenantId               String                @map("tenant_id") @db.Uuid
   bookingId              String                @map("booking_id") @db.Uuid
@@ -799,6 +806,7 @@ model BookingCollection {
   cashDeposit BookingCashDeposit?
 
   @@unique([tenantId, id], map: "booking_collections_tenant_id_id_key")
+  @@unique([tenantId, fuelReceiptId], map: "booking_collections_fuel_receipt_key")
   @@index([tenantId, bookingId, status], map: "booking_collections_tenant_booking_status_idx")
   @@index([tenantId, collectionDate], map: "booking_collections_tenant_date_idx")
   @@index([tenantId, paymentMode, status, collectionDate], map: "booking_collections_tenant_mode_status_date_idx")
@@ -920,6 +928,7 @@ model InvoiceSequence {
 }
 
 model StoredFile {
+  fuelCollections BookingCollection[]
   id               String    @id @default(uuid()) @db.Uuid
   tenantId         String    @map("tenant_id") @db.Uuid
   entityType       String    @map("entity_type") @db.VarChar(50)

@@ -60,3 +60,25 @@ describe('duty completion payment validation', () => {
     expect(result.error).toBeDefined()
   })
 })
+
+describe('fuel quantity validation', () => {
+  it.each([null, 0, 25.5])(
+    'accepts optional recorded litres %s',
+    (fuelConsumedLitres) => {
+      const result = closeBookingSchema.validate({
+        ...closing,
+        fuelConsumedLitres,
+      })
+      expect(result.error).toBeUndefined()
+      expect(result.value.fuelConsumedLitres).toBe(fuelConsumedLitres)
+    },
+  )
+  it('preserves missing quantities and rejects negative litres', () => {
+    expect(
+      closeBookingSchema.validate(closing).value.fuelConsumedLitres,
+    ).toBeUndefined()
+    expect(
+      closeBookingSchema.validate({ ...closing, fuelConsumedLitres: -1 }).error,
+    ).toBeDefined()
+  })
+})

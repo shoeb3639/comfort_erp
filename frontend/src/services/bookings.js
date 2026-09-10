@@ -152,6 +152,10 @@ export async function closeBooking(id, values) {
     otherRecoverableCharges: Number(values.otherRecoverableCharges || 0),
     gst: Number(values.gst || 0),
     dieselCost: Number(values.dieselCost || 0),
+    fuelConsumedLitres:
+      values.fuelConsumedLitres === "" || values.fuelConsumedLitres == null
+        ? null
+        : Number(values.fuelConsumedLitres),
     directVehicleExpense: Number(values.directVehicleExpense || 0),
     driverCost: Number(values.driverCost || 0),
     allocatedOfficeExpense: Number(values.allocatedOfficeExpense || 0),
@@ -159,6 +163,18 @@ export async function closeBooking(id, values) {
     vendorExtraCharges: Number(values.vendorExtraCharges || 0),
     vendorDeduction: Number(values.vendorDeduction || 0),
     paymentAmount,
+    paymentHolder:
+      paymentAmount > 0 ? values.paymentHolder || "COMPANY" : "COMPANY",
+    fuelAmount:
+      paymentAmount > 0 && values.paymentHolder === "DRIVER"
+        ? Number(values.fuelAmount || 0)
+        : 0,
+    fuelReceiptId:
+      paymentAmount > 0 &&
+      values.paymentHolder === "DRIVER" &&
+      Number(values.fuelAmount) > 0
+        ? values.fuelReceiptId || null
+        : null,
     paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
     paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
     paymentReference: values.paymentReference || null,

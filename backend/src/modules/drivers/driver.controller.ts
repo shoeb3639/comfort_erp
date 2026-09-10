@@ -3,6 +3,7 @@ import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './driver.service'
 import type { DriverInput } from './driver.types'
+import { getDriverLedger } from './driver-ledger.service'
 function context(request: Parameters<RequestHandler>[0]) {
   if (!request.auth?.tenantId || !request.tenant)
     throw new AppError('Tenant context is required', 'UNAUTHORIZED', 401)
@@ -47,6 +48,12 @@ export const get: RequestHandler = async (request, response) =>
     response,
     await service.getDriver(context(request), id(request)),
     'Driver retrieved',
+  )
+export const ledger: RequestHandler = async (request, response) =>
+  send(
+    response,
+    await getDriverLedger(context(request).tenantId, id(request)),
+    'Driver accounts retrieved',
   )
 export const create: RequestHandler = async (request, response) =>
   send(

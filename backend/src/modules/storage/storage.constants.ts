@@ -7,6 +7,7 @@ export const DOCUMENT_TYPES: Record<StorageEntityType, readonly string[]> = {
   VEHICLE: ['RC', 'INSURANCE', 'PERMIT', 'PUC', 'FITNESS', 'OTHER'],
   DRIVER: ['DRIVING_LICENSE', 'ID_PROOF', 'ADDRESS_PROOF', 'PHOTO', 'OTHER'],
   BOOKING: [
+    'FUEL_RECEIPT',
     'OPENING_METER_PHOTO',
     'CLOSING_METER_PHOTO',
     'SIGNED_DUTY_SLIP',

@@ -1,0 +1,24 @@
+@media (max-width: 767px) {
+  .dashboard-mobile-cards.dashboard-mobile-cards {
+    display: grid;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: min(68vw, 15rem);
+    gap: 0.75rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 0.5rem;
+    min-width: 0;
+  }
+  .dashboard-mobile-cards > * {
+    min-width: 0;
+    scroll-snap-align: start;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  .dashboard-mobile-metrics > section {
+    min-height: 120px;
+    padding: 0.75rem;
+  }
+}

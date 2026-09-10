@@ -3,6 +3,8 @@ import { prisma } from '../../config/prisma'
 import type { PageRequest } from '../../shared/pagination'
 import { pageWindow } from '../../shared/pagination'
 import { bookingDateValue, formatBookingNumber } from './booking-numbering'
+import { AppError } from '../../shared/errors/app-error'
+import { driverBalance } from './driver-funds'
 
 const include = {
   customer: true,
@@ -13,7 +15,7 @@ const include = {
   closure: true,
   collections: {
     where: { status: { not: 'VOID' as const } },
-    include: { cashDeposit: true },
+    include: { cashDeposit: true, fuelReceipt: true },
     orderBy: { collectionDate: 'desc' as const },
   },
   invoices: {
@@ -387,6 +389,10 @@ export interface CloseBookingData {
   invoice: Omit<Prisma.InvoiceUncheckedCreateInput, 'tenantId' | 'bookingId'>
   invoiceItems: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[]
   initialCollection: {
+    paymentHolder?: string
+    custodianDriverId?: string | null
+    fuelAmount?: number
+    fuelReceiptId?: string | null
     collectionDate: Date
     amount: number
     paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'CHEQUE'
@@ -437,8 +443,32 @@ export function closeBooking(
       })),
     })
     if (data.initialCollection) {
+      if (data.initialCollection.fuelReceiptId) {
+        // Lock the file against deletion until the collection links to it.
+        const receipt = await transaction.storedFile.updateMany({
+          where: {
+            tenantId,
+            id: data.initialCollection.fuelReceiptId,
+            entityType: 'BOOKING',
+            entityId: bookingId,
+            documentType: 'FUEL_RECEIPT',
+            deletedAt: null,
+          },
+          data: { deletedAt: null },
+        })
+        if (!receipt.count)
+          throw new AppError(
+            'Upload a valid fuel receipt belonging to this booking',
+            'INVALID_FUEL_RECEIPT',
+            400,
+          )
+      }
       const collection = await transaction.bookingCollection.create({
         data: {
+          paymentHolder: data.initialCollection.paymentHolder ?? 'COMPANY',
+          custodianDriverId: data.initialCollection.custodianDriverId ?? null,
+          fuelAmount: data.initialCollection.fuelAmount ?? 0,
+          fuelReceiptId: data.initialCollection.fuelReceiptId ?? null,
           collectionDate: data.initialCollection.collectionDate,
           amount: data.initialCollection.amount,
           paymentMode: data.initialCollection.paymentMode,
@@ -451,7 +481,10 @@ export function closeBooking(
           recordedById: userId,
         },
       })
-      if (collection.paymentMode === 'CASH')
+      if (
+        collection.paymentMode === 'CASH' &&
+        collection.paymentHolder !== 'DRIVER'
+      )
         await transaction.bookingCashDeposit.create({
           data: {
             tenantId,
@@ -486,6 +519,10 @@ export function closeBooking(
           newValues: {
             bookingId,
             status: collection.status,
+            amount: Number(collection.amount),
+            paymentHolder: collection.paymentHolder,
+            fuelAmount: Number(collection.fuelAmount),
+            fuelReceiptId: collection.fuelReceiptId,
             paymentMode: collection.paymentMode,
             referenceNumber: collection.referenceNumber,
           },
@@ -604,10 +641,34 @@ export function verifyCollection(
   verifiedByName: string | null,
 ) {
   return prisma.$transaction(async (transaction) => {
+    await transaction.bookingCollection.updateMany({
+      where: { tenantId, bookingId, id: collectionId },
+      data: { updatedAt: new Date() },
+    })
     const current = await transaction.bookingCollection.findFirst({
       where: { tenantId, bookingId, id: collectionId },
-      select: { status: true, verifiedByName: true, amount: true },
+      select: {
+        status: true,
+        verifiedByName: true,
+        amount: true,
+        paymentHolder: true,
+        fuelAmount: true,
+        returnedAmount: true,
+      },
     })
+    if (
+      current?.paymentHolder === 'DRIVER' &&
+      driverBalance(
+        Number(current.amount),
+        Number(current.fuelAmount),
+        Number(current.returnedAmount),
+      ) !== 0
+    )
+      throw new AppError(
+        'Receive the remaining driver balance before verifying this collection',
+        'DRIVER_BALANCE_PENDING',
+        409,
+      )
     const updated = await transaction.bookingCollection.updateMany({
       where: {
         tenantId,
@@ -663,10 +724,23 @@ export function voidCollection(
   userId: string,
 ) {
   return prisma.$transaction(async (transaction) => {
+    await transaction.bookingCollection.updateMany({
+      where: { tenantId, bookingId, id: collectionId },
+      data: { updatedAt: new Date() },
+    })
     const current = await transaction.bookingCollection.findFirst({
       where: { tenantId, bookingId, id: collectionId },
-      select: { status: true },
+      select: { status: true, fuelAmount: true, returnedAmount: true },
     })
+    if (
+      current &&
+      (Number(current.fuelAmount) > 0 || Number(current.returnedAmount) > 0)
+    )
+      throw new AppError(
+        'A collection with recorded fuel spending or money returned cannot be voided',
+        'DRIVER_SETTLEMENT_EXISTS',
+        409,
+      )
     const updated = await transaction.bookingCollection.updateMany({
       where: {
         tenantId,

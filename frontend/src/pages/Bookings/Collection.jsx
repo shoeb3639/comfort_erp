@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { IndianRupee, Trash2 } from "lucide-react";
+import DriverSettlement from "../../components/DriverSettlement";
 import {
   addBookingCollection,
   getBooking,
@@ -128,6 +129,7 @@ function BookingCollectionPage() {
     .filter(
       (item) =>
         item.paymentMode === "Cash" &&
+        item.paymentHolder !== "DRIVER" &&
         !["Deposited", "Verified"].includes(item.depositStatus),
     )
     .reduce((sum, item) => sum + toNumber(item.amount), 0);
@@ -598,23 +600,26 @@ function BookingCollectionPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-2">
-                      {item.depositStatus !== "Verified" && (
+                      {item.depositStatus !== "Verified" &&
+                        !item.driverBalance && (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            onClick={() => markVerified(item.id)}
+                          >
+                            Verify
+                          </button>
+                        )}
+                      {!item.fuelAmount && !item.returnedAmount && (
                         <button
                           type="button"
-                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          onClick={() => markVerified(item.id)}
+                          aria-label="Delete collection"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                          onClick={() => deleteCollection(item.id)}
                         >
-                          Verify
+                          <Trash2 size={15} />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        aria-label="Delete collection"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
-                        onClick={() => deleteCollection(item.id)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -628,6 +633,19 @@ function BookingCollectionPage() {
           )}
         </div>
       </Section>
+      {collections
+        .filter((item) => item.paymentHolder === "DRIVER")
+        .map((item) => (
+          <DriverSettlement
+            key={item.id}
+            collection={item}
+            onUpdated={async () => {
+              const updated = await getBooking(bookingId);
+              setBooking(updated);
+              setCollections(updated.collections || []);
+            }}
+          />
+        ))}
     </div>
   );
 }

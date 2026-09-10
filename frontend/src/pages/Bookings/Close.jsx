@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ChevronDown, Share2 } from "lucide-react";
+import { uploadFuelReceipt, downloadReceipt } from "../../services/files";
 import {
   closeBooking as closeBookingApi,
   getBooking,
@@ -131,6 +132,8 @@ function CloseBookingPage() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [fuelReceipt, setFuelReceipt] = useState(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const customer = booking
     ? { billingName: booking.customer, displayName: booking.customer }
     : null;
@@ -165,7 +168,7 @@ function CloseBookingPage() {
     setValue,
     reset,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
       startKm: "",
@@ -182,12 +185,15 @@ function CloseBookingPage() {
       otherRecoverableCharges: 0,
       gst: 0,
       dieselCost: 0,
+      fuelConsumedLitres: "",
       directVehicleExpense: 0,
       driverCost: 0,
       vendorPayableAmount: booking?.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
       paymentAmount: 0,
+      paymentHolder: "COMPANY",
+      fuelAmount: 0,
       paymentMode: "",
       paymentDate: today(),
       paymentReference: "",
@@ -242,7 +248,9 @@ function CloseBookingPage() {
       toNumber(values.vendorDeduction),
   );
   const vendorBookingProfit = isVendorVehicle
-    ? vendorBookingRevenue - finalVendorPayable
+    ? vendorBookingRevenue -
+      finalVendorPayable -
+      (values.paymentHolder === "DRIVER" ? toNumber(values.fuelAmount) : 0)
     : 0;
   const fixedBillingLabel =
     booking?.booking_type === "local"
@@ -280,12 +288,15 @@ function CloseBookingPage() {
       otherRecoverableCharges: dutyDetails.otherRecoverableCharges || 0,
       gst: 0,
       dieselCost: 0,
+      fuelConsumedLitres: "",
       directVehicleExpense: 0,
       driverCost: 0,
       vendorPayableAmount: booking.vendorPayableAmount || 0,
       vendorExtraCharges: 0,
       vendorDeduction: 0,
       paymentAmount: dutyDetails.paymentAmount || 0,
+      paymentHolder: "COMPANY",
+      fuelAmount: 0,
       paymentMode: dutyDetails.paymentMode || "",
       paymentDate: dutyDetails.paymentDate
         ? String(dutyDetails.paymentDate).slice(0, 10)
@@ -321,8 +332,24 @@ function CloseBookingPage() {
   }
 
   async function closeBooking(formValues) {
+    if (uploadingReceipt) {
+      setLoadError("Wait for the fuel receipt to finish uploading.");
+      return;
+    }
+    setLoadError("");
+    if (
+      formValues.paymentHolder === "DRIVER" &&
+      Number(formValues.fuelAmount) > 0 &&
+      !fuelReceipt
+    ) {
+      setLoadError("Upload the fuel receipt before closing this booking.");
+      return;
+    }
     try {
-      await closeBookingApi(booking.id, formValues);
+      await closeBookingApi(booking.id, {
+        ...formValues,
+        fuelReceiptId: fuelReceipt?.id,
+      });
       navigate("/bookings", {
         state: { notice: `Booking ${booking.id} closed successfully.` },
       });
@@ -672,6 +699,32 @@ function CloseBookingPage() {
           )}
 
           <Section title="Closing Notes">
+            <label className="mb-4 block">
+              <span className="text-sm font-medium text-slate-700">
+                Fuel Consumed (litres)
+              </span>
+              <input
+                className={fieldClass}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Optional — actual litres used on this booking"
+                {...register("fuelConsumedLitres", {
+                  min: {
+                    value: 0,
+                    message: "Fuel consumed cannot be negative",
+                  },
+                })}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Leave blank if unknown. Enter 0 only when no fuel was consumed.
+              </p>
+              {errors.fuelConsumedLitres && (
+                <p className="mt-1 text-xs text-rose-600">
+                  {errors.fuelConsumedLitres.message}
+                </p>
+              )}
+            </label>
             <div>
               <label>
                 <span className="text-sm font-medium text-slate-700">
@@ -771,6 +824,10 @@ function CloseBookingPage() {
           </Section>
 
           <Section title="Payment at Closing">
+            <p className="mb-4 text-sm text-slate-600">
+              Record the full customer payment, including any amount the driver
+              used for fuel.
+            </p>
             <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
               <span className="text-sm font-medium text-slate-600">
                 Payment Status
@@ -788,6 +845,39 @@ function CloseBookingPage() {
               </span>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
+              <label className="md:col-span-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Payment received by
+                </span>
+                <select
+                  className={fieldClass}
+                  {...register("paymentHolder")}
+                  onChange={(event) => {
+                    setValue("paymentHolder", event.target.value);
+                    if (
+                      event.target.value === "DRIVER" &&
+                      ["CARD", "CHEQUE"].includes(values.paymentMode)
+                    )
+                      setValue("paymentMode", "");
+                    if (
+                      event.target.value === "DRIVER" &&
+                      booking.driver !== "Unassigned"
+                    )
+                      setValue("collectedBy", booking.driver || "");
+                  }}
+                >
+                  <option value="COMPANY">Company / Office</option>
+                  <option value="DRIVER" disabled={!booking.driverId}>
+                    Driver (cash or driver's UPI / bank account)
+                  </option>
+                </select>
+                {!booking.driverId && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Assign a driver to the booking to track money in their
+                    accounts.
+                  </p>
+                )}
+              </label>
               <label>
                 <span className="text-sm font-medium text-slate-700">
                   Received Amount
@@ -829,8 +919,12 @@ function CloseBookingPage() {
                   <option value="CASH">Cash</option>
                   <option value="UPI">UPI</option>
                   <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="CARD">Card</option>
-                  <option value="CHEQUE">Cheque</option>
+                  {values.paymentHolder !== "DRIVER" && (
+                    <option value="CARD">Card</option>
+                  )}
+                  {values.paymentHolder !== "DRIVER" && (
+                    <option value="CHEQUE">Cheque</option>
+                  )}
                 </select>
                 {errors.paymentMode && (
                   <p className="mt-1 text-xs font-medium text-rose-600">
@@ -877,6 +971,7 @@ function CloseBookingPage() {
                   className={fieldClass}
                   disabled={!hasAmount(receivedAmount)}
                   placeholder="Name of the person who received payment"
+                  readOnly={values.paymentHolder === "DRIVER"}
                   {...register("collectedBy", {
                     required: hasAmount(receivedAmount)
                       ? "Collector name is required"
@@ -890,6 +985,114 @@ function CloseBookingPage() {
                 )}
               </label>
             </div>
+            {values.paymentHolder === "DRIVER" && hasAmount(receivedAmount) && (
+              <div className="mt-4 space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <h5 className="font-semibold text-slate-900">
+                  Driver funds and fuel proof
+                </h5>
+                <p className="text-sm text-slate-600">
+                  Collected By identifies the driver responsible for this money.
+                  Accounts records any handover after closing.
+                </p>
+                <label className="block">
+                  <span className="text-sm font-medium">
+                    Fuel spent from this payment
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    min="0"
+                    max={receivedAmount}
+                    step="0.01"
+                    {...register("fuelAmount", {
+                      min: {
+                        value: 0,
+                        message: "Fuel amount cannot be negative",
+                      },
+                      max: {
+                        value: receivedAmount,
+                        message:
+                          "Fuel amount cannot exceed the customer payment",
+                      },
+                      onChange: (event) => {
+                        const amount = Number(event.target.value || 0);
+                        const costField = isVendorVehicle
+                          ? "vendorDeduction"
+                          : "dieselCost";
+                        if (amount > Number(values[costField] || 0))
+                          setValue(costField, amount);
+                      },
+                    })}
+                  />
+                  {errors.fuelAmount && (
+                    <p className="text-sm text-rose-700">
+                      {errors.fuelAmount.message}
+                    </p>
+                  )}
+                </label>
+                <p className="text-xs text-slate-600">
+                  {isVendorVehicle
+                    ? "This fuel amount is included in Vendor Deduction."
+                    : "This fuel amount is included in Total Diesel Cost; it is not an additional expense."}
+                </p>
+                {Number(values.fuelAmount) > 0 && (
+                  <label className="block">
+                    <span className="text-sm font-medium">
+                      Fuel receipt (required)
+                    </span>
+                    <input
+                      className={fieldClass}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      disabled={uploadingReceipt || isSubmitting}
+                      onChange={async (event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        setUploadingReceipt(true);
+                        setLoadError("");
+                        setFuelReceipt(null);
+                        try {
+                          setFuelReceipt(
+                            await uploadFuelReceipt(booking.databaseId, file),
+                          );
+                        } catch (error) {
+                          setLoadError(getBookingErrorMessage(error));
+                        } finally {
+                          setUploadingReceipt(false);
+                        }
+                      }}
+                    />
+                    {uploadingReceipt && (
+                      <p className="text-sm">Uploading receipt…</p>
+                    )}
+                    {fuelReceipt && (
+                      <button
+                        type="button"
+                        className="mt-2 text-sm font-semibold text-brand-700"
+                        onClick={() =>
+                          downloadReceipt(fuelReceipt).catch((error) =>
+                            setLoadError(getBookingErrorMessage(error)),
+                          )
+                        }
+                      >
+                        Download uploaded receipt:{" "}
+                        {fuelReceipt.originalFileName}
+                      </button>
+                    )}
+                  </label>
+                )}
+                <SummaryItem label="Customer paid" value={receivedAmount} />
+                <SummaryItem
+                  label="Fuel spent"
+                  value={Number(values.fuelAmount || 0)}
+                />
+                <SummaryItem
+                  label="Balance held by driver"
+                  value={receivedAmount - Number(values.fuelAmount || 0)}
+                  strong
+                />
+              </div>
+            )}
             {hasAmount(receivedAmount) && (
               <div className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
                 <div className="flex justify-between text-slate-600">
@@ -967,6 +1170,13 @@ function CloseBookingPage() {
                   label="Final Vendor Payable"
                   value={finalVendorPayable}
                 />
+                {values.paymentHolder === "DRIVER" &&
+                  Number(values.fuelAmount) > 0 && (
+                    <SummaryItem
+                      label="Fuel paid from customer payment"
+                      value={Number(values.fuelAmount)}
+                    />
+                  )}
                 <SummaryItem
                   label="Vendor Booking Profit"
                   value={vendorBookingProfit}

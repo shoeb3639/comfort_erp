@@ -95,6 +95,7 @@ export interface CloseBookingInput {
   otherRecoverableCharges?: number
   gst?: number
   dieselCost?: number
+  fuelConsumedLitres?: number | null
   directVehicleExpense?: number
   driverCost?: number
   allocatedOfficeExpense?: number
@@ -102,6 +103,9 @@ export interface CloseBookingInput {
   vendorExtraCharges?: number
   vendorDeduction?: number
   paymentAmount?: number
+  paymentHolder?: 'COMPANY' | 'DRIVER'
+  fuelAmount?: number
+  fuelReceiptId?: string | null
   paymentMode?: CollectionPaymentMode
   paymentDate?: Date
   paymentReference?: string | null

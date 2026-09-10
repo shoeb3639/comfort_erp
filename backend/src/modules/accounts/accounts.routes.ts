@@ -16,6 +16,7 @@ import { ACCOUNT_PERMISSIONS } from './accounts.constants'
 import * as controller from './accounts.controller'
 import {
   cashDepositListQuerySchema,
+  driverReturnSchema,
   cashDepositParamsSchema,
   collectionListQuerySchema,
   collectionParamsSchema,
@@ -48,6 +49,13 @@ accountsRouter.use(
 )
 
 accountsRouter.get('/foundation', controller.foundation)
+accountsRouter.post(
+  '/collections/:collectionId/driver-returns',
+  authorizePermission('accounts.deposit.manage'),
+  validateParams(collectionParamsSchema),
+  validateBody(driverReturnSchema),
+  controller.recordDriverReturn,
+)
 accountsRouter.get(
   '/transactions',
   authorizePermission('accounts.expense.manage'),
