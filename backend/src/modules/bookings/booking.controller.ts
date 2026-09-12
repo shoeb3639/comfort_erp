@@ -1,3 +1,7 @@
+import type {
+  AssignmentSource,
+  CustomerType,
+} from '../../generated/prisma/client'
 import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
@@ -36,6 +40,17 @@ export const list: RequestHandler = async (request, response) =>
     response,
     await service.list(context(request), {
       ...pageRequest(request.query),
+      sortDirection: request.query.sortDirection as 'asc' | 'desc' | undefined,
+      vendorId: request.query.vendorId as string | undefined,
+      vehicleId: request.query.vehicleId as string | undefined,
+      startDate: request.query.startDate as string | undefined,
+      endDate: request.query.endDate as string | undefined,
+      customerType: request.query.customerType as CustomerType | undefined,
+      assignmentSource: request.query.assignmentSource as
+        AssignmentSource | undefined,
+      vehicleType: request.query.vehicleType as string | undefined,
+      vehicleNumber: request.query.vehicleNumber as string | undefined,
+      driverName: request.query.driverName as string | undefined,
       ...(typeof request.query.search === 'string'
         ? { search: request.query.search }
         : {}),
@@ -170,4 +185,11 @@ export const remove: RequestHandler = async (request, response) =>
     response,
     await service.remove(context(request), id(request)),
     'Booking deleted',
+  )
+
+export const filterVehicles: RequestHandler = async (request, response) =>
+  send(
+    response,
+    await service.filterVehicles(context(request)),
+    'Filter vehicles retrieved',
   )

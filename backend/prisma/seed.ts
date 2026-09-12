@@ -6,6 +6,7 @@ import {
   TENANT_SYSTEM_ROLES,
 } from '../src/modules/auth/auth.constants'
 import { hashPassword } from '../src/shared/security/password'
+import { seedIndianCities } from './seed-indian-cities'
 
 const adminSchema = Joi.object({
   PLATFORM_ADMIN_NAME: Joi.string().min(2).max(150).required(),
@@ -183,6 +184,7 @@ async function seedSubscriptionPlans(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await seedIndianCities()
   await seedPlatformSecurity()
   await seedSubscriptionPlans()
   await seedTenantSecurity()

@@ -25,6 +25,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:cities": "tsx prisma/seed-indian-cities.ts",
     "customers:migrate:old": "node --import tsx prisma/import-old-customers.ts",
     "vendors:migrate:old": "node --import tsx prisma/import-old-vendors.ts",
     "vehicles:migrate:old": "node --import tsx prisma/import-old-vehicles.ts",
@@ -39,6 +40,7 @@
     "db:separate-credentials": "node scripts/separate-database-environment.mjs"
   },
   "dependencies": {
+    "@countrystatecity/countries": "^1.0.9",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "argon2": "^0.45.0",

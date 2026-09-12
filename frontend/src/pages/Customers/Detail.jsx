@@ -109,6 +109,12 @@ function CustomerDetailPage() {
               <dd className="font-medium text-slate-900">{customer.phone}</dd>
             </div>
             <div>
+              <dt className="text-slate-500">WhatsApp</dt>
+              <dd className="font-medium text-slate-900">
+                {customer.whatsappNumber || "Not provided"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-slate-500">City</dt>
               <dd className="font-medium text-slate-900">{customer.city}</dd>
             </div>

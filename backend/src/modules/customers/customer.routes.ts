@@ -14,10 +14,12 @@ import {
   createCustomerSchema,
   createTravellerSchema,
   customerListQuerySchema,
+  customerBookingOptionsQuerySchema,
   customerParamsSchema,
   updateCustomerSchema,
   updateTravellerSchema,
   travellerParamsSchema,
+  travellerBookingOptionsQuerySchema,
 } from './customer.schema'
 
 export const customerRouter = Router()
@@ -40,6 +42,19 @@ customerRouter.post(
   authorizePermission('customer.create'),
   validateBody(createCustomerSchema),
   controller.createCustomer,
+)
+customerRouter.get(
+  '/booking-options',
+  authorizePermission('customer.view'),
+  validateQuery(customerBookingOptionsQuerySchema),
+  controller.listCustomerBookingOptions,
+)
+customerRouter.get(
+  '/:customerId/traveller-options',
+  authorizePermission('customer.view'),
+  validateParams(customerParamsSchema),
+  validateQuery(travellerBookingOptionsQuerySchema),
+  controller.listTravellerBookingOptions,
 )
 customerRouter.get(
   '/:customerId',

@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Plus, X } from "lucide-react";
+import AsyncAutocomplete from "../../components/AsyncAutocomplete";
+import AddressAutocomplete from "../../components/AddressAutocomplete";
+import { searchIndianCities } from "../../services/cities";
 import {
   createBooking,
   getBooking,
@@ -11,8 +14,8 @@ import {
 import {
   createCustomer,
   createCustomerTraveller,
-  getCustomer,
-  getCustomers,
+  searchCustomerBookingOptions,
+  searchTravellerBookingOptions,
 } from "../../services/customers";
 
 const fieldClass =
@@ -92,6 +95,20 @@ function FieldError({ message }) {
   if (!message) return null;
 
   return <p className="mt-1 text-xs font-medium text-rose-600">{message}</p>;
+}
+
+function MobileInlineField({ label, error, children }) {
+  return (
+    <label className="flex items-center gap-3 md:block">
+      <span className="w-24 shrink-0 text-sm font-medium text-slate-700 md:w-auto">
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">
+        {children}
+        <FieldError message={error} />
+      </div>
+    </label>
+  );
 }
 
 function AddTravellerModal({ customer, customerType, onClose, onSave }) {
@@ -267,6 +284,7 @@ function AddCustomerModal({ onClose, onSave }) {
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm({
@@ -276,6 +294,8 @@ function AddCustomerModal({ onClose, onSave }) {
       displayName: "",
       travellerName: "",
       phone: "",
+      whatsappNumber: "",
+      whatsappSameAsPhone: true,
       email: "",
       city: "Prayagraj",
       gstin: "",
@@ -285,6 +305,7 @@ function AddCustomerModal({ onClose, onSave }) {
   });
   const customerType = watch("type");
   const displayName = watch("displayName");
+  const whatsappSameAsPhone = watch("whatsappSameAsPhone");
   const travellerLabel =
     customerType === "Travel Agent"
       ? "Guest / Traveller Name"
@@ -308,6 +329,10 @@ function AddCustomerModal({ onClose, onSave }) {
       billingName: customerDisplayName,
       email: values.email,
       phone: values.phone,
+      whatsappNumber: values.whatsappSameAsPhone
+        ? values.phone
+        : values.whatsappNumber,
+      whatsappSameAsPhone: values.whatsappSameAsPhone,
       city: values.city,
       gstin: values.gstin,
       address: values.address,
@@ -466,9 +491,46 @@ function AddCustomerModal({ onClose, onSave }) {
                     value: 8,
                     message: "Enter a valid phone number",
                   },
+                  onChange: (event) => {
+                    if (whatsappSameAsPhone)
+                      setValue("whatsappNumber", event.target.value);
+                  },
                 })}
               />
               <FieldError message={errors.phone?.message} />
+            </label>
+
+            <label>
+              <span className="text-sm font-medium text-slate-700">
+                {["Corporate", "Travel Agent"].includes(customerType)
+                  ? "Travel Desk / Admin WhatsApp"
+                  : "WhatsApp Number"}
+              </span>
+              <input
+                className={fieldClass}
+                placeholder="+91 98765 43210"
+                disabled={whatsappSameAsPhone}
+                {...register("whatsappNumber", {
+                  validate: (value) =>
+                    whatsappSameAsPhone ||
+                    Boolean(value?.trim()) ||
+                    "WhatsApp number is required",
+                })}
+              />
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-brand-500"
+                  {...register("whatsappSameAsPhone", {
+                    onChange: (event) => {
+                      if (event.target.checked)
+                        setValue("whatsappNumber", watch("phone"));
+                    },
+                  })}
+                />
+                This mobile number is on WhatsApp
+              </label>
+              <FieldError message={errors.whatsappNumber?.message} />
             </label>
 
             <label>
@@ -553,10 +615,10 @@ function BookingFormPage() {
   const [existingBooking, setExistingBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [customerOptions, setCustomerOptions] = useState([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  const [travellerOptions, setTravellerOptions] = useState([]);
-  const [travellersLoading, setTravellersLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedTraveller, setSelectedTraveller] = useState(null);
+  const [selectedFromCity, setSelectedFromCity] = useState(null);
+  const [selectedToCity, setSelectedToCity] = useState(null);
   const [isTravellerModalOpen, setIsTravellerModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const {
@@ -615,20 +677,41 @@ function BookingFormPage() {
   });
 
   useEffect(() => {
-    Promise.all([
-      getCustomers({ limit: 100 }),
-      isEditMode ? getBooking(bookingId) : null,
-    ])
-      .then(([customerResult, booking]) => {
-        const customers = customerResult.items;
-        setCustomerOptions(customers);
-        setTravellerOptions(
-          customers.flatMap((customer) => customer.travellers || []),
-        );
+    (isEditMode ? getBooking(bookingId) : Promise.resolve(null))
+      .then(async (booking) => {
         if (booking) {
+          const customerResult = await searchCustomerBookingOptions({
+            id: booking.billing_customer_id,
+          });
+          const customer = customerResult.items[0] || null;
+          const travellerResult = booking.traveller_id
+            ? await searchTravellerBookingOptions(booking.billing_customer_id, {
+                id: booking.traveller_id,
+              })
+            : null;
+          setSelectedCustomer(customer);
+          setSelectedTraveller(travellerResult?.items[0] || null);
+          setSelectedFromCity(
+            booking.travellingFrom
+              ? {
+                  id: `existing-from-${booking.id}`,
+                  name: booking.travellingFrom,
+                  displayName: booking.travellingFrom,
+                }
+              : null,
+          );
+          setSelectedToCity(
+            booking.travellingTo
+              ? {
+                  id: `existing-to-${booking.id}`,
+                  name: booking.travellingTo,
+                  displayName: booking.travellingTo,
+                }
+              : null,
+          );
           setExistingBooking(booking);
           reset({
-            customer_type: booking.customer_type || "",
+            customer_type: customer?.type || booking.customer_type || "",
             billing_customer_id: booking.billing_customer_id || "",
             traveller_id: booking.traveller_id || "",
             booking_type: booking.booking_type || "",
@@ -658,33 +741,15 @@ function BookingFormPage() {
 
   const selectedCustomerType = watch("customer_type");
   const selectedCustomerId = watch("billing_customer_id");
-  const selectedTravellerId = watch("traveller_id");
   const selectedBookingType = watch("booking_type");
   const selectedTripType = watch("trip_type");
   const selectedBillingModel = watch("billing_model");
   const selectedStartDate = watch("startDate");
-  const selectedCustomer = customerOptions.find(
-    (customer) => customer.id === selectedCustomerId,
-  );
-  const filteredCustomers = customerOptions.filter(
-    (customer) => customer.type === selectedCustomerType,
-  );
-  const filteredTravellers = travellerOptions.filter(
-    (traveller) =>
-      traveller.customer_id === selectedCustomerId &&
-      traveller.status === "Active",
-  );
   const shouldShowTravellerSelect =
     selectedCustomerType === "Corporate" ||
     selectedCustomerType === "Travel Agent";
-  const travellerLabel =
-    selectedCustomerType === "Travel Agent"
-      ? "Traveller / Guest"
-      : "Traveller / Employee";
-  const addTravellerLabel =
-    selectedCustomerType === "Travel Agent"
-      ? "+ Add New Guest / Traveller"
-      : "+ Add New Employee / Traveller";
+  const travellerLabel = "Guest";
+  const addTravellerLabel = "Add New Guest";
   const isTransferBooking =
     selectedBookingType === "airport_transfer" ||
     selectedBookingType === "railway_station_transfer";
@@ -732,34 +797,29 @@ function BookingFormPage() {
     watch,
   ]);
 
-  useEffect(() => {
-    if (!selectedCustomerId || !selectedCustomer) {
-      setValue("traveller_id", "");
-      return;
-    }
-
-    if (selectedCustomerType === "Individuals") {
-      const retailTraveller = travellerOptions.find(
-        (traveller) => traveller.customer_id === selectedCustomerId,
-      );
-      setValue("traveller_id", retailTraveller?.id || "");
-      return;
-    }
-
-    const selectedTraveller = travellerOptions.find(
-      (traveller) => traveller.id === selectedTravellerId,
-    );
-    if (selectedTraveller?.customer_id === selectedCustomerId) return;
-
-    setValue("traveller_id", "");
-  }, [
-    selectedCustomerId,
-    selectedCustomer,
-    selectedCustomerType,
-    selectedTravellerId,
-    setValue,
-    travellerOptions,
-  ]);
+  const loadCustomers = useCallback(
+    ({ query, page, signal }) =>
+      searchCustomerBookingOptions({
+        type: selectedCustomerType,
+        query,
+        page,
+        signal,
+      }),
+    [selectedCustomerType],
+  );
+  const loadTravellers = useCallback(
+    ({ query, page, signal }) =>
+      searchTravellerBookingOptions(selectedCustomerId, {
+        query,
+        page,
+        signal,
+      }),
+    [selectedCustomerId],
+  );
+  const loadCities = useCallback(
+    ({ query, page, signal }) => searchIndianCities({ query, page, signal }),
+    [],
+  );
 
   async function onSubmit(values) {
     try {
@@ -782,7 +842,7 @@ function BookingFormPage() {
         selectedCustomerId,
         newTraveller,
       );
-      setTravellerOptions((current) => [...current, traveller]);
+      setSelectedTraveller(traveller);
       setValue("traveller_id", traveller.id, { shouldValidate: true });
       setIsTravellerModalOpen(false);
     } catch (error) {
@@ -790,60 +850,31 @@ function BookingFormPage() {
     }
   }
 
-  async function handleCustomerTypeChange(customerType) {
+  function handleCustomerTypeChange(customerType) {
     setValue("customer_type", customerType, { shouldValidate: true });
     setValue("billing_customer_id", "");
     setValue("traveller_id", "");
-    if (!customerType) return;
-
-    const apiTypes = {
-      Individuals: "RETAIL",
-      Corporate: "CORPORATE",
-      "Travel Agent": "TRAVEL_AGENT",
-    };
-    setCustomersLoading(true);
-    setLoadError("");
-    try {
-      const result = await getCustomers({
-        type: apiTypes[customerType],
-        status: "ACTIVE",
-        limit: 100,
-      });
-      setCustomerOptions(result.items);
-      setTravellerOptions(
-        result.items.flatMap((customer) => customer.travellers || []),
-      );
-    } catch (error) {
-      setLoadError(getBookingErrorMessage(error));
-    } finally {
-      setCustomersLoading(false);
-    }
+    setSelectedCustomer(null);
+    setSelectedTraveller(null);
   }
 
-  async function handleBillingCustomerChange(customerId) {
-    const customer = customerOptions.find((option) => option.id === customerId);
+  async function handleBillingCustomerChange(customer) {
+    const customerId = customer?.id || "";
+    setSelectedCustomer(customer);
+    setSelectedTraveller(null);
     setValue("billing_customer_id", customerId, { shouldValidate: true });
     setValue("customer_type", customer?.type || "", { shouldValidate: true });
     setValue("traveller_id", "");
     if (!customerId) return;
-
-    setTravellersLoading(true);
-    setLoadError("");
-    try {
-      const detailedCustomer = await getCustomer(customerId);
-      setCustomerOptions((current) =>
-        current.map((item) =>
-          item.id === customerId ? detailedCustomer : item,
-        ),
-      );
-      setTravellerOptions((current) => [
-        ...current.filter((traveller) => traveller.customer_id !== customerId),
-        ...(detailedCustomer.travellers || []),
-      ]);
-    } catch (error) {
-      setLoadError(getBookingErrorMessage(error));
-    } finally {
-      setTravellersLoading(false);
+    if (customer.type === "Individuals") {
+      try {
+        const result = await searchTravellerBookingOptions(customerId);
+        const traveller = result.items[0] || null;
+        setSelectedTraveller(traveller);
+        setValue("traveller_id", traveller?.id || "", { shouldValidate: true });
+      } catch (error) {
+        setLoadError(getBookingErrorMessage(error));
+      }
     }
   }
 
@@ -868,8 +899,8 @@ function BookingFormPage() {
           salutation: newCustomer.salutation === "Ms." ? "MS" : "MR",
         });
       }
-      setCustomerOptions((current) => [...current, customer]);
-      if (traveller) setTravellerOptions((current) => [...current, traveller]);
+      setSelectedCustomer(customer);
+      setSelectedTraveller(traveller || null);
       setValue("billing_customer_id", customer.id, { shouldValidate: true });
       setValue("customer_type", customer.type, { shouldValidate: true });
       setValue("traveller_id", traveller?.id || "", { shouldValidate: true });
@@ -903,13 +934,23 @@ function BookingFormPage() {
             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
             onSubmit={handleSubmit(onSubmit)}
           >
-            <div className="mb-3 flex items-center gap-3 border-b border-slate-200 pb-2">
-              <p className="shrink-0 text-sm font-semibold text-slate-900">
-                Billing and traveller
-              </p>
-              <span className="hidden text-xs text-slate-500 sm:inline">
-                Customer billing party and traveller details
-              </span>
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+              <div className="flex min-w-0 items-center gap-3">
+                <p className="shrink-0 text-sm font-semibold text-slate-900">
+                  Billing and traveller
+                </p>
+                <span className="hidden text-xs text-slate-500 sm:inline">
+                  Customer billing party and traveller details
+                </span>
+              </div>
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => setIsCustomerModalOpen(true)}
+              >
+                <Plus size={16} />
+                New Customer
+              </button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -920,7 +961,7 @@ function BookingFormPage() {
                 })}
               />
 
-              <div className="grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-3">
+              <div className="grid gap-4 md:col-span-2 md:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_minmax(0,1fr)] xl:col-span-3">
                 <label>
                   <span className="text-sm font-medium text-slate-700">
                     Customer Type
@@ -942,54 +983,104 @@ function BookingFormPage() {
                   <FieldError message={errors.customer_type?.message} />
                 </label>
 
-                <div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                    <label className="flex-1">
-                      <span className="text-sm font-medium text-slate-700">
-                        Billing Customer
-                      </span>
-                      <select
-                        className={fieldClass}
-                        value={selectedCustomerId}
-                        disabled={!selectedCustomerType || customersLoading}
-                        onChange={(event) =>
-                          handleBillingCustomerChange(event.target.value)
-                        }
-                      >
-                        <option value="">
-                          {customersLoading
-                            ? "Loading customers…"
-                            : selectedCustomerType
-                              ? "Select billing customer"
-                              : "Select customer type first"}
-                        </option>
-                        {filteredCustomers.map((customer) => (
-                          <option key={customer.id} value={customer.id}>
-                            {customer.displayName} - {customer.type}
-                            {customer.phone ? ` - ${customer.phone}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <FieldError
-                        message={errors.billing_customer_id?.message}
-                      />
-                    </label>
+                {shouldShowTravellerSelect && (
+                  <div className="order-3 md:col-span-2 xl:col-span-1">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <label className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-slate-700">
+                          {travellerLabel}
+                        </span>
+                        <input
+                          type="hidden"
+                          {...register("traveller_id", {
+                            required: "Traveller is required",
+                          })}
+                        />
+                        <AsyncAutocomplete
+                          value={watch("traveller_id")}
+                          selectedOption={selectedTraveller}
+                          disabled={!selectedCustomerId}
+                          placeholder={
+                            selectedCustomerId
+                              ? "Search by name or mobile"
+                              : "Select billing customer first"
+                          }
+                          emptyMessage="No active travellers found."
+                          recentLabel="Recently used travellers"
+                          loadOptions={loadTravellers}
+                          onChange={(traveller) => {
+                            setSelectedTraveller(traveller);
+                            setValue("traveller_id", traveller?.id || "", {
+                              shouldValidate: true,
+                            });
+                          }}
+                          renderOption={(traveller) => (
+                            <span className="flex items-center justify-between gap-3">
+                              <span className="truncate font-medium">
+                                {traveller.displayName || traveller.name}
+                              </span>
+                              <span className="shrink-0 text-xs text-slate-500">
+                                {traveller.phone || traveller.employee_id || ""}
+                              </span>
+                            </span>
+                          )}
+                        />
+                        <FieldError message={errors.traveller_id?.message} />
+                      </label>
 
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      onClick={() => setIsCustomerModalOpen(true)}
-                    >
-                      <Plus size={16} />
-                      New Customer
-                    </button>
+                      <button
+                        type="button"
+                        className="inline-flex shrink-0 whitespace-nowrap items-center justify-center gap-1 rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!selectedCustomer}
+                        onClick={() => setIsTravellerModalOpen(true)}
+                      >
+                        <Plus size={14} />
+                        {addTravellerLabel}
+                      </button>
+                    </div>
                   </div>
+                )}
+
+                {!shouldShowTravellerSelect && (
+                  <input type="hidden" {...register("traveller_id")} />
+                )}
+
+                <div className="order-2">
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Billing Customer
+                    </span>
+                    <AsyncAutocomplete
+                      value={selectedCustomerId}
+                      selectedOption={selectedCustomer}
+                      disabled={!selectedCustomerType}
+                      placeholder={
+                        selectedCustomerType
+                          ? "Search by name or mobile"
+                          : "Select customer type first"
+                      }
+                      emptyMessage="No active customers found."
+                      recentLabel="Recently used customers"
+                      loadOptions={loadCustomers}
+                      onChange={handleBillingCustomerChange}
+                      renderOption={(customer) => (
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="truncate font-medium">
+                            {customer.displayName || customer.billingName}
+                          </span>
+                          {customer.phone && (
+                            <span className="shrink-0 text-xs text-slate-500">
+                              {customer.phone}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    />
+                    <FieldError message={errors.billing_customer_id?.message} />
+                  </label>
 
                   {selectedCustomer && (
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-                        {selectedCustomer.type}
-                      </span>
+                    <div className="mt-1.5 flex flex-wrap gap-2 text-xs font-semibold sm:mt-3">
                       {selectedCustomer.city && (
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
                           {selectedCustomer.city}
@@ -1003,75 +1094,6 @@ function BookingFormPage() {
                     </div>
                   )}
                 </div>
-
-                {selectedCustomerType === "Individuals" && selectedCustomer && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 md:col-span-2">
-                    <p className="text-sm font-semibold text-emerald-800">
-                      Traveller
-                    </p>
-                    <p className="mt-1 text-sm text-emerald-700">
-                      Individual booking traveller is the selected customer:{" "}
-                      {selectedCustomer.displayName}.
-                    </p>
-                  </div>
-                )}
-
-                {shouldShowTravellerSelect && (
-                  <div className="md:col-span-2">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                      <label className="flex-1">
-                        <span className="text-sm font-medium text-slate-700">
-                          {travellerLabel}
-                        </span>
-                        <select
-                          className={fieldClass}
-                          disabled={!selectedCustomerId || travellersLoading}
-                          {...register("traveller_id", {
-                            required: "Traveller is required",
-                          })}
-                        >
-                          <option value="">
-                            {travellersLoading
-                              ? "Loading employees…"
-                              : selectedCustomerId
-                                ? "Select traveller"
-                                : "Select billing customer first"}
-                          </option>
-                          {filteredTravellers.map((traveller) => (
-                            <option key={traveller.id} value={traveller.id}>
-                              {traveller.name}
-                              {traveller.employee_id
-                                ? ` (${traveller.employee_id})`
-                                : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <FieldError message={errors.traveller_id?.message} />
-                      </label>
-
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!selectedCustomer}
-                        onClick={() => setIsTravellerModalOpen(true)}
-                      >
-                        <Plus size={16} />
-                        {addTravellerLabel}
-                      </button>
-                    </div>
-
-                    {selectedCustomerId && filteredTravellers.length === 0 && (
-                      <p className="mt-2 text-sm text-amber-700">
-                        No active travellers found for this billing customer.
-                        Add a new traveller to continue.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {!shouldShowTravellerSelect && (
-                  <input type="hidden" {...register("traveller_id")} />
-                )}
               </div>
 
               <div className="mt-1 flex items-center gap-3 border-b border-slate-200 pb-2 md:col-span-2 xl:col-span-3">
@@ -1083,48 +1105,72 @@ function BookingFormPage() {
                 </span>
               </div>
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Booking Type
-                </span>
-                <select
-                  className={fieldClass}
-                  {...register("booking_type", {
-                    required: "Booking type is required",
-                  })}
-                >
-                  <option value="">Select booking type</option>
-                  {bookingTypeOptions.map((bookingType) => (
-                    <option key={bookingType.value} value={bookingType.value}>
-                      {bookingType.label}
+              <div className="grid grid-cols-2 gap-3 md:contents">
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Booking Type
+                  </span>
+                  <select
+                    className={fieldClass}
+                    {...register("booking_type", {
+                      required: "Booking type is required",
+                    })}
+                  >
+                    <option className="py-3 text-base" value="">
+                      Select booking type
                     </option>
-                  ))}
-                </select>
-                <FieldError message={errors.booking_type?.message} />
-              </label>
+                    {bookingTypeOptions.map((bookingType) => (
+                      <option
+                        className="py-3 text-base"
+                        key={bookingType.value}
+                        value={bookingType.value}
+                      >
+                        {bookingType.label}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError message={errors.booking_type?.message} />
+                </label>
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Assignment Source
-                </span>
-                <select
-                  className={fieldClass}
-                  {...register("assignmentType", {
-                    required: "Assignment source is required",
-                  })}
-                >
-                  <option value="own_vehicle">Own Vehicle</option>
-                  <option value="vendor_vehicle">Vendor Vehicle</option>
-                </select>
-                <FieldError message={errors.assignmentType?.message} />
-              </label>
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Assign Duty
+                  </span>
+                  <input
+                    type="hidden"
+                    {...register("assignmentType", {
+                      required: "Assignment source is required",
+                    })}
+                  />
+                  <div className="mt-1 grid h-[38px] grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    {[
+                      { value: "own_vehicle", label: "Own" },
+                      { value: "vendor_vehicle", label: "Vendor" },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`h-full rounded-md px-2 text-sm font-semibold transition ${watch("assignmentType") === option.value ? "bg-brand-600 text-white shadow-sm ring-1 ring-brand-600" : "text-slate-500 hover:bg-white hover:text-slate-700"}`}
+                        onClick={() =>
+                          setValue("assignmentType", option.value, {
+                            shouldValidate: true,
+                          })
+                        }
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <FieldError message={errors.assignmentType?.message} />
+                </label>
+              </div>
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Type of Vehicle
-                </span>
+              <MobileInlineField
+                label="Vehicle Type"
+                error={errors.requestedVehicleType?.message}
+              >
                 <select
-                  className={fieldClass}
+                  className={`${fieldClass} mt-0 md:mt-1`}
                   {...register("requestedVehicleType", {
                     required: "Type of vehicle is required",
                   })}
@@ -1136,18 +1182,19 @@ function BookingFormPage() {
                     </option>
                   ))}
                 </select>
-                <FieldError message={errors.requestedVehicleType?.message} />
-              </label>
+              </MobileInlineField>
 
               {showDutyPackage && (
-                <label>
-                  <span className="text-sm font-medium text-slate-700">
-                    {selectedBookingType === "outstation"
-                      ? "Outstation Minimum KM"
-                      : "Duty Package"}
-                  </span>
+                <MobileInlineField
+                  label={
+                    selectedBookingType === "outstation"
+                      ? "Minimum KM"
+                      : "Duty Package"
+                  }
+                  error={errors.duty_package?.message}
+                >
                   <select
-                    className={fieldClass}
+                    className={`${fieldClass} mt-0 md:mt-1`}
                     {...register("duty_package", {
                       required: "Duty package is required",
                     })}
@@ -1163,61 +1210,74 @@ function BookingFormPage() {
                       </option>
                     ))}
                   </select>
-                  <FieldError message={errors.duty_package?.message} />
-                </label>
+                </MobileInlineField>
               )}
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Trip Type
-                </span>
-                <select
-                  className={fieldClass}
-                  {...register("trip_type", {
-                    required: "Trip type is required",
+              <MobileInlineField
+                label="Trip Type"
+                error={errors.trip_type?.message}
+              >
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { value: "one_way", label: "One Way" },
+                    { value: "roundtrip", label: "Round" },
+                    { value: "multi_city", label: "Multi City" },
+                  ].map((option) => {
+                    const isSelected = selectedTripType === option.value;
+                    return (
+                      <label
+                        key={option.value}
+                        className={`flex h-[38px] cursor-pointer items-center justify-center rounded-lg border px-1.5 text-center text-xs font-semibold transition ${isSelected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-brand-300"}`}
+                      >
+                        <input
+                          type="radio"
+                          className="sr-only"
+                          value={option.value}
+                          {...register("trip_type", {
+                            required: "Trip type is required",
+                          })}
+                        />
+                        {option.label}
+                      </label>
+                    );
                   })}
-                >
-                  <option value="one_way">One Way</option>
-                  <option value="roundtrip">Round Trip</option>
-                  <option value="multi_city">
-                    Multi City / Multiple Visits
-                  </option>
-                </select>
-                <FieldError message={errors.trip_type?.message} />
-              </label>
+                </div>
+              </MobileInlineField>
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  Start Date
-                </span>
-                <input
-                  className={fieldClass}
-                  type="date"
-                  {...register("startDate", {
-                    required: "Start date is required",
-                  })}
-                />
-                <FieldError message={errors.startDate?.message} />
-              </label>
+              <div className="grid grid-cols-2 gap-3 md:contents">
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    Start Date
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="date"
+                    {...register("startDate", {
+                      required: "Start date is required",
+                    })}
+                  />
+                  <FieldError message={errors.startDate?.message} />
+                </label>
 
-              <label>
-                <span className="text-sm font-medium text-slate-700">
-                  End Date
-                </span>
-                <input
-                  className={fieldClass}
-                  type="date"
-                  {...register("endDate", {
-                    required: "End date is required",
-                    validate: (value) => {
-                      if (selectedStartDate && value < selectedStartDate)
-                        return "End date cannot be before start date";
-                      return true;
-                    },
-                  })}
-                />
-                <FieldError message={errors.endDate?.message} />
-              </label>
+                <label>
+                  <span className="text-sm font-medium text-slate-700">
+                    End Date
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="date"
+                    {...register("endDate", {
+                      required: "End date is required",
+                      validate: (value) => {
+                        if (selectedStartDate && value < selectedStartDate)
+                          return "End date cannot be before start date";
+                        return true;
+                      },
+                    })}
+                  />
+                  <FieldError message={errors.endDate?.message} />
+                </label>
+              </div>
 
               <label>
                 <span className="text-sm font-medium text-slate-700">
@@ -1253,15 +1313,32 @@ function BookingFormPage() {
                   Travelling From
                 </span>
                 <input
-                  className={fieldClass}
-                  placeholder="New Delhi"
+                  type="hidden"
                   {...register("travellingFrom", {
                     required: "Travelling from is required",
-                    minLength: {
-                      value: 3,
-                      message: "Enter at least 3 characters",
-                    },
                   })}
+                />
+                <AsyncAutocomplete
+                  value={selectedFromCity?.id || ""}
+                  selectedOption={selectedFromCity}
+                  placeholder="Search Indian city"
+                  emptyMessage="No matching Indian city found."
+                  recentLabel="Indian cities"
+                  loadOptions={loadCities}
+                  onChange={(city) => {
+                    setSelectedFromCity(city);
+                    setValue("travellingFrom", city?.displayName || "", {
+                      shouldValidate: true,
+                    });
+                  }}
+                  renderOption={(city) => (
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{city.name}</span>
+                      <span className="truncate text-xs text-slate-500">
+                        {city.stateName}
+                      </span>
+                    </span>
+                  )}
                 />
                 <FieldError message={errors.travellingFrom?.message} />
               </label>
@@ -1271,24 +1348,32 @@ function BookingFormPage() {
                   Travelling To
                 </span>
                 <input
-                  className={fieldClass}
-                  placeholder={
-                    selectedTripType === "roundtrip"
-                      ? "Same city return or final drop point"
-                      : selectedTripType === "multi_city"
-                        ? "Final drop point if known"
-                        : isTransferBooking
-                          ? "Airport / Railway Station / Hotel"
-                          : "Grand Plaza Hotel"
-                  }
+                  type="hidden"
                   {...register("travellingTo", {
-                    validate: (value) => {
-                      if (!value) return "Travelling to is required";
-                      if (value && value.length < 3)
-                        return "Enter at least 3 characters";
-                      return true;
-                    },
+                    required: "Travelling to is required",
                   })}
+                />
+                <AsyncAutocomplete
+                  value={selectedToCity?.id || ""}
+                  selectedOption={selectedToCity}
+                  placeholder="Search Indian city"
+                  emptyMessage="No matching Indian city found."
+                  recentLabel="Indian cities"
+                  loadOptions={loadCities}
+                  onChange={(city) => {
+                    setSelectedToCity(city);
+                    setValue("travellingTo", city?.displayName || "", {
+                      shouldValidate: true,
+                    });
+                  }}
+                  renderOption={(city) => (
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="font-medium">{city.name}</span>
+                      <span className="truncate text-xs text-slate-500">
+                        {city.stateName}
+                      </span>
+                    </span>
+                  )}
                 />
                 <FieldError message={errors.travellingTo?.message} />
               </label>
@@ -1298,8 +1383,7 @@ function BookingFormPage() {
                   Pickup / Reporting Address / Location
                 </span>
                 <input
-                  className={fieldClass}
-                  placeholder="Airport Terminal 2, Arrival Gate"
+                  type="hidden"
                   {...register("pickupReportingAddress", {
                     required: "Pickup / reporting address is required",
                     minLength: {
@@ -1307,6 +1391,15 @@ function BookingFormPage() {
                       message: "Enter at least 3 characters",
                     },
                   })}
+                />
+                <AddressAutocomplete
+                  value={watch("pickupReportingAddress") || ""}
+                  city={selectedFromCity}
+                  onChange={(address) =>
+                    setValue("pickupReportingAddress", address, {
+                      shouldValidate: true,
+                    })
+                  }
                 />
                 <FieldError message={errors.pickupReportingAddress?.message} />
               </label>

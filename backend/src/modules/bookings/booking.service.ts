@@ -5,7 +5,6 @@ import type {
   CollectionStatus,
 } from '../../generated/prisma/enums'
 import { AppError } from '../../shared/errors/app-error'
-import type { PageRequest } from '../../shared/pagination'
 import { pageResult } from '../../shared/pagination'
 import { tenantBusinessDate } from '../../shared/date/tenant-business-date'
 import { titleCaseOptional, toTitleCase } from '../../shared/text/title-case'
@@ -59,7 +58,7 @@ function validateDates(startDate: Date, endDate: Date) {
 
 export async function list(
   context: Context,
-  filters: { search?: string; status?: string; view?: string } & PageRequest,
+  filters: repository.BookingListFilters,
 ) {
   const [records, total] = await repository.list(context.tenantId, filters)
   return pageResult(
@@ -1047,4 +1046,8 @@ export async function remove(context: Context, idOrNumber: string) {
       409,
     )
   return { id: booking.bookingNumber || booking.id, deleted: true }
+}
+
+export function filterVehicles(context: Context) {
+  return repository.filterVehicles(context.tenantId)
 }

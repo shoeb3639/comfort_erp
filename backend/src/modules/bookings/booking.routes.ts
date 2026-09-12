@@ -45,6 +45,11 @@ bookingRouter.post(
   controller.create,
 )
 bookingRouter.get(
+  '/filter-vehicles',
+  authorizePermission('booking.view'),
+  controller.filterVehicles,
+)
+bookingRouter.get(
   '/:bookingId',
   authorizePermission('booking.view'),
   validateParams(bookingParamsSchema),

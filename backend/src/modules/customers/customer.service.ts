@@ -12,6 +12,7 @@ import type {
   CustomerContext,
   CustomerInput,
   TravellerInput,
+  BookingOptionFilters,
 } from './customer.types'
 
 function mapConflict(error: unknown): never {
@@ -106,6 +107,46 @@ export async function getCustomer(
   return mapCustomer(customer)
 }
 
+export async function listCustomerBookingOptions(
+  context: CustomerContext,
+  filters: BookingOptionFilters & { type?: CustomerType },
+) {
+  const [records, total] = await repository.listCustomerBookingOptions(
+    context.tenantId,
+    filters,
+  )
+  return pageResult(
+    records.map((item) => ({
+      ...item,
+      displayName: `${item.salutation === 'MR' ? 'Mr. ' : item.salutation === 'MS' ? 'Ms. ' : ''}${item.name}`,
+    })),
+    total,
+    filters,
+  )
+}
+
+export async function listTravellerBookingOptions(
+  context: CustomerContext,
+  customerId: string,
+  filters: BookingOptionFilters,
+) {
+  const result = await repository.listTravellerBookingOptions(
+    context.tenantId,
+    customerId,
+    filters,
+  )
+  if (!result) throw new AppError('Customer was not found', 'NOT_FOUND', 404)
+  const [records, total] = result
+  return pageResult(
+    records.map((item) => ({
+      ...item,
+      displayName: `${item.salutation === 'MR' ? 'Mr. ' : item.salutation === 'MS' ? 'Ms. ' : ''}${item.name}`,
+    })),
+    total,
+    filters,
+  )
+}
+
 export async function createCustomer(
   context: CustomerContext,
   input: Required<
@@ -126,6 +167,7 @@ export async function createCustomer(
         billingName: normalized.billingName ?? input.billingName,
         email: input.email ?? null,
         phone: input.phone,
+        whatsappNumber: input.whatsappNumber ?? null,
         city: normalized.city ?? null,
         gstin: data.gstin ?? null,
         billingAddress: normalized.billingAddress ?? null,

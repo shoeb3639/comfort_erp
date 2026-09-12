@@ -17,6 +17,24 @@ export const customerListQuerySchema = Joi.object({
   status: Joi.string().valid('ACTIVE', 'INACTIVE'),
 })
 
+const bookingOptionPagination = {
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(50).default(20),
+}
+
+export const customerBookingOptionsQuerySchema = Joi.object({
+  ...bookingOptionPagination,
+  q: Joi.string().trim().max(100).empty(''),
+  type: Joi.string().valid('RETAIL', 'CORPORATE', 'TRAVEL_AGENT'),
+  id: Joi.string().uuid(),
+})
+
+export const travellerBookingOptionsQuerySchema = Joi.object({
+  ...bookingOptionPagination,
+  q: Joi.string().trim().max(100).empty(''),
+  id: Joi.string().uuid(),
+})
+
 const contactSchema = Joi.object({
   salutation: Joi.string().valid('MR', 'MS').allow(null),
   name: Joi.string().trim().min(2).max(150).required(),
@@ -33,6 +51,7 @@ export const createCustomerSchema = Joi.object({
   billingName: Joi.string().trim().min(2).max(200).required(),
   email: Joi.string().trim().lowercase().email().max(255).empty('').allow(null),
   phone: Joi.string().trim().min(8).max(30).required(),
+  whatsappNumber: Joi.string().trim().min(8).max(30).empty('').allow(null),
   city: Joi.string().trim().min(2).max(100).empty('').allow(null),
   gstin: Joi.string().trim().uppercase().max(20).empty('').allow(null),
   billingAddress: Joi.string().trim().min(3).max(2000).empty('').allow(null),

@@ -211,7 +211,29 @@ export const bookingCollectionParamsSchema = bookingParamsSchema.keys({
   collectionId: Joi.string().uuid().required(),
 })
 
+const filterDate = Joi.string()
+  .pattern(/^\d{4}-\d{2}-\d{2}$/)
+  .custom((value: string, helpers) => {
+    const parsed = new Date(value)
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== value
+    )
+      return helpers.error('string.pattern.base')
+    return value
+  })
+
 export const bookingQuerySchema = Joi.object({
+  sortDirection: Joi.string().valid('asc', 'desc'),
+  vendorId: Joi.string().uuid(),
+  vehicleId: Joi.string().uuid(),
+  startDate: filterDate,
+  endDate: filterDate,
+  customerType: Joi.string().valid('CORPORATE', 'RETAIL', 'TRAVEL_AGENT'),
+  assignmentSource: Joi.string().valid('OWN', 'VENDOR'),
+  vehicleType: Joi.string().trim().max(150),
+  vehicleNumber: Joi.string().trim().max(30),
+  driverName: Joi.string().trim().max(150),
   ...paginationQueryFields,
   search: Joi.string().trim().max(200),
   status: Joi.string().valid(
@@ -224,4 +246,10 @@ export const bookingQuerySchema = Joi.object({
     'CANCELLED',
   ),
   view: Joi.string().valid('ACTIVE', 'CLOSED'),
+}).custom((value: { startDate?: string; endDate?: string }, helpers) => {
+  if (value.startDate && value.endDate && value.startDate > value.endDate)
+    return helpers.message({
+      custom: 'End date must be on or after start date',
+    })
+  return value
 })

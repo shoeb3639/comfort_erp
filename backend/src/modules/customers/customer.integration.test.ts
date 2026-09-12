@@ -114,6 +114,113 @@ function authenticated(
 }
 
 describe('customer APIs', () => {
+  it('returns small tenant-scoped booking options with search and pagination', async () => {
+    const customers = await Promise.all([
+      prisma.customer.create({
+        data: {
+          tenantId,
+          customerCode: 'CUST-SEARCH-1',
+          type: 'CORPORATE',
+          name: 'Northwind Travel Desk',
+          billingName: 'Northwind Industries',
+          phone: '9123456780',
+        },
+      }),
+      prisma.customer.create({
+        data: {
+          tenantId,
+          customerCode: 'CUST-SEARCH-2',
+          type: 'RETAIL',
+          name: 'Mobile Search Person',
+          billingName: 'Mobile Search Person',
+          phone: '9988776655',
+        },
+      }),
+    ])
+    const traveller = await prisma.customerTraveller.create({
+      data: {
+        tenantId,
+        customerId: customers[0].id,
+        travellerType: 'Employee',
+        name: 'Searchable Employee',
+        phone: '8877665544',
+      },
+    })
+    const otherTenant = await prisma.tenant.create({
+      data: {
+        code: 'CUSTOMER_SEARCH_OTHER',
+        legalName: 'Search Other Tenant',
+        email: 'search-other@example.com',
+        mobile: '6000000001',
+      },
+    })
+    await prisma.customer.create({
+      data: {
+        tenantId: otherTenant.id,
+        customerCode: 'CUST-SEARCH-OTHER',
+        type: 'CORPORATE',
+        name: 'Northwind Hidden',
+        billingName: 'Northwind Hidden',
+        phone: '9123456781',
+      },
+    })
+
+    const byName = await authenticated(
+      'get',
+      '/booking-options?q=wind&type=CORPORATE&limit=1',
+    )
+    const byNameItem = byName.body.data.items[0] as Record<string, unknown>
+    expect(byName.status).toBe(200)
+    expect(byName.body.data.items).toHaveLength(1)
+    expect(byNameItem.id).toBe(customers[0].id)
+    expect(Object.keys(byNameItem).sort()).toEqual(
+      [
+        'billingName',
+        'city',
+        'displayName',
+        'gstin',
+        'id',
+        'name',
+        'phone',
+        'salutation',
+        'type',
+        'whatsappNumber',
+      ].sort(),
+    )
+    expect(byName.body.data.pagination.limit).toBe(1)
+
+    const byMobile = await authenticated(
+      'get',
+      '/booking-options?q=7766&type=RETAIL',
+    )
+    const mobileItems = byMobile.body.data.items as Array<{ id: string }>
+    expect(mobileItems.map((item) => item.id)).toContain(customers[1].id)
+
+    const travellerSearch = await authenticated(
+      'get',
+      `/${customers[0].id}/traveller-options?q=7655`,
+    )
+    const travellerItem = travellerSearch.body.data.items[0] as Record<
+      string,
+      unknown
+    >
+    expect(travellerSearch.status).toBe(200)
+    expect(travellerItem.id).toBe(traveller.id)
+    expect(Object.keys(travellerItem)).not.toContain('notes')
+
+    expect(
+      (await authenticated('get', '/booking-options?limit=51')).status,
+    ).toBe(400)
+    expect(
+      (
+        await authenticated(
+          'get',
+          `/${customers[1].id}/traveller-options?id=${traveller.id}`,
+        )
+      ).body.data.items,
+    ).toHaveLength(0)
+  })
+
   it('creates, reads, searches, and updates a permanent customer', async () => {
     const created = await authenticated('post', '').send({
       type: 'CORPORATE',
@@ -121,6 +228,7 @@ describe('customer APIs', () => {
       billingName: 'acme corporation private limited',
       email: 'travel@acme.example.com',
       phone: '9999999998',
+      whatsappNumber: '9999999998',
       city: 'NEW DELHI',
       gstin: '29ABCDE1234F1Z5',
       billingAddress: 'MG Road, Bengaluru',
@@ -130,6 +238,7 @@ describe('customer APIs', () => {
     expect(created.body.data.name).toBe('Acme Corporation')
     expect(created.body.data.city).toBe('New Delhi')
     expect(created.body.data.customerCode).toMatch(/^CUST-/)
+    expect(created.body.data.whatsappNumber).toBe('9999999998')
     expect(created.body.data.contacts[0].isPrimary).toBe(true)
     const customerId = created.body.data.id as string
 
@@ -141,14 +250,17 @@ describe('customer APIs', () => {
     const updated = await authenticated('patch', `/${customerId}`).send({
       city: 'Mumbai',
       creditLimit: 300000,
+      whatsappNumber: '9999999997',
     })
     expect(updated.status).toBe(200)
     expect(updated.body.data.city).toBe('Mumbai')
     expect(updated.body.data.creditLimit).toBe(300000)
+    expect(updated.body.data.whatsappNumber).toBe('9999999997')
 
     const detail = await authenticated('get', `/${customerId}`)
     expect(detail.status).toBe(200)
     expect(detail.body.data.id).toBe(customerId)
+    expect(detail.body.data.whatsappNumber).toBe('9999999997')
 
     expect((await authenticated('delete', `/${customerId}`)).status).toBe(404)
     expect((await authenticated('get', `/${customerId}`)).status).toBe(200)

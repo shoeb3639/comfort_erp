@@ -1,4 +1,9 @@
-import type { BookingStatus, Prisma } from '../../generated/prisma/client'
+import type {
+  AssignmentSource,
+  CustomerType,
+  BookingStatus,
+  Prisma,
+} from '../../generated/prisma/client'
 import { prisma } from '../../config/prisma'
 import type { PageRequest } from '../../shared/pagination'
 import { pageWindow } from '../../shared/pagination'
@@ -7,6 +12,7 @@ import { AppError } from '../../shared/errors/app-error'
 import { driverBalance } from './driver-funds'
 
 const include = {
+  tenant: { select: { legalName: true, tradeName: true } },
   customer: true,
   traveller: true,
   vendor: true,
@@ -31,14 +37,87 @@ export function getTenantTimeZone(tenantId: string) {
   })
 }
 
-export function list(
-  tenantId: string,
-  filters: { search?: string; status?: string; view?: string } & PageRequest,
-) {
+export type BookingListFilters = PageRequest & {
+  sortDirection?: 'asc' | 'desc' | undefined
+  vendorId?: string | undefined
+  vehicleId?: string | undefined
+  startDate?: string | undefined
+  endDate?: string | undefined
+  search?: string
+  status?: string
+  view?: string
+  customerType?: CustomerType | undefined
+  assignmentSource?: AssignmentSource | undefined
+  vehicleType?: string | undefined
+  vehicleNumber?: string | undefined
+  driverName?: string | undefined
+}
+
+export function list(tenantId: string, filters: BookingListFilters) {
   const where = {
     tenantId,
     deletedAt: null,
-    ...(filters.status ? { status: filters.status as never } : {}),
+    ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
+    ...(filters.vehicleId ? { vehicleId: filters.vehicleId } : {}),
+    ...(filters.startDate || filters.endDate
+      ? {
+          startDate: {
+            ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
+            ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
+          },
+        }
+      : {}),
+    AND: [
+      ...(filters.status ? [{ status: filters.status as BookingStatus }] : []),
+      ...(filters.vehicleType
+        ? [
+            {
+              OR: [
+                {
+                  vehicle: {
+                    vehicleType: {
+                      name: {
+                        contains: filters.vehicleType,
+                        mode: 'insensitive' as const,
+                      },
+                    },
+                  },
+                },
+                {
+                  vehicleId: null,
+                  requestedVehicleType: {
+                    contains: filters.vehicleType,
+                    mode: 'insensitive' as const,
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+    ],
+    ...(filters.customerType
+      ? { customer: { type: filters.customerType } }
+      : {}),
+    ...(filters.assignmentSource
+      ? { assignmentSource: filters.assignmentSource }
+      : {}),
+    ...(filters.vehicleNumber
+      ? {
+          vehicle: {
+            registrationNumber: {
+              contains: filters.vehicleNumber,
+              mode: 'insensitive',
+            },
+          },
+        }
+      : {}),
+    ...(filters.driverName
+      ? {
+          driver: {
+            name: { contains: filters.driverName, mode: 'insensitive' },
+          },
+        }
+      : {}),
     ...(filters.view === 'CLOSED'
       ? { status: 'CLOSED' }
       : filters.view === 'ACTIVE'
@@ -47,6 +126,38 @@ export function list(
     ...(filters.search
       ? {
           OR: [
+            ...[
+              'travellingFrom',
+              'travellingTo',
+              'routeStops',
+              'requestedVehicleType',
+            ].map((field) => ({
+              [field]: { contains: filters.search, mode: 'insensitive' },
+            })),
+            {
+              vendor: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+            {
+              driver: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+            {
+              vehicle: {
+                registrationNumber: {
+                  contains: filters.search,
+                  mode: 'insensitive',
+                },
+              },
+            },
+            {
+              traveller: {
+                name: { contains: filters.search, mode: 'insensitive' },
+              },
+            },
+
             {
               bookingNumber: {
                 contains: filters.search,
@@ -75,7 +186,11 @@ export function list(
     prisma.booking.findMany({
       where,
       include,
-      orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [
+        { startDate: filters.sortDirection || 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
       ...pageWindow(filters),
     }),
     prisma.booking.count({ where }),
@@ -776,5 +891,22 @@ export function voidCollection(
       },
     })
     return true
+  })
+}
+
+export function filterVehicles(tenantId: string) {
+  return prisma.vehicle.findMany({
+    where: { tenantId, deletedAt: null },
+    select: {
+      id: true,
+      registrationNumber: true,
+      ownershipType: true,
+      vendorId: true,
+      make: true,
+      model: true,
+      vehicleType: { select: { name: true } },
+      vendor: { select: { id: true, name: true } },
+    },
+    orderBy: { registrationNumber: 'asc' },
   })
 }

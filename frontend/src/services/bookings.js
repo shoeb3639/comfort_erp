@@ -53,7 +53,12 @@ export function bookingPayload(values) {
 }
 
 export async function listBookings(params) {
-  return (await api.get("/tenant/bookings", config(params))).data.data;
+  return (
+    await api.get("/tenant/bookings", {
+      ...config(params),
+      paramsSerializer: { indexes: null },
+    })
+  ).data.data;
 }
 
 export async function getBooking(id) {
@@ -275,4 +280,9 @@ export function getBookingErrorMessage(error) {
       .join(", ");
   }
   return error.response?.data?.message || "Unable to complete booking action.";
+}
+
+export async function getBookingFilterVehicles() {
+  return (await api.get("/tenant/bookings/filter-vehicles", config())).data
+    .data;
 }

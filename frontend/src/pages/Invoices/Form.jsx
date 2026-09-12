@@ -112,6 +112,8 @@ function createDefaultInvoiceValues(settings, invoice) {
     newCustomerName: "",
     newContactPerson: "",
     newMobile: "",
+    newWhatsappNumber: "",
+    newWhatsappSameAsMobile: true,
     newEmail: "",
     newGstin: "",
     newBillingAddress: "",
@@ -400,6 +402,9 @@ function InvoiceFormPage() {
       billingName,
       email: formValues.newEmail || formValues.email,
       phone: formValues.newMobile || formValues.mobileNumber,
+      whatsappNumber: formValues.newWhatsappSameAsMobile
+        ? formValues.newMobile || formValues.mobileNumber
+        : formValues.newWhatsappNumber,
       city: formValues.placeOfSupply || "",
       gstin: formValues.newGstin || formValues.customerGstin,
       address: formValues.newBillingAddress || formValues.billingAddress,
@@ -561,7 +566,8 @@ function InvoiceFormPage() {
     }
 
     setLastDraftId(invoice.id);
-    if (!isEditMode) navigate(`/invoices/${invoice.id}/edit`, { replace: true });
+    if (!isEditMode)
+      navigate(`/invoices/${invoice.id}/edit`, { replace: true });
   }
 
   const bank = settings.bankDetails || defaultBankDetails;
@@ -634,8 +640,8 @@ function InvoiceFormPage() {
               <p>Website: {liveCompany.website}</p>
               <p>Mobile No.: {liveCompany.mobile}</p>
               <p className="font-semibold">
-                GSTIN : {liveCompany.gstNumber} | HSN CODE:{" "}
-                {settings.hsnCode} | Category: {liveCompany.category}
+                GSTIN : {liveCompany.gstNumber} | HSN CODE: {settings.hsnCode} |
+                Category: {liveCompany.category}
               </p>
             </div>
           </header>
@@ -814,6 +820,48 @@ function InvoiceFormPage() {
                         {errors.newMobile && (
                           <span className="mt-1 block text-xs font-semibold text-rose-600">
                             {errors.newMobile.message}
+                          </span>
+                        )}
+                      </label>
+                      <label className="block">
+                        <span className={labelClass}>
+                          {["Corporate", "Travel Agent"].includes(
+                            values.customerType,
+                          )
+                            ? "Travel Desk / Admin WhatsApp"
+                            : "WhatsApp Number"}
+                        </span>
+                        <input
+                          className={fieldClass}
+                          disabled={values.newWhatsappSameAsMobile}
+                          {...register("newWhatsappNumber", {
+                            validate: (value) =>
+                              !isDirectInvoice ||
+                              !isNewCustomerMode ||
+                              values.newWhatsappSameAsMobile ||
+                              Boolean(value?.trim()) ||
+                              "WhatsApp number is required",
+                          })}
+                        />
+                        <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-brand-500"
+                            {...register("newWhatsappSameAsMobile", {
+                              onChange: (event) => {
+                                if (event.target.checked)
+                                  setValue(
+                                    "newWhatsappNumber",
+                                    values.newMobile,
+                                  );
+                              },
+                            })}
+                          />
+                          This mobile number is on WhatsApp
+                        </label>
+                        {errors.newWhatsappNumber && (
+                          <span className="mt-1 block text-xs font-semibold text-rose-600">
+                            {errors.newWhatsappNumber.message}
                           </span>
                         )}
                       </label>

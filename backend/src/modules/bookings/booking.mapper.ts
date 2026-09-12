@@ -119,6 +119,7 @@ export function mapBooking(record: BookingRecord | null) {
 
   return {
     ...record,
+    tenantCompanyName: record.tenant.tradeName || record.tenant.legalName,
     databaseId: record.id,
     id: record.bookingNumber || record.id,
     bookingId: record.id,
