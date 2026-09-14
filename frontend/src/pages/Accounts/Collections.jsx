@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Eye,
   IndianRupee,
@@ -6,6 +6,7 @@ import {
   Plus,
   Printer,
   ShieldCheck,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -124,6 +125,7 @@ function Modal({ title, children, onClose, wide = false }) {
 }
 
 export default function AccountsCollectionsPage() {
+  const filterDialogRef = useRef(null);
   const [searchParams] = useSearchParams();
   const receiptId = searchParams.get("receipt");
   const { user } = useAuth();
@@ -140,6 +142,10 @@ export default function AccountsCollectionsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [collectionForm, setCollectionForm] = useState(initialCollection);
   const [saving, setSaving] = useState(false);
+  const activeFilterCount = Object.entries(appliedFilters).filter(
+    ([key, value]) =>
+      !["page", "limit"].includes(key) && value !== "" && value !== null,
+  ).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -180,6 +186,7 @@ export default function AccountsCollectionsPage() {
   function applyFilters(event) {
     event.preventDefault();
     setAppliedFilters({ ...filters, page: 1 });
+    filterDialogRef.current?.close();
   }
 
   async function viewCollection(collectionId) {
@@ -308,106 +315,6 @@ export default function AccountsCollectionsPage() {
         />
       </div>
 
-      <form
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-        onSubmit={applyFilters}
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Search booking or customer"
-            value={filters.search}
-            onChange={(event) => updateFilter("search", event.target.value)}
-          />
-          <select
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={filters.booking}
-            onChange={(event) => updateFilter("booking", event.target.value)}
-          >
-            <option value="">All bookings</option>
-            {(data?.filters.bookings || []).map((booking) => (
-              <option key={booking.id} value={booking.bookingId}>
-                {booking.bookingId} — {booking.customerName}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={filters.customerId}
-            onChange={(event) => updateFilter("customerId", event.target.value)}
-          >
-            <option value="">All customers</option>
-            {(data?.filters.customers || []).map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={filters.paymentMode}
-            onChange={(event) =>
-              updateFilter("paymentMode", event.target.value)
-            }
-          >
-            <option value="">All payment modes</option>
-            {["CASH", "UPI", "BANK_TRANSFER", "CARD", "CHEQUE"].map((mode) => (
-              <option key={mode} value={mode}>
-                {label(mode)}
-              </option>
-            ))}
-          </select>
-          <select
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={filters.status}
-            onChange={(event) => updateFilter("status", event.target.value)}
-          >
-            <option value="">All active statuses</option>
-            {[
-              "PENDING",
-              "WITH_MANAGER",
-              "DEPOSITED",
-              "VERIFIED",
-              "DIRECTLY_RECEIVED",
-              "VOID",
-            ].map((status) => (
-              <option key={status} value={status}>
-                {label(status)}
-              </option>
-            ))}
-          </select>
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            type="date"
-            value={filters.dateFrom}
-            onChange={(event) => updateFilter("dateFrom", event.target.value)}
-            aria-label="Collection date from"
-          />
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            type="date"
-            value={filters.dateTo}
-            onChange={(event) => updateFilter("dateTo", event.target.value)}
-            aria-label="Collection date to"
-          />
-          <div className="flex gap-2">
-            <button className="flex-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-              Apply Filters
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold"
-              onClick={() => {
-                setFilters(initialFilters);
-                setAppliedFilters(initialFilters);
-              }}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </form>
-
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
@@ -416,16 +323,201 @@ export default function AccountsCollectionsPage() {
               {data?.pagination.total || 0} collection records
             </p>
           </div>
-          {canCreate && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => setShowAdd(true)}
+              className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+              onClick={() => filterDialogRef.current?.showModal()}
+              aria-label="Open collection filters"
+              title="Filters"
             >
-              <Plus size={16} /> Add Collection
+              <SlidersHorizontal size={18} />
+              {activeFilterCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
-          )}
+            {canCreate && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white"
+                onClick={() => setShowAdd(true)}
+              >
+                <Plus size={16} /> Add Collection
+              </button>
+            )}
+          </div>
         </header>
+        <dialog
+          ref={filterDialogRef}
+          aria-labelledby="collection-filters-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget)
+              filterDialogRef.current?.close();
+          }}
+          className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-sm border-0 bg-white p-0 shadow-2xl backdrop:bg-slate-950/40"
+        >
+          <form
+            className="flex min-h-full flex-col p-5"
+            onSubmit={applyFilters}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h3
+                id="collection-filters-title"
+                className="text-base font-semibold text-slate-900"
+              >
+                Collection filters
+              </h3>
+              <button
+                type="button"
+                onClick={() => filterDialogRef.current?.close()}
+                aria-label="Close filters"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              <label className="text-xs font-medium text-slate-500">
+                Search
+                <input
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                  placeholder="Booking or customer"
+                  value={filters.search}
+                  onChange={(event) =>
+                    updateFilter("search", event.target.value)
+                  }
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Booking
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={filters.booking}
+                  onChange={(event) =>
+                    updateFilter("booking", event.target.value)
+                  }
+                >
+                  <option value="">All bookings</option>
+                  {(data?.filters.bookings || []).map((booking) => (
+                    <option key={booking.id} value={booking.bookingId}>
+                      {booking.bookingId} — {booking.customerName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Customer
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={filters.customerId}
+                  onChange={(event) =>
+                    updateFilter("customerId", event.target.value)
+                  }
+                >
+                  <option value="">All customers</option>
+                  {(data?.filters.customers || []).map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Payment mode
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={filters.paymentMode}
+                  onChange={(event) =>
+                    updateFilter("paymentMode", event.target.value)
+                  }
+                >
+                  <option value="">All payment modes</option>
+                  {["CASH", "UPI", "BANK_TRANSFER", "CARD", "CHEQUE"].map(
+                    (mode) => (
+                      <option key={mode} value={mode}>
+                        {label(mode)}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Status
+                <select
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={filters.status}
+                  onChange={(event) =>
+                    updateFilter("status", event.target.value)
+                  }
+                >
+                  <option value="">All active statuses</option>
+                  {[
+                    "PENDING",
+                    "WITH_MANAGER",
+                    "DEPOSITED",
+                    "VERIFIED",
+                    "DIRECTLY_RECEIVED",
+                    "VOID",
+                  ].map((status) => (
+                    <option key={status} value={status}>
+                      {label(status)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <fieldset>
+                <legend className="text-xs font-medium text-slate-500">
+                  Collection date range
+                </legend>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  <label className="min-w-0 text-xs text-slate-500">
+                    From
+                    <input
+                      className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                      type="date"
+                      value={filters.dateFrom}
+                      max={filters.dateTo || undefined}
+                      onChange={(event) =>
+                        updateFilter("dateFrom", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="min-w-0 text-xs text-slate-500">
+                    To
+                    <input
+                      className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                      type="date"
+                      value={filters.dateTo}
+                      min={filters.dateFrom || undefined}
+                      onChange={(event) =>
+                        updateFilter("dateTo", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              </fieldset>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                className="mt-3 self-start text-xs font-semibold text-brand-600 hover:underline"
+                onClick={() => {
+                  setFilters(initialFilters);
+                  setAppliedFilters(initialFilters);
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+            <button className="mt-5 w-full rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600">
+              Show results
+            </button>
+          </form>
+        </dialog>
         <div className="overflow-x-auto">
           <table className="min-w-[1150px] w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

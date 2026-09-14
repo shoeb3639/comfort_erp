@@ -815,7 +815,6 @@ function VendorsPage() {
                         <p className="font-semibold text-slate-900">
                           {vendor.name}
                         </p>
-                        <p className="text-slate-500">{vendor.id}</p>
                       </td>
                       <td className="px-4 py-3">
                         <OwnershipPill

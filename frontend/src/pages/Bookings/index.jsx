@@ -120,15 +120,20 @@ function formatDate(value, options = {}) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    ...(options.year ? { year: "2-digit" } : {}),
-  });
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  return options.year ? `${day}-${month}-${year}` : `${day}-${month}`;
 }
 
 function RouteText({ locations }) {
   return <span>{locations.filter(Boolean).join(" → ") || "—"}</span>;
+}
+
+function cityNameOnly(location) {
+  return String(location || "")
+    .split(",")[0]
+    .trim();
 }
 
 function AssignmentModal({
@@ -1275,21 +1280,17 @@ function BookingsPage() {
           </div>
         </dialog>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-[1055px] divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
+        <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="min-w-[1100px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="w-[120px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Booking
-                </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Customer
-                </th>
+                <th className="w-[160px] px-4 py-3">Booking Id</th>
+                <th className="w-[190px] px-4 py-3">Customer</th>
                 <th
                   aria-sort={
                     sortDirection === "asc" ? "ascending" : "descending"
                   }
-                  className="w-[125px] px-3 py-3 text-left font-semibold text-slate-700"
+                  className="w-[165px] px-4 py-3"
                 >
                   <button
                     type="button"
@@ -1314,21 +1315,11 @@ function BookingsPage() {
                     )}
                   </button>
                 </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Route
-                </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Assigned to
-                </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Vehicle Details
-                </th>
-                <th className="w-[100px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Status
-                </th>
-                <th className="w-[70px] px-3 py-3 text-right font-semibold text-slate-700">
-                  Actions
-                </th>
+                <th className="w-[220px] px-4 py-3">Travelling</th>
+                <th className="w-[170px] px-4 py-3">Assigned to</th>
+                <th className="w-[180px] px-4 py-3">Vehicle Details</th>
+                <th className="w-[110px] px-4 py-3">Status</th>
+                <th className="w-[70px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1353,7 +1344,7 @@ function BookingsPage() {
                   traveller?.phone ||
                   customer?.phone ||
                   booking.customerPhone ||
-                  "-";
+                  "—";
                 const routeStops = booking.routeStops
                   ? booking.routeStops
                       .split(">")
@@ -1368,11 +1359,12 @@ function BookingsPage() {
                     ? routeStops
                     : [booking.travellingTo || "Destination not fixed"]),
                 ];
+                const routeCityLocations = routeLocations.map(cityNameOnly);
                 const tripStartValue = booking.startDate || booking.pickupDate;
                 const tripEndValue =
                   booking.endDate || booking.startDate || booking.pickupDate;
                 const tripStart = formatDate(tripStartValue, { year: true });
-                const tripEnd = formatDate(tripEndValue);
+                const tripEnd = formatDate(tripEndValue, { year: true });
                 const isSameTripDate =
                   tripStartValue &&
                   tripEndValue &&
@@ -1393,7 +1385,7 @@ function BookingsPage() {
                     role="link"
                     tabIndex={0}
                     aria-label={`View booking ${booking.id}`}
-                    className="cursor-pointer align-top transition-colors hover:bg-slate-50 focus-visible:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => navigate(`/bookings/${booking.id}`)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -1402,80 +1394,78 @@ function BookingsPage() {
                       }
                     }}
                   >
-                    <td className="w-[120px] px-3 py-3">
-                      <p className="font-semibold text-slate-950">
-                        {booking.id}
-                      </p>
-                      <div className="mt-1">
+                    <td className="w-[160px] px-4 py-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="font-semibold text-slate-950">
+                          {booking.id}
+                        </span>
                         <CategoryBadge category={getBookingCategory(booking)} />
                       </div>
                     </td>
-                    <td className="w-[180px] max-w-[180px] px-3 py-3">
-                      <p className="font-semibold text-slate-950">
+                    <td className="w-[190px] max-w-[190px] px-4 py-3 text-slate-700">
+                      <span className="block truncate" title={customerName}>
                         {customerName}
-                      </p>
-                      <p className="mt-1 font-medium text-slate-700">
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">
                         {mobileNumber}
-                      </p>
+                      </span>
                       {companyName &&
                         companyName !== "-" &&
                         companyName.trim().toLowerCase() !==
                           customerName.trim().toLowerCase() && (
-                          <p
-                            className="mt-1 truncate text-xs text-slate-500"
+                          <span
+                            className="mt-1 block truncate text-xs text-slate-400"
                             title={companyName}
                           >
                             {companyName}
-                          </p>
+                          </span>
                         )}
                     </td>
-                    <td className="w-[125px] px-3 py-3">
-                      <p className="font-semibold text-slate-900">
-                        {tripDateText}
-                      </p>
+                    <td className="w-[165px] whitespace-nowrap px-4 py-3 text-slate-700">
+                      <span>{tripDateText}</span>
                       {pickupTime && (
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
-                          {pickupTime}
-                        </p>
+                        <span className="ml-1 text-slate-400">
+                          · {pickupTime}
+                        </span>
                       )}
                     </td>
-                    <td className="w-[180px] px-3 py-3">
-                      <p className="break-words font-semibold text-slate-900">
-                        <RouteText locations={routeLocations} />
-                      </p>
+                    <td className="w-[220px] px-4 py-3 leading-5 text-slate-700">
+                      <span className="block break-words">
+                        <RouteText locations={routeCityLocations} />
+                      </span>
                     </td>
-                    <td className="w-[180px] px-3 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="break-words font-semibold text-slate-900">
+                    <td className="w-[170px] max-w-[170px] px-4 py-3 text-slate-700">
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="truncate">
                           {isVendorVehicle
                             ? booking.vendor || "Unassigned"
                             : booking.tenantCompanyName || "Own company"}
-                        </p>
+                        </span>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${isVendorVehicle ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"}`}
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${isVendorVehicle ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"}`}
                         >
                           {isVendorVehicle ? "Vendor" : "Own"}
                         </span>
                       </div>
                     </td>
-                    <td className="w-[180px] px-3 py-3">
-                      <p className="break-words font-semibold text-slate-900">
+                    <td className="w-[180px] max-w-[180px] px-4 py-3 text-slate-700">
+                      <span className="truncate">
                         {[booking.vehicle?.make, booking.vehicle?.model]
                           .filter(Boolean)
                           .join(" ") ||
                           booking.vehicleType ||
                           booking.requestedVehicleType ||
                           "Vehicle pending"}
-                      </p>
-                      <p className="mt-1 text-slate-700">
-                        {booking.vehicleRegistrationNo || "Not assigned"}
-                      </p>
+                      </span>
+                      <span className="ml-1 text-slate-400">
+                        · {booking.vehicleRegistrationNo || "Not assigned"}
+                      </span>
                     </td>
-                    <td className="w-[100px] px-3 py-3">
+                    <td className="w-[110px] whitespace-nowrap px-4 py-3">
                       <StatusBadge status={booking.status} />
                     </td>
                     <td
-                      className="w-[70px] px-3 py-3 text-right"
+                      className="w-[70px] px-4 py-3 text-right"
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
