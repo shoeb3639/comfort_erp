@@ -14,6 +14,7 @@ import {
   companyProfileSchema,
   createRoleSchema,
   createTenantUserSchema,
+  dashboardLayoutSchema,
   gstRegistrationSchema,
   invoiceSettingsSchema,
   locationSchema,
@@ -37,6 +38,19 @@ companySetupRouter.use(
 )
 
 const settingsPermission = authorizePermission('settings.company.manage')
+
+companySetupRouter.get('/dashboard-layout', controller.getDashboardLayout)
+companySetupRouter.patch(
+  '/dashboard-layout/personal',
+  validateBody(dashboardLayoutSchema),
+  controller.updatePersonalDashboardLayout,
+)
+companySetupRouter.patch(
+  '/dashboard-layout/tenant',
+  settingsPermission,
+  validateBody(dashboardLayoutSchema),
+  controller.updateTenantDashboardLayout,
+)
 
 companySetupRouter.get(
   '/company-profile',

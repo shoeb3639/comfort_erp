@@ -10,6 +10,8 @@ import * as repository from './company-setup.repository'
 import type {
   BankAccountInput,
   CompanyProfileInput,
+  DashboardLayoutInput,
+  DashboardLayoutItem,
   GstRegistrationInput,
   InvoiceSettingsInput,
   LocationInput,
@@ -18,6 +20,30 @@ import type {
   TaxSettingsInput,
   TenantUserInput,
 } from './company-setup.types'
+
+const defaultDashboardLayout: DashboardLayoutItem[] = [
+  { key: 'business_overview', visible: true },
+  { key: 'outstanding', visible: true },
+  { key: 'vehicle_performance', visible: true },
+  { key: 'manager_ledger', visible: true },
+  { key: 'expense_categories', visible: true },
+  { key: 'fuel_analysis', visible: true },
+  { key: 'cash_flow', visible: true },
+  { key: 'recent_activities', visible: true },
+]
+
+function dashboardLayout(value: unknown): DashboardLayoutItem[] | null {
+  if (!Array.isArray(value)) return null
+  const items = value.filter((item): item is DashboardLayoutItem =>
+    Boolean(
+      item &&
+      typeof item === 'object' &&
+      typeof (item as DashboardLayoutItem).key === 'string' &&
+      typeof (item as DashboardLayoutItem).visible === 'boolean',
+    ),
+  )
+  return items.length === defaultDashboardLayout.length ? items : null
+}
 
 async function validateLocationIds(tenantId: string, ids: string[]) {
   if (ids.length === 0) return
@@ -47,6 +73,50 @@ export async function getCompanyProfile(context: SetupContext) {
   const tenant = await repository.getCompanyProfile(context.tenantId)
   if (!tenant) throw new AppError('Tenant was not found', 'NOT_FOUND', 404)
   return tenant
+}
+
+export async function getDashboardLayout(context: SetupContext) {
+  const stored = await repository.getDashboardLayouts(
+    context.tenantId,
+    context.userId,
+  )
+  const personalLayout = dashboardLayout(stored.personalLayout)
+  const tenantLayout = dashboardLayout(stored.tenantLayout)
+  return {
+    layout: personalLayout ?? tenantLayout ?? defaultDashboardLayout,
+    source: personalLayout ? 'PERSONAL' : tenantLayout ? 'TENANT' : 'SYSTEM',
+    personalLayout,
+    tenantLayout,
+    systemLayout: defaultDashboardLayout,
+  }
+}
+
+export async function updatePersonalDashboardLayout(
+  context: SetupContext,
+  input: DashboardLayoutInput,
+) {
+  await repository.updatePersonalDashboardLayout(
+    context.tenantId,
+    context.userId,
+    input.layout === null
+      ? Prisma.DbNull
+      : (input.layout as unknown as Prisma.InputJsonValue),
+  )
+  return getDashboardLayout(context)
+}
+
+export async function updateTenantDashboardLayout(
+  context: SetupContext,
+  input: DashboardLayoutInput,
+) {
+  await repository.updateTenantDashboardLayout(
+    context.tenantId,
+    context.userId,
+    input.layout === null
+      ? Prisma.DbNull
+      : (input.layout as unknown as Prisma.InputJsonValue),
+  )
+  return getDashboardLayout(context)
 }
 
 export async function updateCompanyProfile(

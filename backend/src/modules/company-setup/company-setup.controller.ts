@@ -4,6 +4,7 @@ import * as service from './company-setup.service'
 import type {
   BankAccountInput,
   CompanyProfileInput,
+  DashboardLayoutInput,
   GstRegistrationInput,
   InvoiceSettingsInput,
   LocationInput,
@@ -42,6 +43,39 @@ export const getCompanyProfile: RequestHandler = async (request, response) =>
     response,
     await service.getCompanyProfile(context(request)),
     'Company profile retrieved',
+  )
+
+export const getDashboardLayout: RequestHandler = async (request, response) =>
+  send(
+    response,
+    await service.getDashboardLayout(context(request)),
+    'Dashboard layout retrieved',
+  )
+
+export const updatePersonalDashboardLayout: RequestHandler = async (
+  request,
+  response,
+) =>
+  send(
+    response,
+    await service.updatePersonalDashboardLayout(
+      context(request),
+      request.body as DashboardLayoutInput,
+    ),
+    'Personal dashboard layout updated',
+  )
+
+export const updateTenantDashboardLayout: RequestHandler = async (
+  request,
+  response,
+) =>
+  send(
+    response,
+    await service.updateTenantDashboardLayout(
+      context(request),
+      request.body as DashboardLayoutInput,
+    ),
+    'Tenant dashboard layout updated',
   )
 
 export const updateCompanyProfile: RequestHandler = async (request, response) =>

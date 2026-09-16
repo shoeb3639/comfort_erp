@@ -378,6 +378,7 @@ model Tenant {
   smsPrefix                 String?          @map("sms_prefix") @db.VarChar(12)
   invoiceSettings           Json?            @map("invoice_settings")
   taxSettings               Json?            @map("tax_settings")
+  dashboardLayout           Json?            @map("dashboard_layout")
   status                    TenantStatus     @default(PENDING_SETUP)
   onboardingStatus          OnboardingStatus @default(NOT_STARTED) @map("onboarding_status")
   createdById               String?          @map("created_by") @db.Uuid
@@ -1171,6 +1172,7 @@ model TenantUser {
   email             String     @db.VarChar(255)
   mobile            String?    @db.VarChar(30)
   designation       String?    @db.VarChar(100)
+  dashboardLayout   Json?      @map("dashboard_layout")
   passwordHash      String     @map("password_hash") @db.VarChar(255)
   isPrimaryOwner    Boolean    @default(false) @map("is_primary_owner")
   status            UserStatus @default(PENDING_ACTIVATION)
