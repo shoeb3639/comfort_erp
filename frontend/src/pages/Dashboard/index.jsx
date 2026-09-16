@@ -666,6 +666,7 @@ const managerColumns = [
 ];
 
 function DashboardPage() {
+  const [expenseView, setExpenseView] = useState("chart");
   const [state, setState] = useState({
     loading: true,
     error: "",
@@ -818,18 +819,41 @@ function DashboardPage() {
       <section className="space-y-4">
         <SectionHeader title="Expense Overview" />
         <SmallMetricGrid items={dashboard.expenseCards} />
-        <div className="dashboard-mobile-cards grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <div className="xl:col-span-2">
-            <DonutChart
-              title="Expense Category Pie"
-              data={dashboard.expenseChart}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <ProgressList
-              title="Expense Category Weight"
-              data={dashboard.expenseChart}
-            />
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <h3 className="font-bold text-slate-950">Expense Categories</h3>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {[
+                ["chart", "Chart View"],
+                ["list", "List View"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setExpenseView(value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    expenseView === value
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </header>
+          <div className="p-5">
+            {expenseView === "chart" ? (
+              <DonutChart
+                title="Expense Breakdown"
+                data={dashboard.expenseChart}
+              />
+            ) : (
+              <ProgressList
+                title="Expense by Category"
+                data={dashboard.expenseChart}
+              />
+            )}
           </div>
         </div>
       </section>

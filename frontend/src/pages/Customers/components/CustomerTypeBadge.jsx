@@ -7,7 +7,7 @@ const typeStyles = {
 function CustomerTypeBadge({ type }) {
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+      className={`status-badge inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
         typeStyles[type] || "bg-slate-100 text-slate-700 ring-slate-500/20"
       }`}
     >

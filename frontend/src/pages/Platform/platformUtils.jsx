@@ -67,7 +67,7 @@ export function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${tone}`}
+      className={`status-badge inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${tone}`}
     >
       {String(status || "-").replaceAll("_", " ")}
     </span>

@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+.status-badge {
+  background-color: color-mix(in srgb, currentColor 16%, white);
+  font-weight: 700;
+}
+
 @keyframes toast-slide-in {
   0% {
     opacity: 0;

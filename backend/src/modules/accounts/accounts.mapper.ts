@@ -14,6 +14,10 @@ function paymentModeLabel(mode: CollectionPaymentMode) {
   return mode.split('_').map(toTitleCase).join(' ')
 }
 
+function collectionReceiptNumber(id: string, createdAt: Date) {
+  return `COL-${createdAt.getUTCFullYear()}-${id.slice(0, 6).toUpperCase()}`
+}
+
 export function mapCollection(
   record: NonNullable<Awaited<ReturnType<typeof repository.findCollection>>>,
 ) {
@@ -23,7 +27,7 @@ export function mapCollection(
   )
   return {
     id: record.id,
-    receiptNumber: `COL-${record.createdAt.getUTCFullYear()}-${record.id.slice(0, 8).toUpperCase()}`,
+    receiptNumber: collectionReceiptNumber(record.id, record.createdAt),
     collectionDate: record.collectionDate.toISOString().slice(0, 10),
     amount: Number(record.amount),
     paymentHolder: record.paymentHolder,
@@ -119,7 +123,10 @@ export function mapCashDeposit(
     remarks: record.remarks,
     collection: {
       id: record.collection.id,
-      receiptNumber: `COL-${record.collection.createdAt.getUTCFullYear()}-${record.collection.id.slice(0, 8).toUpperCase()}`,
+      receiptNumber: collectionReceiptNumber(
+        record.collection.id,
+        record.collection.createdAt,
+      ),
       collectionDate: record.collection.collectionDate
         .toISOString()
         .slice(0, 10),

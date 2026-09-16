@@ -3,6 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { getAuthErrorMessage } from "../../services/auth";
+import { APP_NAME } from "../../config/app";
 
 function LoginPage() {
   const { isAuthenticated, isInitializing, signIn, user } = useAuth();
@@ -57,13 +58,13 @@ function LoginPage() {
       <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
           <p className="text-sm font-semibold uppercase text-brand-600">
-            Ops Hub
+            {APP_NAME}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-            Sign in to Booking Admin
+            Sign in to {APP_NAME}
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Access dispatch, billing, and reporting tools.
+            Manage all your Bookings, Billings, Reports & many more.
           </p>
         </div>
 

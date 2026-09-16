@@ -22,7 +22,7 @@ export function StatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${tone}`}
+      className={`status-badge inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${tone}`}
     >
       {status || "-"}
     </span>
@@ -32,7 +32,7 @@ export function StatusBadge({ status }) {
 export function SystemBadge({ enabled }) {
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
         enabled
           ? "bg-brand-50 text-brand-700 ring-brand-600/20"
           : "bg-slate-100 text-slate-600 ring-slate-500/20"
