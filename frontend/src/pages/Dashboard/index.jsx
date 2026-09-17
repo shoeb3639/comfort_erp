@@ -1009,23 +1009,24 @@ function DashboardPage() {
   };
 
   return (
-    <div className="space-y-7">
-      <div className="flex items-center justify-end">
-        <button
-          type="button"
-          onClick={openLayoutEditor}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-        >
-          <Settings2 size={16} />
-          Customize Dashboard
-        </button>
-      </div>
+    <div>
+      <button
+        type="button"
+        onClick={openLayoutEditor}
+        title="Customize dashboard"
+        aria-label="Customize dashboard"
+        className="fixed right-4 top-20 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:bg-slate-50 hover:text-brand-700"
+      >
+        <Settings2 size={18} />
+      </button>
 
-      {layout
-        .filter((item) => item.visible)
-        .map((item) => (
-          <div key={item.key}>{dashboardSections[item.key]}</div>
-        ))}
+      <div className="space-y-7">
+        {layout
+          .filter((item) => item.visible)
+          .map((item) => (
+            <div key={item.key}>{dashboardSections[item.key]}</div>
+          ))}
+      </div>
 
       {layoutEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
