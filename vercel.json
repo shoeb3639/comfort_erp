@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build --workspace @cablix/frontend",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

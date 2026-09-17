@@ -208,7 +208,7 @@ function InvoicesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+                        className={`status-badge inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
                           source === "direct"
                             ? "bg-violet-50 text-violet-700 ring-violet-600/20"
                             : "bg-sky-50 text-sky-700 ring-sky-600/20"
@@ -231,7 +231,7 @@ function InvoicesPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${statusStyles[invoice.invoiceStatus] || "bg-slate-100 text-slate-700 ring-slate-500/20"}`}
+                        className={`status-badge inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${statusStyles[invoice.invoiceStatus] || "bg-slate-100 text-slate-700 ring-slate-500/20"}`}
                       >
                         {invoice.invoiceStatus}
                       </span>

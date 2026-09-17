@@ -57,6 +57,9 @@ function customerPayload(values) {
     billingName: values.billingName,
     email: values.email || null,
     phone: values.phone,
+    whatsappNumber: values.whatsappSameAsPhone
+      ? values.phone
+      : values.whatsappNumber || values.phone || null,
     city: values.city || null,
     gstin: values.gstin || null,
     billingAddress: values.address || null,
@@ -90,6 +93,54 @@ export async function getCustomers(params = {}) {
 export async function getCustomer(id) {
   const response = await api.get(`/tenant/customers/${id}`, config());
   return mapCustomer(response.data.data);
+}
+
+export async function searchCustomerBookingOptions({
+  type,
+  query,
+  page = 1,
+  limit = 20,
+  id,
+  signal,
+} = {}) {
+  const response = await api.get("/tenant/customers/booking-options", {
+    ...config(),
+    signal,
+    params: {
+      type: typeToApi[type] || type,
+      q: query || undefined,
+      page,
+      limit,
+      id,
+    },
+  });
+  return {
+    ...response.data.data,
+    items: response.data.data.items.map((item) => ({
+      ...item,
+      type: typeFromApi[item.type] || item.type,
+    })),
+  };
+}
+
+export async function searchTravellerBookingOptions(
+  customerId,
+  { query, page = 1, limit = 20, id, signal } = {},
+) {
+  const response = await api.get(
+    `/tenant/customers/${customerId}/traveller-options`,
+    {
+      ...config(),
+      signal,
+      params: { q: query || undefined, page, limit, id },
+    },
+  );
+  return {
+    ...response.data.data,
+    items: response.data.data.items.map((item) =>
+      mapTraveller(item, customerId),
+    ),
+  };
 }
 
 export async function createCustomer(values) {

@@ -1,3 +1,7 @@
+import {
+  formatDutySlipDate as date,
+  dutySlipDates as datesBetween,
+} from "./dutySlipDates";
 import { useEffect, useState } from "react";
 import { Download, MessageCircle, Printer } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -7,27 +11,6 @@ import {
   getCompanyProfile,
 } from "../../services/tenantSetup";
 import { createDutySlipPdf, dutySlipFileName } from "./dutySlipPdf";
-
-function date(value) {
-  if (!value) return "-";
-  return new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString(
-    "en-IN",
-    { day: "2-digit", month: "2-digit", year: "2-digit" },
-  );
-}
-
-function datesBetween(startValue, endValue) {
-  const start = new Date(`${String(startValue).slice(0, 10)}T00:00:00`);
-  const end = new Date(
-    `${String(endValue || startValue).slice(0, 10)}T00:00:00`,
-  );
-  const values = [];
-  while (start <= end && values.length < 31) {
-    values.push(date(start.toISOString().slice(0, 10)));
-    start.setDate(start.getDate() + 1);
-  }
-  return values;
-}
 
 export default function DutySlipPage() {
   const { id } = useParams();
@@ -154,7 +137,7 @@ export default function DutySlipPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 pb-16 print:pb-0">
       <style>{`
         @media print {
           @page {
@@ -188,31 +171,41 @@ export default function DutySlipPage() {
           {notice}
         </p>
       )}
-      <div className="flex flex-wrap justify-end gap-2 print:hidden">
+      <div
+        role="toolbar"
+        aria-label="Duty slip actions"
+        className="fixed bottom-20 right-4 z-30 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg sm:bottom-6 sm:right-6 print:hidden"
+      >
         <button
           type="button"
           onClick={download}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
+          aria-label="Download PDF"
+          title="Download PDF"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500"
         >
-          <Download size={17} /> Download PDF
+          <Download size={17} />
         </button>
         <button
           type="button"
           onClick={share}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+          aria-label="Share on WhatsApp"
+          title="Share on WhatsApp"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
-          <MessageCircle size={17} /> Share on WhatsApp
+          <MessageCircle size={17} />
         </button>
         <button
           type="button"
           onClick={() => window.print()}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+          aria-label="Print duty slip"
+          title="Print duty slip"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-brand-500"
         >
-          <Printer size={17} /> Print
+          <Printer size={17} />
         </button>
       </div>
 
-      <article className="duty-slip-page mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white p-8 text-slate-950 shadow-sm">
+      <article className="duty-slip-page mx-auto w-full max-w-5xl bg-white p-3 text-slate-950 shadow-sm sm:p-4">
         <div className="grid grid-cols-[3fr_2.5fr] border border-slate-950">
           <div className="flex items-center gap-3 border-r border-slate-950 px-2 py-1.5">
             {profile.logoUrl && (
@@ -277,7 +270,9 @@ export default function DutySlipPage() {
           <p className="border-r border-slate-950 px-2 py-1">Routing</p>
           <p className="px-2 py-1">{routing}</p>
         </div>
-        <h3 className="my-6 text-center text-lg font-bold">Log Sheet</h3>
+        <h3 className="my-3 text-center text-lg font-bold print:my-6">
+          Log Sheet
+        </h3>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
@@ -313,7 +308,7 @@ export default function DutySlipPage() {
             ))}
           </tbody>
         </table>
-        <p className="mt-16 text-center font-bold">Thank You</p>
+        <p className="mt-6 text-center font-bold print:mt-16">Thank You</p>
       </article>
     </div>
   );

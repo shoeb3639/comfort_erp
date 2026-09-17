@@ -55,6 +55,47 @@ export const listCustomers: RequestHandler = async (request, response) =>
     'Customers retrieved',
   )
 
+export const listCustomerBookingOptions: RequestHandler = async (
+  request,
+  response,
+) =>
+  send(
+    response,
+    await service.listCustomerBookingOptions(context(request), {
+      ...pageRequest(request.query),
+      ...(typeof request.query.q === 'string'
+        ? { query: request.query.q }
+        : {}),
+      ...(typeof request.query.type === 'string'
+        ? { type: request.query.type as CustomerType }
+        : {}),
+      ...(typeof request.query.id === 'string' ? { id: request.query.id } : {}),
+    }),
+    'Customer booking options retrieved',
+  )
+
+export const listTravellerBookingOptions: RequestHandler = async (
+  request,
+  response,
+) =>
+  send(
+    response,
+    await service.listTravellerBookingOptions(
+      context(request),
+      customerId(request),
+      {
+        ...pageRequest(request.query),
+        ...(typeof request.query.q === 'string'
+          ? { query: request.query.q }
+          : {}),
+        ...(typeof request.query.id === 'string'
+          ? { id: request.query.id }
+          : {}),
+      },
+    ),
+    'Traveller booking options retrieved',
+  )
+
 export const getCustomer: RequestHandler = async (request, response) =>
   send(
     response,

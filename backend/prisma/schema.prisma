@@ -378,6 +378,7 @@ model Tenant {
   smsPrefix                 String?          @map("sms_prefix") @db.VarChar(12)
   invoiceSettings           Json?            @map("invoice_settings")
   taxSettings               Json?            @map("tax_settings")
+  dashboardLayout           Json?            @map("dashboard_layout")
   status                    TenantStatus     @default(PENDING_SETUP)
   onboardingStatus          OnboardingStatus @default(NOT_STARTED) @map("onboarding_status")
   createdById               String?          @map("created_by") @db.Uuid
@@ -558,6 +559,7 @@ model Customer {
   billingName    String         @map("billing_name") @db.VarChar(200)
   email          String?        @db.VarChar(255)
   phone          String         @db.VarChar(30)
+  whatsappNumber String?        @map("whatsapp_number") @db.VarChar(30)
   city           String?        @db.VarChar(100)
   gstin          String?        @db.VarChar(20)
   billingAddress String?        @map("billing_address") @db.Text
@@ -582,6 +584,22 @@ model Customer {
   @@index([tenantId, status], map: "customers_tenant_status_idx")
   @@index([tenantId, name], map: "customers_tenant_name_idx")
   @@map("customers")
+}
+
+model IndianCity {
+  id        String   @id @default(uuid()) @db.Uuid
+  sourceId  Int      @unique @map("source_id")
+  name      String   @db.VarChar(150)
+  stateName String   @map("state_name") @db.VarChar(150)
+  stateCode String   @map("state_code") @db.VarChar(10)
+  latitude  Decimal? @db.Decimal(11, 8)
+  longitude Decimal? @db.Decimal(11, 8)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([name], map: "indian_cities_name_idx")
+  @@index([stateName, name], map: "indian_cities_state_name_idx")
+  @@map("indian_cities")
 }
 
 model CustomerContact {
@@ -720,7 +738,7 @@ model BookingSequence {
 }
 
 model BookingClosure {
-  localPackageBilling Json? @map("local_package_billing")
+  localPackageBilling     Json?                   @map("local_package_billing")
   fuelConsumedLitres      Decimal?                @map("fuel_consumed_litres") @db.Decimal(12, 2)
   id                      String                  @id @default(uuid()) @db.Uuid
   tenantId                String                  @map("tenant_id") @db.Uuid
@@ -929,24 +947,24 @@ model InvoiceSequence {
 }
 
 model StoredFile {
-  fuelCollections BookingCollection[]
-  id               String    @id @default(uuid()) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  entityType       String    @map("entity_type") @db.VarChar(50)
-  entityId         String    @map("entity_id") @db.Uuid
-  documentType     String?   @map("document_type") @db.VarChar(50)
-  originalFileName String    @map("original_file_name") @db.VarChar(255)
-  storedFileName   String    @map("stored_file_name") @db.VarChar(255)
-  storageProvider  String    @default("LOCAL") @map("storage_provider") @db.VarChar(30)
-  storageKey       String    @map("storage_key") @db.VarChar(1000)
-  mimeType         String    @map("mime_type") @db.VarChar(150)
-  extension        String?   @db.VarChar(20)
-  fileSize         BigInt    @map("file_size")
-  checksum         String?   @db.VarChar(128)
-  uploadedById     String?   @map("uploaded_by_id") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
-  deletedById      String?   @map("deleted_by_id") @db.Uuid
+  fuelCollections  BookingCollection[]
+  id               String              @id @default(uuid()) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  entityType       String              @map("entity_type") @db.VarChar(50)
+  entityId         String              @map("entity_id") @db.Uuid
+  documentType     String?             @map("document_type") @db.VarChar(50)
+  originalFileName String              @map("original_file_name") @db.VarChar(255)
+  storedFileName   String              @map("stored_file_name") @db.VarChar(255)
+  storageProvider  String              @default("LOCAL") @map("storage_provider") @db.VarChar(30)
+  storageKey       String              @map("storage_key") @db.VarChar(1000)
+  mimeType         String              @map("mime_type") @db.VarChar(150)
+  extension        String?             @db.VarChar(20)
+  fileSize         BigInt              @map("file_size")
+  checksum         String?             @db.VarChar(128)
+  uploadedById     String?             @map("uploaded_by_id") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  deletedById      String?             @map("deleted_by_id") @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
@@ -1154,6 +1172,7 @@ model TenantUser {
   email             String     @db.VarChar(255)
   mobile            String?    @db.VarChar(30)
   designation       String?    @db.VarChar(100)
+  dashboardLayout   Json?      @map("dashboard_layout")
   passwordHash      String     @map("password_hash") @db.VarChar(255)
   isPrimaryOwner    Boolean    @default(false) @map("is_primary_owner")
   status            UserStatus @default(PENDING_ACTIVATION)

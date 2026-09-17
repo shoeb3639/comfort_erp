@@ -6,7 +6,6 @@ import { disconnectPrisma } from './config/prisma'
 const server = app.listen(env.port, () => {
   logger.info(`Cablix backend listening on port ${env.port}`)
 })
-
 function shutdown(signal: string): void {
   logger.info(`${signal} received; shutting down`)
   server.close(async (error) => {

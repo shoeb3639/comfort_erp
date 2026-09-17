@@ -3,6 +3,7 @@ import type {
   CustomerType,
   Salutation,
 } from '../../generated/prisma/enums'
+import type { PageRequest } from '../../shared/pagination'
 
 export interface CustomerContext {
   tenantId: string
@@ -25,6 +26,7 @@ export interface CustomerInput {
   billingName?: string
   email?: string | null
   phone?: string
+  whatsappNumber?: string | null
   city?: string | null
   gstin?: string | null
   billingAddress?: string | null
@@ -43,4 +45,9 @@ export interface TravellerInput {
   employeeId?: string | null
   notes?: string | null
   status?: CustomerStatus
+}
+
+export interface BookingOptionFilters extends PageRequest {
+  query?: string
+  id?: string
 }

@@ -66,6 +66,33 @@ export const invoiceSettingsSchema = Joi.object({
   invoiceSettings: Joi.object().unknown(true).required(),
 })
 
+const dashboardSectionKeys = [
+  'outstanding',
+  'business_overview',
+  'expense_categories',
+  'vehicle_performance',
+  'manager_ledger',
+  'fuel_analysis',
+  'cash_flow',
+  'recent_activities',
+]
+
+export const dashboardLayoutSchema = Joi.object({
+  layout: Joi.array()
+    .items(
+      Joi.object({
+        key: Joi.string()
+          .valid(...dashboardSectionKeys)
+          .required(),
+        visible: Joi.boolean().required(),
+      }),
+    )
+    .unique('key')
+    .length(dashboardSectionKeys.length)
+    .allow(null)
+    .required(),
+})
+
 const status = Joi.string().valid('ACTIVE', 'INACTIVE')
 
 export const locationSchema = Joi.object({

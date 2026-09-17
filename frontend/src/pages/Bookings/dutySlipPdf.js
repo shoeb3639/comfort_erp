@@ -1,29 +1,7 @@
-function formatDate(value) {
-  if (!value) return "";
-  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
-}
-
-function tripDates(startValue, endValue) {
-  const start = new Date(`${String(startValue).slice(0, 10)}T00:00:00`);
-  const end = new Date(
-    `${String(endValue || startValue).slice(0, 10)}T00:00:00`,
-  );
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
-    return [formatDate(startValue)];
-  const dates = [];
-  const cursor = new Date(start);
-  while (cursor <= end && dates.length < 31) {
-    dates.push(formatDate(cursor.toISOString().slice(0, 10)));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dates;
-}
+import {
+  formatDutySlipDate as formatDate,
+  dutySlipDates as tripDates,
+} from "./dutySlipDates";
 
 function text(document, value, x, y, options = {}) {
   document.text(String(value || "-"), x, y, {

@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
   BarChart3,
+  ArrowUp,
+  ArrowDown,
   Car,
+  ChevronDown,
   CircleCheck,
+  Copy,
   Edit,
   Eye,
   FileCheck,
+  Mail,
+  MessageCircle,
+  SlidersHorizontal,
   MessageSquare,
   MoreVertical,
   Play,
@@ -30,6 +36,7 @@ import {
   deleteBooking,
   getBookingErrorMessage,
   listBookings,
+  getBookingFilterVehicles,
   startBookingDuty,
 } from "../../services/bookings";
 
@@ -55,15 +62,6 @@ function toNumber(value) {
   return Number(String(value || 0).replace(/[^0-9.-]/g, "")) || 0;
 }
 
-function canCloseBooking(booking) {
-  return (
-    ["Confirmed", "Assigned", "Completed"].includes(booking.status) ||
-    (booking.assignment_status === "Assigned" &&
-      booking.status !== "Closed" &&
-      booking.status !== "Cancelled")
-  );
-}
-
 function hasBillAmount(booking) {
   const invoice = booking.invoice;
   return Boolean(
@@ -81,7 +79,7 @@ function isBookingClosed(booking) {
 function StatusBadge({ status }) {
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${
+      className={`status-badge inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
         statusStyles[status] || "bg-slate-100 text-slate-700 ring-slate-500/20"
       }`}
     >
@@ -91,20 +89,18 @@ function StatusBadge({ status }) {
 }
 
 function getBookingCategory(booking) {
-  if (booking.booking_type === "package") return "Package";
   if (booking.customer_type === "Corporate") return "Corporate";
-  if (booking.customer_type === "Individuals") return "Individuals";
+  if (["Individuals", "Retail"].includes(booking.customer_type))
+    return "Individual";
   if (booking.customer_type === "Travel Agent") return "Travel Agent";
-  return booking.booking_type
-    ? booking.booking_type.replace("_", " ")
-    : "Standard";
+  return "—";
 }
 
 function CategoryBadge({ category }) {
   const tone =
     category === "Corporate"
       ? "bg-indigo-50 text-indigo-700 ring-indigo-600/20"
-      : category === "Individuals"
+      : category === "Individual"
         ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20"
         : category === "Package"
           ? "bg-amber-50 text-amber-700 ring-amber-600/20"
@@ -112,7 +108,7 @@ function CategoryBadge({ category }) {
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${tone}`}
+      className={`status-badge inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${tone}`}
     >
       {category}
     </span>
@@ -124,41 +120,20 @@ function formatDate(value, options = {}) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    ...(options.year ? { year: "2-digit" } : {}),
-  });
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  return options.year ? `${day}-${month}-${year}` : `${day}-${month}`;
 }
 
 function RouteText({ locations }) {
-  const routeLocations = locations.filter(Boolean);
+  return <span>{locations.filter(Boolean).join(" → ") || "—"}</span>;
+}
 
-  if (!routeLocations.length) return <span>-</span>;
-  const [fromLocation, ...toLocations] = routeLocations;
-
-  return (
-    <span className="block">
-      <span className="block">{fromLocation}</span>
-      {toLocations.length > 0 && (
-        <span className="mt-1 inline-flex flex-wrap items-center gap-1.5">
-          {toLocations.map((location, index) => (
-            <span
-              key={`${location}-${index}`}
-              className="inline-flex items-center gap-1.5"
-            >
-              <ArrowRight
-                size={14}
-                strokeWidth={2.4}
-                className="text-slate-400"
-              />
-              <span>{location}</span>
-            </span>
-          ))}
-        </span>
-      )}
-    </span>
-  );
+function cityNameOnly(location) {
+  return String(location || "")
+    .split(",")[0]
+    .trim();
 }
 
 function AssignmentModal({
@@ -578,10 +553,10 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-3 sm:items-center sm:p-5">
       <form
         onSubmit={submit}
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+        className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-2xl bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-6"
       >
         <div className="flex items-center justify-between">
           <div>
@@ -692,7 +667,7 @@ function LifecycleModal({ booking, mode, onClose, onSave }) {
           />
         </label>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="sticky bottom-0 -mx-4 mt-6 flex justify-end gap-3 border-t border-slate-100 bg-white px-4 py-3 sm:-mx-6 sm:px-6">
           {error && (
             <p className="mr-auto self-center text-sm font-medium text-rose-600">
               {error}
@@ -728,14 +703,82 @@ function BookingsPage() {
   const [vendors, setVendors] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [travellers, setTravellers] = useState([]);
+  const filterDialogRef = useRef(null);
   const [search, setSearch] = useState("");
   const [listView, setListView] = useState("active");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [sortDirection, setSortDirection] = useState("desc");
+  const [filters, setFilters] = useState({
+    customerType: "",
+    assignmentSource: "",
+    vendorId: "",
+    vehicleId: "",
+    startDate: "",
+    endDate: "",
+  });
+  function updateListFilter(key, value) {
+    setFilters((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "assignmentSource" ? { vendorId: "", vehicleId: "" } : {}),
+      ...(key === "vendorId" ? { vehicleId: "" } : {}),
+    }));
+    setPage(1);
+  }
+  const [filterVehicles, setFilterVehicles] = useState([]);
+  const [vehicleFilterError, setVehicleFilterError] = useState("");
+  useEffect(() => {
+    getBookingFilterVehicles()
+      .then(setFilterVehicles)
+      .catch((error) => setVehicleFilterError(getBookingErrorMessage(error)));
+  }, []);
+  const linkedVendors = [
+    ...new Map(
+      filterVehicles
+        .filter(
+          (vehicle) => vehicle.ownershipType === "VENDOR" && vehicle.vendor,
+        )
+        .map((vehicle) => [vehicle.vendor.id, vehicle.vendor]),
+    ).values(),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  const linkedVehicles = filterVehicles.filter(
+    (vehicle) =>
+      (!filters.assignmentSource ||
+        vehicle.ownershipType === filters.assignmentSource) &&
+      (!filters.vendorId || vehicle.vendorId === filters.vendorId),
+  );
+  const invalidDateRange =
+    filters.startDate && filters.endDate && filters.startDate > filters.endDate;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [pagination, setPagination] = useState(null);
   const [openActionId, setOpenActionId] = useState("");
+  const [sendDetailsBookingId, setSendDetailsBookingId] = useState("");
   const [actionMenuPosition, setActionMenuPosition] = useState(null);
+  const actionMenuRef = useRef(null);
+  useEffect(() => {
+    if (!openActionId) return;
+    function closeMenu() {
+      setOpenActionId("");
+      setSendDetailsBookingId("");
+      setActionMenuPosition(null);
+    }
+    function handleOutsidePointer(event) {
+      if (!actionMenuRef.current?.contains(event.target)) closeMenu();
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        actionMenuRef.current?.querySelector("button")?.focus();
+        closeMenu();
+      }
+    }
+    document.addEventListener("pointerdown", handleOutsidePointer, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointer, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openActionId]);
   const [assignmentBooking, setAssignmentBooking] = useState(null);
   const [lifecycleAction, setLifecycleAction] = useState(null);
   const [notice, setNotice] = useState(location.state?.notice || "");
@@ -771,12 +814,25 @@ function BookingsPage() {
 
   useEffect(() => {
     let active = true;
+    if (invalidDateRange) return;
     const timer = window.setTimeout(() => {
       listBookings({
         page,
         limit: pageSize,
+        sortDirection,
+        ...Object.fromEntries(
+          Object.entries(filters)
+            .map(([key, value]) => [key, value.trim()])
+            .filter(([, value]) => value),
+        ),
         view: listView === "closed" ? "CLOSED" : "ACTIVE",
-        ...(statusFilter !== "All" ? { status: statusFilter } : {}),
+        ...(statusFilter !== "All"
+          ? {
+              status:
+                { "In Transit": "RUNNING" }[statusFilter] ||
+                statusFilter.toUpperCase(),
+            }
+          : {}),
         ...(search.trim() ? { search: search.trim() } : {}),
       })
         .then((result) => {
@@ -790,20 +846,21 @@ function BookingsPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [listView, page, pageSize, search, statusFilter]);
+  }, [
+    listView,
+    page,
+    pageSize,
+    search,
+    statusFilter,
+    filters,
+    invalidDateRange,
+    sortDirection,
+  ]);
 
-  const statusOptions = useMemo(() => {
-    const visibleBookings = bookings.filter((booking) =>
-      listView === "closed"
-        ? isBookingClosed(booking)
-        : !isBookingClosed(booking),
-    );
-    return [
-      "All",
-      ...Array.from(new Set(visibleBookings.map((booking) => booking.status))),
-    ];
-  }, [bookings, listView]);
-
+  const statusOptions =
+    listView === "closed"
+      ? ["All", "Closed"]
+      : ["All", "Draft", "Confirmed", "Assigned", "In Transit", "Completed"];
   const customerById = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer])),
     [customers],
@@ -814,52 +871,9 @@ function BookingsPage() {
     [travellers],
   );
 
-  const filteredBookings = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return bookings.filter((booking) => {
-      const customer = customerById.get(booking.billing_customer_id);
-      const traveller = travellerById.get(booking.traveller_id);
-      const matchesListView =
-        listView === "closed"
-          ? isBookingClosed(booking)
-          : !isBookingClosed(booking);
-      const matchesStatus =
-        statusFilter === "All" || booking.status === statusFilter;
-      const searchableText = [
-        booking.id,
-        booking.customer,
-        customer?.displayName,
-        customer?.billingName,
-        customer?.phone,
-        traveller?.name,
-        traveller?.phone,
-        booking.customer_type,
-        booking.booking_type,
-        booking.duty_package,
-        booking.serviceCity,
-        booking.travellingFrom,
-        booking.travellingTo,
-        booking.pickupReportingAddress,
-        booking.routeStops,
-        booking.vehicleType,
-        booking.vendor,
-        booking.driver,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return (
-        matchesListView &&
-        matchesStatus &&
-        (!query || searchableText.includes(query))
-      );
-    });
-  }, [bookings, customerById, listView, search, statusFilter, travellerById]);
-
   const totalPages = pagination?.pages || 1;
   const currentPage = pagination?.page || page;
-  const paginatedBookings = filteredBookings;
+  const paginatedBookings = bookings;
 
   async function handleDeleteBooking(id) {
     try {
@@ -934,9 +948,45 @@ function BookingsPage() {
     setNotice(`Message prepared for ${booking.id}.`);
   }
 
-  function handleFilterChange(value) {
-    setStatusFilter(value);
-    setPage(1);
+  async function handleCopyBookingMessage(booking) {
+    const startDate = formatDate(booking.startDate || booking.pickupDate, {
+      year: true,
+    });
+    const endDate = formatDate(
+      booking.endDate || booking.startDate || booking.pickupDate,
+      {
+        year: true,
+      },
+    );
+    const route = [
+      booking.travellingFrom || booking.pickupReportingAddress,
+      ...(booking.routeStops || "")
+        .split(">")
+        .map((stop) => stop.trim())
+        .filter(Boolean),
+      booking.travellingTo,
+    ]
+      .filter(Boolean)
+      .join(" → ");
+    const message = [
+      `Booking Details · ${booking.id}`,
+      `Traveller: ${booking.travellerName || booking.customer || "-"}`,
+      `Trip: ${startDate}${startDate !== endDate ? ` to ${endDate}` : ""}${booking.pickupTime ? ` · ${booking.pickupTime}` : ""}`,
+      `Route: ${route || booking.serviceCity || "-"}`,
+      `Vehicle: ${booking.vehicleRegistrationNo || booking.requestedVehicleType || "To be assigned"}`,
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setNotice("Booking details copied.");
+    } catch {
+      setNotice(
+        "Unable to copy booking details. Please allow clipboard access.",
+      );
+    } finally {
+      setOpenActionId("");
+      setSendDetailsBookingId("");
+    }
   }
 
   function handleListViewChange(value) {
@@ -970,8 +1020,8 @@ function BookingsPage() {
           <h3 className="text-base font-semibold text-slate-900">
             Booking List
           </h3>
-          <div className="grid gap-3 sm:grid-cols-[minmax(260px,360px)_190px_220px]">
-            <label className="flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(180px,320px)_190px_auto]">
+            <label className="col-span-2 flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 sm:col-span-1">
               <Search
                 className="mr-2 text-slate-400"
                 size={18}
@@ -996,46 +1046,280 @@ function BookingsPage() {
                 </option>
               ))}
             </select>
-
-            <select
-              value={statusFilter}
-              onChange={(event) => handleFilterChange(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            <button
+              type="button"
+              onClick={() => filterDialogRef.current?.showModal()}
+              aria-label="Open booking filters"
+              aria-haspopup="dialog"
+              title="Filters"
+              className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
             >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status === "All" ? "All statuses" : status}
-                </option>
-              ))}
-            </select>
+              <SlidersHorizontal size={18} />
+              {Object.values(filters).filter((value) => value.trim()).length +
+                (statusFilter !== "All" ? 1 : 0) >
+                0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+                  {Object.values(filters).filter((value) => value.trim())
+                    .length + (statusFilter !== "All" ? 1 : 0)}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-[875px] divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
+        <dialog
+          ref={filterDialogRef}
+          aria-labelledby="booking-filters-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget)
+              filterDialogRef.current?.close();
+          }}
+          className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-sm border-0 bg-white p-0 shadow-2xl backdrop:bg-slate-950/40"
+        >
+          <div className="flex min-h-full flex-col p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <h3
+                id="booking-filters-title"
+                className="text-base font-semibold text-slate-900"
+              >
+                Booking filters
+              </h3>
+              <button
+                type="button"
+                onClick={() => filterDialogRef.current?.close()}
+                aria-label="Close filters"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid gap-4">
+              <label className="grid gap-1 text-xs font-medium text-slate-500">
+                Status
+                <select
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value);
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status === "All" ? "All statuses" : status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {[
+                [
+                  "customerType",
+                  "Customer category",
+                  [
+                    ["CORPORATE", "Corporate"],
+                    ["RETAIL", "Individual"],
+                    ["TRAVEL_AGENT", "Travel Agent"],
+                  ],
+                ],
+                [
+                  "assignmentSource",
+                  "Vehicle ownership",
+                  [
+                    ["OWN", "Own vehicle"],
+                    ["VENDOR", "Vendor vehicle"],
+                  ],
+                ],
+              ].map(([key, label, options]) => (
+                <label key={key} className="text-xs font-medium text-slate-500">
+                  {label}
+                  <select
+                    value={filters[key]}
+                    onChange={(event) =>
+                      updateListFilter(key, event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700"
+                  >
+                    <option value="">All</option>
+                    {options.map(([value, text]) => (
+                      <option key={value} value={value}>
+                        {text}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              {filters.assignmentSource === "VENDOR" && (
+                <label className="text-xs font-medium text-slate-500">
+                  Vendor
+                  <select
+                    value={filters.vendorId}
+                    onChange={(event) =>
+                      updateListFilter("vendorId", event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700"
+                  >
+                    <option value="">All vendors</option>
+                    {linkedVendors.map((vendor) => (
+                      <option key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="text-xs font-medium text-slate-500">
+                Linked vehicle
+                <select
+                  value={filters.vehicleId}
+                  onChange={(event) =>
+                    updateListFilter("vehicleId", event.target.value)
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700"
+                >
+                  <option value="">
+                    All{" "}
+                    {filters.assignmentSource === "OWN"
+                      ? "own"
+                      : filters.assignmentSource === "VENDOR"
+                        ? "vendor"
+                        : "linked"}{" "}
+                    vehicles
+                  </option>
+                  {linkedVehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {[vehicle.make, vehicle.model]
+                        .filter(Boolean)
+                        .join(" ") ||
+                        vehicle.vehicleType?.name ||
+                        "Vehicle"}{" "}
+                      · {vehicle.registrationNumber}
+                    </option>
+                  ))}
+                </select>
+                {vehicleFilterError && (
+                  <span role="alert" className="mt-1 block text-rose-600">
+                    {vehicleFilterError}
+                  </span>
+                )}
+                {!vehicleFilterError && !linkedVehicles.length && (
+                  <span className="mt-1 block text-slate-400">
+                    No linked vehicles available.
+                  </span>
+                )}
+              </label>
+              <fieldset>
+                <legend className="text-xs font-medium text-slate-500">
+                  Trip start date range
+                </legend>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  {[
+                    ["startDate", "From"],
+                    ["endDate", "To"],
+                  ].map(([key, label]) => (
+                    <label key={key} className="min-w-0 text-xs text-slate-500">
+                      {label}
+                      <input
+                        type="date"
+                        value={filters[key]}
+                        onChange={(event) =>
+                          updateListFilter(key, event.target.value)
+                        }
+                        min={
+                          key === "endDate"
+                            ? filters.startDate || undefined
+                            : undefined
+                        }
+                        max={
+                          key === "startDate"
+                            ? filters.endDate || undefined
+                            : undefined
+                        }
+                        className="mt-1 w-full min-w-0 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-700"
+                      />
+                    </label>
+                  ))}
+                </div>
+                {invalidDateRange && (
+                  <p role="alert" className="mt-1 text-xs text-rose-600">
+                    To date must be on or after From date.
+                  </p>
+                )}
+              </fieldset>
+            </div>
+            {(search ||
+              statusFilter !== "All" ||
+              Object.values(filters).some(Boolean)) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("All");
+                  setFilters({
+                    customerType: "",
+                    assignmentSource: "",
+                    vendorId: "",
+                    vehicleId: "",
+                    startDate: "",
+                    endDate: "",
+                  });
+                  setPage(1);
+                }}
+                className="mt-2 text-xs font-semibold text-brand-600 hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => filterDialogRef.current?.close()}
+              disabled={Boolean(invalidDateRange)}
+              className="mt-5 w-full rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
+            >
+              Show results
+            </button>
+          </div>
+        </dialog>
+
+        <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="min-w-[1100px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="w-[120px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Booking
+                <th className="w-[160px] px-4 py-3">Booking Id</th>
+                <th className="w-[190px] px-4 py-3">Customer</th>
+                <th
+                  aria-sort={
+                    sortDirection === "asc" ? "ascending" : "descending"
+                  }
+                  className="w-[165px] px-4 py-3"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSortDirection((current) =>
+                        current === "desc" ? "asc" : "desc",
+                      );
+                      setPage(1);
+                    }}
+                    title={
+                      sortDirection === "desc"
+                        ? "Sort earliest trip first"
+                        : "Sort latest trip first"
+                    }
+                    className="inline-flex items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  >
+                    Trip Dates
+                    {sortDirection === "asc" ? (
+                      <ArrowUp size={14} />
+                    ) : (
+                      <ArrowDown size={14} />
+                    )}
+                  </button>
                 </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Customer
-                </th>
-                <th className="w-[125px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Trip Dates
-                </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Route
-                </th>
-                <th className="w-[180px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Assignment
-                </th>
-                <th className="w-[100px] px-3 py-3 text-left font-semibold text-slate-700">
-                  Status
-                </th>
-                <th className="w-[70px] px-3 py-3 text-right font-semibold text-slate-700">
-                  Actions
-                </th>
+                <th className="w-[220px] px-4 py-3">Travelling</th>
+                <th className="w-[170px] px-4 py-3">Assigned to</th>
+                <th className="w-[180px] px-4 py-3">Vehicle Details</th>
+                <th className="w-[110px] px-4 py-3">Status</th>
+                <th className="w-[70px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1048,22 +1332,19 @@ function BookingsPage() {
                   customer?.displayName ||
                   booking.customer ||
                   "-";
-                const companyName =
-                  booking.customer_type === "Individuals"
-                    ? customer?.billingName || customerName
-                    : customer?.billingName ||
-                      customer?.name ||
-                      booking.customer ||
-                      "-";
+                const companyName = ["Individuals", "Retail"].includes(
+                  booking.customer_type,
+                )
+                  ? customer?.billingName || customerName
+                  : customer?.billingName ||
+                    customer?.name ||
+                    booking.customer ||
+                    "-";
                 const mobileNumber =
                   traveller?.phone ||
                   customer?.phone ||
                   booking.customerPhone ||
-                  "-";
-                const vehicleText =
-                  booking.vehicleRegistrationNo ||
-                  booking.requestedVehicleType ||
-                  "Vehicle pending";
+                  "—";
                 const routeStops = booking.routeStops
                   ? booking.routeStops
                       .split(">")
@@ -1078,11 +1359,12 @@ function BookingsPage() {
                     ? routeStops
                     : [booking.travellingTo || "Destination not fixed"]),
                 ];
+                const routeCityLocations = routeLocations.map(cityNameOnly);
                 const tripStartValue = booking.startDate || booking.pickupDate;
                 const tripEndValue =
                   booking.endDate || booking.startDate || booking.pickupDate;
                 const tripStart = formatDate(tripStartValue, { year: true });
-                const tripEnd = formatDate(tripEndValue);
+                const tripEnd = formatDate(tripEndValue, { year: true });
                 const isSameTripDate =
                   tripStartValue &&
                   tripEndValue &&
@@ -1093,7 +1375,6 @@ function BookingsPage() {
                   : `${tripStart} to ${tripEnd}`;
                 const pickupTime =
                   booking.pickupTime || booking.reportingTime || "";
-                const assignmentDetail = `${vehicleText} - ${booking.driver || "Driver pending"}`;
                 const isVendorVehicle =
                   (booking.assignmentType || booking.assignment_type) ===
                   "vendor_vehicle";
@@ -1104,7 +1385,7 @@ function BookingsPage() {
                     role="link"
                     tabIndex={0}
                     aria-label={`View booking ${booking.id}`}
-                    className="cursor-pointer align-top transition-colors hover:bg-slate-50 focus-visible:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     onClick={() => navigate(`/bookings/${booking.id}`)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
@@ -1113,71 +1394,85 @@ function BookingsPage() {
                       }
                     }}
                   >
-                    <td className="w-[120px] px-3 py-3">
-                      <p className="font-semibold text-slate-950">
-                        {booking.id}
-                      </p>
-                      <div className="mt-1">
+                    <td className="w-[160px] px-4 py-3">
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="font-semibold text-slate-950">
+                          {booking.id}
+                        </span>
                         <CategoryBadge category={getBookingCategory(booking)} />
                       </div>
                     </td>
-                    <td className="w-[180px] max-w-[180px] px-3 py-3">
-                      <p className="font-semibold text-slate-950">
+                    <td className="w-[190px] max-w-[190px] px-4 py-3 text-slate-700">
+                      <span className="block truncate" title={customerName}>
                         {customerName}
-                      </p>
-                      <p className="mt-1 font-medium text-slate-700">
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">
                         {mobileNumber}
-                      </p>
-                      <p
-                        className="mt-1 truncate text-xs text-slate-500"
-                        title={companyName}
-                      >
-                        {companyName}
-                      </p>
+                      </span>
+                      {companyName &&
+                        companyName !== "-" &&
+                        companyName.trim().toLowerCase() !==
+                          customerName.trim().toLowerCase() && (
+                          <span
+                            className="mt-1 block truncate text-xs text-slate-400"
+                            title={companyName}
+                          >
+                            {companyName}
+                          </span>
+                        )}
                     </td>
-                    <td className="w-[125px] px-3 py-3">
-                      <p className="font-semibold text-slate-900">
-                        {tripDateText}
-                      </p>
+                    <td className="w-[165px] whitespace-nowrap px-4 py-3 text-slate-700">
+                      <span>{tripDateText}</span>
                       {pickupTime && (
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
-                          {pickupTime}
-                        </p>
+                        <span className="ml-1 text-slate-400">
+                          · {pickupTime}
+                        </span>
                       )}
                     </td>
-                    <td className="w-[180px] px-3 py-3">
-                      <p className="break-words font-semibold text-slate-900">
-                        <RouteText locations={routeLocations} />
-                      </p>
+                    <td className="w-[220px] px-4 py-3 leading-5 text-slate-700">
+                      <span className="block break-words">
+                        <RouteText locations={routeCityLocations} />
+                      </span>
                     </td>
-                    <td className="w-[180px] px-3 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="break-words font-semibold text-slate-900">
-                          {booking.vendor || "Unassigned"}
-                        </p>
+                    <td className="w-[170px] max-w-[170px] px-4 py-3 text-slate-700">
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="truncate">
+                          {isVendorVehicle
+                            ? booking.vendor || "Unassigned"
+                            : booking.tenantCompanyName || "Own company"}
+                        </span>
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                            isVendorVehicle
-                              ? "bg-sky-50 text-sky-700"
-                              : "bg-emerald-50 text-emerald-700"
-                          }`}
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${isVendorVehicle ? "bg-sky-50 text-sky-700" : "bg-emerald-50 text-emerald-700"}`}
                         >
                           {isVendorVehicle ? "Vendor" : "Own"}
                         </span>
                       </div>
-                      <p className="mt-1 break-words font-semibold text-slate-900">
-                        {assignmentDetail}
-                      </p>
                     </td>
-                    <td className="w-[100px] px-3 py-3">
+                    <td className="w-[180px] max-w-[180px] px-4 py-3 text-slate-700">
+                      <span className="truncate">
+                        {[booking.vehicle?.make, booking.vehicle?.model]
+                          .filter(Boolean)
+                          .join(" ") ||
+                          booking.vehicleType ||
+                          booking.requestedVehicleType ||
+                          "Vehicle pending"}
+                      </span>
+                      <span className="ml-1 text-slate-400">
+                        · {booking.vehicleRegistrationNo || "Not assigned"}
+                      </span>
+                    </td>
+                    <td className="w-[110px] whitespace-nowrap px-4 py-3">
                       <StatusBadge status={booking.status} />
                     </td>
                     <td
-                      className="w-[70px] px-3 py-3 text-right"
+                      className="w-[70px] px-4 py-3 text-right"
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
-                      <div className="relative inline-flex justify-end">
+                      <div
+                        ref={openActionId === booking.id ? actionMenuRef : null}
+                        className="relative inline-flex justify-end"
+                      >
                         <button
                           type="button"
                           aria-expanded={openActionId === booking.id}
@@ -1227,24 +1522,32 @@ function BookingsPage() {
                               <Eye size={16} />
                               View
                             </Link>
-                            <Link
-                              to={`/bookings/${booking.id}/edit`}
-                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                              onClick={() => setOpenActionId("")}
-                            >
-                              <Edit size={16} />
-                              Edit
-                            </Link>
-                            {booking.vehicleId && booking.driverId && (
+                            {!["Completed", "Closed", "Cancelled"].includes(
+                              booking.status,
+                            ) && (
                               <Link
-                                to={`/bookings/${booking.id}/duty-slip`}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                                to={`/bookings/${booking.id}/edit`}
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                                 onClick={() => setOpenActionId("")}
                               >
-                                <FileCheck size={16} />
-                                Generate Duty Slip
+                                <Edit size={16} />
+                                Edit
                               </Link>
                             )}
+                            {booking.vehicleId &&
+                              booking.driverId &&
+                              ["Assigned", "In Transit"].includes(
+                                booking.status,
+                              ) && (
+                                <Link
+                                  to={`/bookings/${booking.id}/duty-slip`}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                                  onClick={() => setOpenActionId("")}
+                                >
+                                  <FileCheck size={16} />
+                                  Generate Duty Slip
+                                </Link>
+                              )}
                             {booking.status === "Draft" && (
                               <button
                                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
@@ -1300,7 +1603,7 @@ function BookingsPage() {
                                 Complete Duty
                               </button>
                             )}
-                            {canCloseBooking(booking) && (
+                            {booking.status === "Completed" && (
                               <Link
                                 to={`/bookings/${booking.id}/close`}
                                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -1310,16 +1613,17 @@ function BookingsPage() {
                                 Close Booking
                               </Link>
                             )}
-                            {hasBillAmount(booking) && (
-                              <Link
-                                to={`/bookings/${booking.id}/collections`}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                onClick={() => setOpenActionId("")}
-                              >
-                                <WalletCards size={16} />
-                                Collection
-                              </Link>
-                            )}
+                            {isBookingClosed(booking) &&
+                              hasBillAmount(booking) && (
+                                <Link
+                                  to={`/bookings/${booking.id}/collections`}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                  onClick={() => setOpenActionId("")}
+                                >
+                                  <WalletCards size={16} />
+                                  Collection
+                                </Link>
+                              )}
                             {isBookingClosed(booking) && (
                               <Link
                                 to={`/bookings/${booking.id}/profit`}
@@ -1331,12 +1635,78 @@ function BookingsPage() {
                               </Link>
                             )}
                             <button
+                              type="button"
+                              aria-expanded={
+                                sendDetailsBookingId === booking.id
+                              }
                               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                              onClick={() => handleSendMessage(booking)}
+                              onClick={() =>
+                                setSendDetailsBookingId((current) =>
+                                  current === booking.id ? "" : booking.id,
+                                )
+                              }
                             >
                               <MessageSquare size={16} />
-                              Send Message
+                              Send Details
+                              <ChevronDown
+                                size={15}
+                                className={`ml-auto transition-transform ${
+                                  sendDetailsBookingId === booking.id
+                                    ? "rotate-180"
+                                    : ""
+                                }`}
+                              />
                             </button>
+                            {sendDetailsBookingId === booking.id && (
+                              <div className="ml-5 border-l border-slate-200 pl-2">
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                  onClick={() => handleSendMessage(booking)}
+                                >
+                                  <MessageSquare size={16} />
+                                  Send Message
+                                </button>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                  onClick={() =>
+                                    handleCopyBookingMessage(booking)
+                                  }
+                                >
+                                  <Copy size={16} />
+                                  Copy Message
+                                </button>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+                                  onClick={() => {
+                                    setOpenActionId("");
+                                    setSendDetailsBookingId("");
+                                    setNotice(
+                                      "WhatsApp sharing will be available soon.",
+                                    );
+                                  }}
+                                >
+                                  <MessageCircle size={16} />
+                                  Send WhatsApp
+                                </button>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                  onClick={() => {
+                                    setOpenActionId("");
+                                    setSendDetailsBookingId("");
+                                    setNotice(
+                                      "Email sharing will be available soon.",
+                                    );
+                                  }}
+                                >
+                                  <Mail size={16} />
+                                  Send Email
+                                </button>
+                              </div>
+                            )}
                             {[
                               "Draft",
                               "Confirmed",

@@ -47,6 +47,15 @@ export interface InvoiceSettingsInput {
   invoiceSettings: Record<string, unknown>
 }
 
+export interface DashboardLayoutItem {
+  key: string
+  visible: boolean
+}
+
+export interface DashboardLayoutInput {
+  layout: DashboardLayoutItem[] | null
+}
+
 export interface LocationInput {
   name?: string
   code?: string | null

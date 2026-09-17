@@ -57,7 +57,7 @@ function StatusBadge({ status }) {
           : "bg-brand-50 text-brand-700 ring-brand-600/20";
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${tone}`}
+      className={`status-badge inline-flex rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${tone}`}
     >
       {label(status)}
     </span>

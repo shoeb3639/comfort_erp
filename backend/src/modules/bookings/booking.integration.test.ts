@@ -8,6 +8,7 @@ import { prisma } from '../../config/prisma'
 import { hashPassword } from '../../shared/security/password'
 import { TENANT_PERMISSIONS } from '../auth/auth.constants'
 import * as bookingRepository from './booking.repository'
+import { completeOverdueBookings } from './booking-overdue-completion'
 
 const password = 'Booking-Test!9Qv7#Secure'
 let token: string
@@ -1594,4 +1595,254 @@ describe('local package closing extras', () => {
       20,
     )
   })
+})
+
+describe('booking list filters', () => {
+  it('combines filters before pagination and respects status within the active view', async () => {
+    for (const status of ['CONFIRMED', 'CONFIRMED', 'COMPLETED'] as const) {
+      await bookingRepository.create(
+        {
+          ...repositoryBookingData(tenantId, customerId),
+          serviceCity: 'FilterTestCity',
+          vehicleId,
+          driverId,
+          status,
+        },
+        '2030-01-20',
+      )
+    }
+    const filters = {
+      search: 'FilterTestCity',
+      customerType: 'RETAIL',
+      assignmentSource: 'OWN',
+      vehicleType: 'sed',
+      vehicleNumber: 'aa0001',
+      driverName: 'test driver',
+      view: 'ACTIVE',
+      status: 'CONFIRMED',
+      page: 1,
+      limit: 1,
+    }
+    const first = await authorized('get', '/api/v1/tenant/bookings').query(
+      filters,
+    )
+    expect(first.status).toBe(200)
+    expect(first.body.data.pagination.total).toBe(2)
+    expect(first.body.data.items).toHaveLength(1)
+    expect(first.body.data.items[0].tenantCompanyName).toBe('Booking Tenant')
+    const second = await authorized('get', '/api/v1/tenant/bookings').query({
+      ...filters,
+      page: 2,
+    })
+    expect(second.body.data.items[0].id).not.toBe(first.body.data.items[0].id)
+    const dated = await authorized('get', '/api/v1/tenant/bookings').query({
+      search: 'FilterTestCity',
+      vehicleId,
+      startDate: '2030-01-20',
+      endDate: '2030-01-20',
+    })
+    expect(dated.status).toBe(200)
+    expect(dated.body.data.pagination.total).toBe(3)
+    const outside = await authorized('get', '/api/v1/tenant/bookings').query({
+      search: 'FilterTestCity',
+      vehicleId,
+      startDate: '2030-01-21',
+    })
+    expect(outside.body.data.pagination.total).toBe(0)
+    const invalid = await authorized('get', '/api/v1/tenant/bookings').query({
+      startDate: '2030-01-21',
+      endDate: '2030-01-20',
+    })
+    expect(invalid.status).toBe(400)
+    const vehicles = await authorized(
+      'get',
+      '/api/v1/tenant/bookings/filter-vehicles',
+    )
+    expect(vehicles.status).toBe(200)
+    expect(vehicles.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: vehicleId,
+          registrationNumber: 'DL01AA0001',
+          ownershipType: 'OWN',
+        }),
+      ]),
+    )
+    for (const mismatch of [
+      { customerType: 'CORPORATE' },
+      { assignmentSource: 'VENDOR' },
+      { driverName: 'Missing driver' },
+      { vehicleNumber: 'Missing' },
+      { vehicleType: 'Bus' },
+    ]) {
+      const response = await authorized('get', '/api/v1/tenant/bookings').query(
+        { ...filters, ...mismatch },
+      )
+      expect(response.status).toBe(200)
+      expect(response.body.data.pagination.total).toBe(0)
+    }
+  })
+})
+
+it('filters bookings by vendor and returns vehicle names and vendor links', async () => {
+  const vendor = await prisma.vendor.create({
+    data: {
+      tenantId,
+      vendorCode: 'FILTER-VENDOR',
+      name: 'Filter Vendor',
+      recordType: 'COMPANY',
+      category: 'Transport',
+      phone: '9999999901',
+      city: 'New Delhi',
+    },
+  })
+  const ownVehicle = await prisma.vehicle.findUniqueOrThrow({
+    where: { id: vehicleId },
+  })
+  const vehicle = await prisma.vehicle.create({
+    data: {
+      tenantId,
+      vendorId: vendor.id,
+      ownershipType: 'VENDOR',
+      vehicleCode: 'FILTER-VEH',
+      registrationNumber: 'DL02BB0002',
+      vehicleTypeId: ownVehicle.vehicleTypeId,
+      make: 'Toyota',
+      model: 'Innova',
+    },
+  })
+  await bookingRepository.create(
+    {
+      ...repositoryBookingData(tenantId, customerId),
+      assignmentSource: 'VENDOR',
+      vendorId: vendor.id,
+      vehicleId: vehicle.id,
+    },
+    '2030-01-20',
+  )
+  const response = await authorized('get', '/api/v1/tenant/bookings').query({
+    assignmentSource: 'VENDOR',
+    vendorId: vendor.id,
+    vehicleId: vehicle.id,
+  })
+  expect(response.status).toBe(200)
+  expect(response.body.data.pagination.total).toBe(1)
+  const mismatch = await authorized('get', '/api/v1/tenant/bookings').query({
+    vendorId: vendor.id,
+    vehicleId,
+  })
+  expect(mismatch.body.data.pagination.total).toBe(0)
+  const options = await authorized(
+    'get',
+    '/api/v1/tenant/bookings/filter-vehicles',
+  )
+  expect(options.body.data).toContainEqual(
+    expect.objectContaining({
+      id: vehicle.id,
+      make: 'Toyota',
+      model: 'Innova',
+      vendorId: vendor.id,
+      vendor: { id: vendor.id, name: 'Filter Vendor' },
+    }),
+  )
+})
+
+it('sorts trip dates in both directions before pagination', async () => {
+  for (const date of ['2031-03-10', '2031-03-01', '2031-03-20']) {
+    await bookingRepository.create(
+      {
+        ...repositoryBookingData(tenantId, customerId),
+        serviceCity: 'SortingTestCity',
+        startDate: new Date(date),
+        endDate: new Date(date),
+      },
+      date,
+    )
+  }
+  for (const [sortDirection, dates] of [
+    ['asc', ['2031-03-01', '2031-03-10', '2031-03-20']],
+    ['desc', ['2031-03-20', '2031-03-10', '2031-03-01']],
+  ] as const) {
+    for (let page = 1; page <= 3; page++) {
+      const response = await authorized('get', '/api/v1/tenant/bookings').query(
+        { search: 'SortingTestCity', sortDirection, page, limit: 1 },
+      )
+      expect(response.status).toBe(200)
+      expect(String(response.body.data.items[0].startDate).slice(0, 10)).toBe(
+        dates[page - 1],
+      )
+    }
+  }
+  const invalid = await authorized('get', '/api/v1/tenant/bookings').query({
+    sortDirection: 'invalid',
+  })
+  expect(invalid.status).toBe(400)
+})
+
+it('marks assigned and running bookings completed after their tenant end date', async () => {
+  const assigned = await bookingRepository.create(
+    {
+      ...repositoryBookingData(tenantId, customerId),
+      startDate: new Date('2030-09-10'),
+      endDate: new Date('2030-09-11'),
+      vehicleId,
+      driverId,
+      status: 'ASSIGNED',
+    },
+    '2030-09-10',
+  )
+  const running = await bookingRepository.create(
+    {
+      ...repositoryBookingData(tenantId, customerId),
+      startDate: new Date('2030-09-11'),
+      endDate: new Date('2030-09-11'),
+      vehicleId,
+      driverId,
+      status: 'ASSIGNED',
+    },
+    '2030-09-11',
+  )
+  await prisma.booking.update({
+    where: { id: running.id },
+    data: {
+      status: 'RUNNING',
+      dutyStartedAt: new Date('2030-09-11T05:00:00Z'),
+    },
+  })
+  const confirmed = await bookingRepository.create(
+    {
+      ...repositoryBookingData(tenantId, customerId),
+      startDate: new Date('2030-09-10'),
+      endDate: new Date('2030-09-11'),
+      status: 'CONFIRMED',
+    },
+    '2030-09-10',
+  )
+
+  expect(
+    await completeOverdueBookings(new Date('2030-09-12T06:00:00Z')),
+  ).toBeGreaterThanOrEqual(2)
+  const updated = await prisma.booking.findMany({
+    where: { id: { in: [assigned.id, running.id, confirmed.id] } },
+    select: { id: true, status: true, dutyCompletedAt: true },
+  })
+  expect(updated).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: assigned.id,
+        status: 'COMPLETED',
+        dutyCompletedAt: expect.any(Date),
+      }),
+      expect.objectContaining({
+        id: running.id,
+        status: 'COMPLETED',
+        dutyCompletedAt: expect.any(Date),
+      }),
+      expect.objectContaining({
+        id: confirmed.id,
+        status: 'CONFIRMED',
+        dutyCompletedAt: null,
+      }),
+    ]),
+  )
 })

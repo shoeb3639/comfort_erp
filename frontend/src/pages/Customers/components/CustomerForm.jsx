@@ -24,6 +24,8 @@ function CustomerForm({ customer, mode = "create" }) {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: {
@@ -33,12 +35,21 @@ function CustomerForm({ customer, mode = "create" }) {
       billingName: customer?.billingName || "",
       email: customer?.email || "",
       phone: customer?.phone || "",
+      whatsappNumber: customer?.whatsappNumber || "",
+      whatsappSameAsPhone: customer
+        ? customer.phone === customer.whatsappNumber
+        : true,
       city: customer?.city || "",
       gstin: customer?.gstin || "",
       address: customer?.address || "",
       creditLimit: customer?.creditLimit || 0,
     },
   });
+  const customerType = watch("type");
+  const whatsappSameAsPhone = watch("whatsappSameAsPhone");
+  const whatsappLabel = ["Corporate", "Travel Agent"].includes(customerType)
+    ? "Travel Desk / Admin WhatsApp"
+    : "WhatsApp Number";
 
   async function onSubmit(values) {
     setError("");
@@ -166,9 +177,52 @@ function CustomerForm({ customer, mode = "create" }) {
             {...register("phone", {
               required: "Phone is required",
               minLength: { value: 8, message: "Enter a valid phone number" },
+              onChange: (event) => {
+                if (whatsappSameAsPhone)
+                  setValue("whatsappNumber", event.target.value, {
+                    shouldValidate: true,
+                  });
+              },
             })}
           />
           <FieldError message={errors.phone?.message} />
+        </label>
+
+        <label>
+          <span className="text-sm font-medium text-slate-700">
+            {whatsappLabel}
+          </span>
+          <input
+            className={fieldClass}
+            placeholder="+91 98765 43210"
+            disabled={whatsappSameAsPhone}
+            {...register("whatsappNumber", {
+              validate: (value) =>
+                whatsappSameAsPhone ||
+                Boolean(value?.trim()) ||
+                "WhatsApp number is required",
+              minLength: {
+                value: 8,
+                message: "Enter a valid WhatsApp number",
+              },
+            })}
+          />
+          <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-600">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-brand-500"
+              {...register("whatsappSameAsPhone", {
+                onChange: (event) => {
+                  if (event.target.checked)
+                    setValue("whatsappNumber", watch("phone"), {
+                      shouldValidate: true,
+                    });
+                },
+              })}
+            />
+            This mobile number is on WhatsApp
+          </label>
+          <FieldError message={errors.whatsappNumber?.message} />
         </label>
 
         <label>

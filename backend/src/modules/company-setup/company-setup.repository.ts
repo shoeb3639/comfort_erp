@@ -51,6 +51,58 @@ export function getCompanyProfile(tenantId: string) {
   return prisma.tenant.findUnique({ where: { id: tenantId } })
 }
 
+export async function getDashboardLayouts(tenantId: string, userId: string) {
+  const [tenant, user] = await Promise.all([
+    prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { dashboardLayout: true },
+    }),
+    prisma.tenantUser.findUnique({
+      where: { tenantId_id: { tenantId, id: userId } },
+      select: { dashboardLayout: true },
+    }),
+  ])
+  return {
+    tenantLayout: tenant?.dashboardLayout ?? null,
+    personalLayout: user?.dashboardLayout ?? null,
+  }
+}
+
+export function updatePersonalDashboardLayout(
+  tenantId: string,
+  userId: string,
+  layout: Prisma.InputJsonValue | typeof Prisma.DbNull,
+) {
+  return prisma.tenantUser.update({
+    where: { tenantId_id: { tenantId, id: userId } },
+    data: { dashboardLayout: layout },
+    select: { dashboardLayout: true },
+  })
+}
+
+export function updateTenantDashboardLayout(
+  tenantId: string,
+  userId: string,
+  layout: Prisma.InputJsonValue | typeof Prisma.DbNull,
+) {
+  return prisma.$transaction(async (transaction) => {
+    const tenant = await transaction.tenant.update({
+      where: { id: tenantId },
+      data: { dashboardLayout: layout },
+      select: { dashboardLayout: true },
+    })
+    await audit(
+      transaction,
+      tenantId,
+      userId,
+      'DASHBOARD_LAYOUT',
+      'UPDATE',
+      tenantId,
+    )
+    return tenant
+  })
+}
+
 export function updateTenantSettings(
   tenantId: string,
   data: Prisma.TenantUncheckedUpdateInput,

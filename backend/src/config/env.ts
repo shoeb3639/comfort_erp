@@ -25,6 +25,9 @@ interface EnvironmentVariables {
   STORAGE_TEMP_ROOT: string
   STORAGE_MAX_FILE_SIZE_MB: number
   STORAGE_MAX_FILES_PER_REQUEST: number
+  LOCATIONIQ_API_KEY: string
+  LOCATIONIQ_CACHE_TTL_MS: number
+  LOCATIONIQ_TIMEOUT_MS: number
 }
 
 const envSchema = Joi.object<EnvironmentVariables>({
@@ -75,6 +78,17 @@ const envSchema = Joi.object<EnvironmentVariables>({
     .min(1)
     .max(20)
     .default(5),
+  LOCATIONIQ_API_KEY: Joi.string().trim().allow('').default(''),
+  LOCATIONIQ_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(24 * 60 * 60 * 1000)
+    .default(10 * 60 * 1000),
+  LOCATIONIQ_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(15_000)
+    .default(4000),
 })
   .unknown(true)
   .required()
@@ -160,6 +174,11 @@ interface Environment {
     maxFileSizeBytes: number
     maxFilesPerRequest: number
   }
+  locationIq: {
+    apiKey: string
+    cacheTtlMs: number
+    timeoutMs: number
+  }
 }
 
 export const env: Environment = Object.freeze({
@@ -192,5 +211,10 @@ export const env: Environment = Object.freeze({
     maxFileSizeBytes:
       validatedEnvironment.STORAGE_MAX_FILE_SIZE_MB * 1024 * 1024,
     maxFilesPerRequest: validatedEnvironment.STORAGE_MAX_FILES_PER_REQUEST,
+  }),
+  locationIq: Object.freeze({
+    apiKey: validatedEnvironment.LOCATIONIQ_API_KEY,
+    cacheTtlMs: validatedEnvironment.LOCATIONIQ_CACHE_TTL_MS,
+    timeoutMs: validatedEnvironment.LOCATIONIQ_TIMEOUT_MS,
   }),
 })

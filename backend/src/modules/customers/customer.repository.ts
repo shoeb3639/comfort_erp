@@ -54,6 +54,7 @@ export function listCustomers(
             { billingName: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
             { phone: { contains: search, mode: 'insensitive' } },
+            { whatsappNumber: { contains: search, mode: 'insensitive' } },
             { city: { contains: search, mode: 'insensitive' } },
             {
               travellers: {
@@ -92,6 +93,107 @@ export function findCustomer(tenantId: string, customerId: string) {
     where: { tenantId, id: customerId, deletedAt: null },
     include: customerInclude,
   })
+}
+
+const customerBookingOptionSelect = {
+  id: true,
+  type: true,
+  salutation: true,
+  name: true,
+  billingName: true,
+  phone: true,
+  whatsappNumber: true,
+  city: true,
+  gstin: true,
+} satisfies Prisma.CustomerSelect
+
+export async function listCustomerBookingOptions(
+  tenantId: string,
+  filters: {
+    query?: string
+    type?: CustomerType
+    id?: string
+  } & PageRequest,
+) {
+  const query = filters.query?.trim()
+  const where = {
+    tenantId,
+    deletedAt: null,
+    status: 'ACTIVE' as const,
+    ...(filters.type ? { type: filters.type } : {}),
+    ...(filters.id ? { id: filters.id } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' as const } },
+            { billingName: { contains: query, mode: 'insensitive' as const } },
+            { phone: { contains: query, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.CustomerWhereInput
+
+  return Promise.all([
+    prisma.customer.findMany({
+      where,
+      select: customerBookingOptionSelect,
+      orderBy:
+        query || filters.id
+          ? [{ name: 'asc' }, { id: 'asc' }]
+          : [{ bookings: { _count: 'desc' } }, { createdAt: 'desc' }],
+      ...pageWindow(filters),
+    }),
+    prisma.customer.count({ where }),
+  ])
+}
+
+export async function listTravellerBookingOptions(
+  tenantId: string,
+  customerId: string,
+  filters: { query?: string; id?: string } & PageRequest,
+) {
+  const customer = await prisma.customer.findFirst({
+    where: { tenantId, id: customerId, deletedAt: null, status: 'ACTIVE' },
+    select: { id: true },
+  })
+  if (!customer) return null
+  const query = filters.query?.trim()
+  const where = {
+    tenantId,
+    customerId,
+    status: 'ACTIVE' as const,
+    ...(filters.id ? { id: filters.id } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' as const } },
+            { phone: { contains: query, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.CustomerTravellerWhereInput
+  const select = {
+    id: true,
+    customerId: true,
+    travellerType: true,
+    salutation: true,
+    name: true,
+    phone: true,
+    email: true,
+    employeeId: true,
+  } satisfies Prisma.CustomerTravellerSelect
+  return Promise.all([
+    prisma.customerTraveller.findMany({
+      where,
+      select,
+      orderBy:
+        query || filters.id
+          ? [{ name: 'asc' }, { id: 'asc' }]
+          : [{ bookings: { _count: 'desc' } }, { createdAt: 'desc' }],
+      ...pageWindow(filters),
+    }),
+    prisma.customerTraveller.count({ where }),
+  ])
 }
 
 export function createCustomer(

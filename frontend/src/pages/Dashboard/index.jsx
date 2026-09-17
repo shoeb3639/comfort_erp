@@ -4,6 +4,15 @@ import OutstandingCards from "./OutstandingCards";
 import FilteredSummaryCard, { summaryMetrics } from "./FilteredSummaryCard";
 import { useEffect, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
+  GripVertical,
+  RotateCcw,
+  Settings2,
+  X,
+} from "lucide-react";
+import { useAuth } from "../../auth/AuthContext";
+import {
   getAccountsAudit,
   listAccountTransactions,
   listCashDeposits,
@@ -13,7 +22,12 @@ import { listBookings } from "../../services/bookings";
 import { getCustomers } from "../../services/customers";
 import { listDrivers } from "../../services/drivers";
 import { listInvoices } from "../../services/invoices";
-import { getCompanyProfile } from "../../services/tenantSetup";
+import {
+  getCompanyProfile,
+  getDashboardLayout,
+  updatePersonalDashboardLayout,
+  updateTenantDashboardLayout,
+} from "../../services/tenantSetup";
 import {
   Badge,
   BarChart,
@@ -38,6 +52,17 @@ const chartColors = [
   "#06b6d4",
   "#64748b",
 ];
+
+const dashboardSectionLabels = {
+  business_overview: "Business Overview",
+  outstanding: "Current Outstanding Balances",
+  vehicle_performance: "Vehicle Performance",
+  manager_ledger: "Manager Ledger",
+  expense_categories: "Expense Categories",
+  fuel_analysis: "Fuel Analysis",
+  cash_flow: "Cash Flow",
+  recent_activities: "Recent Activities",
+};
 
 const statusToneMap = {
   Draft: "slate",
@@ -666,6 +691,15 @@ const managerColumns = [
 ];
 
 function DashboardPage() {
+  const { user } = useAuth();
+  const [expenseView, setExpenseView] = useState("chart");
+  const [layout, setLayout] = useState([]);
+  const [layoutSource, setLayoutSource] = useState("SYSTEM");
+  const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
+  const [draftLayout, setDraftLayout] = useState([]);
+  const [layoutSaving, setLayoutSaving] = useState(false);
+  const [layoutError, setLayoutError] = useState("");
+  const [draggedSectionIndex, setDraggedSectionIndex] = useState(null);
   const [state, setState] = useState({
     loading: true,
     error: "",
@@ -684,6 +718,7 @@ function DashboardPage() {
       getAccountsAudit(),
       listDrivers({ limit: 100 }),
       getCompanyProfile(),
+      getDashboardLayout(),
     ])
       .then(
         ([
@@ -696,6 +731,7 @@ function DashboardPage() {
           auditData,
           drivers,
           companyProfile,
+          dashboardLayout,
         ]) => {
           if (!active) return;
           const transactions = transactionData.transactions || [];
@@ -740,6 +776,8 @@ function DashboardPage() {
               businessDate: tenantBusinessDate(companyProfile.timeZone),
             }),
           });
+          setLayout(dashboardLayout.layout);
+          setLayoutSource(dashboardLayout.source);
         },
       )
       .catch((error) => {
@@ -756,6 +794,91 @@ function DashboardPage() {
       active = false;
     };
   }, []);
+
+  const canManageTenantLayout =
+    user?.isPrimaryOwner ||
+    (user?.permissions || []).includes("settings.company.manage");
+
+  function openLayoutEditor() {
+    setDraftLayout(layout.map((item) => ({ ...item })));
+    setLayoutError("");
+    setLayoutEditorOpen(true);
+  }
+
+  function moveSection(index, direction) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= draftLayout.length) return;
+    setDraftLayout((current) => {
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  }
+
+  function toggleSection(key) {
+    setDraftLayout((current) =>
+      current.map((item) =>
+        item.key === key ? { ...item, visible: !item.visible } : item,
+      ),
+    );
+  }
+
+  function dropSection(targetIndex) {
+    if (draggedSectionIndex === null || draggedSectionIndex === targetIndex) {
+      setDraggedSectionIndex(null);
+      return;
+    }
+    setDraftLayout((current) => {
+      const next = [...current];
+      const [moved] = next.splice(draggedSectionIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDraggedSectionIndex(null);
+  }
+
+  function applyLayoutResponse(response) {
+    setLayout(response.layout);
+    setLayoutSource(response.source);
+    setDraftLayout(response.layout.map((item) => ({ ...item })));
+  }
+
+  async function saveLayout(scope) {
+    setLayoutSaving(true);
+    setLayoutError("");
+    try {
+      const response =
+        scope === "tenant"
+          ? await updateTenantDashboardLayout(draftLayout)
+          : await updatePersonalDashboardLayout(draftLayout);
+      applyLayoutResponse(response);
+      setLayoutEditorOpen(false);
+    } catch (error) {
+      setLayoutError(
+        error.response?.data?.message || "Unable to save dashboard layout.",
+      );
+    } finally {
+      setLayoutSaving(false);
+    }
+  }
+
+  async function resetLayout(scope) {
+    setLayoutSaving(true);
+    setLayoutError("");
+    try {
+      const response =
+        scope === "tenant"
+          ? await updateTenantDashboardLayout(null)
+          : await updatePersonalDashboardLayout(null);
+      applyLayoutResponse(response);
+    } catch (error) {
+      setLayoutError(
+        error.response?.data?.message || "Unable to reset dashboard layout.",
+      );
+    } finally {
+      setLayoutSaving(false);
+    }
+  }
 
   if (state.loading) {
     return (
@@ -775,9 +898,8 @@ function DashboardPage() {
   }
 
   const dashboard = state.data;
-
-  return (
-    <div className="space-y-7">
+  const dashboardSections = {
+    business_overview: (
       <section className="space-y-4">
         <SectionHeader title="Business Overview" />
         <div
@@ -794,17 +916,20 @@ function DashboardPage() {
           ))}
         </div>
       </section>
-
+    ),
+    outstanding: (
       <section className="space-y-4">
         <SectionHeader title="Current Outstanding Balances" />
         <OutstandingCards />
       </section>
-
+    ),
+    vehicle_performance: (
       <section className="space-y-4">
         <SectionHeader title="Vehicle Performance" />
         <VehiclePerformanceTable today={dashboard.businessDate} />
       </section>
-
+    ),
+    manager_ledger: (
       <section className="space-y-4">
         <SectionHeader title="Manager Ledger" />
         <SmallMetricGrid items={dashboard.managerCards} />
@@ -814,32 +939,58 @@ function DashboardPage() {
           rows={dashboard.managerRows}
         />
       </section>
-
+    ),
+    expense_categories: (
       <section className="space-y-4">
         <SectionHeader title="Expense Overview" />
         <SmallMetricGrid items={dashboard.expenseCards} />
-        <div className="dashboard-mobile-cards grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <div className="xl:col-span-2">
-            <DonutChart
-              title="Expense Category Pie"
-              data={dashboard.expenseChart}
-            />
-          </div>
-          <div className="xl:col-span-2">
-            <ProgressList
-              title="Expense Category Weight"
-              data={dashboard.expenseChart}
-            />
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <h3 className="font-bold text-slate-950">Expense Categories</h3>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+              {[
+                ["chart", "Chart View"],
+                ["list", "List View"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setExpenseView(value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    expenseView === value
+                      ? "bg-white text-brand-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </header>
+          <div className="p-5">
+            {expenseView === "chart" ? (
+              <DonutChart
+                title="Expense Breakdown"
+                data={dashboard.expenseChart}
+              />
+            ) : (
+              <ProgressList
+                title="Expense by Category"
+                data={dashboard.expenseChart}
+              />
+            )}
           </div>
         </div>
       </section>
-
+    ),
+    fuel_analysis: (
       <section className="space-y-4">
         <SectionHeader title="Fuel Analysis" />
         <SmallMetricGrid items={dashboard.fuelCards} />
         <LineChart title="Fuel Trend Line Chart" data={dashboard.fuelTrend} />
       </section>
-
+    ),
+    cash_flow: (
       <section className="space-y-4">
         <SectionHeader title="Cash Flow" />
         <CashFlowWidget
@@ -848,11 +999,161 @@ function DashboardPage() {
           cards={dashboard.cashFlow.cards}
         />
       </section>
-
+    ),
+    recent_activities: (
       <section className="space-y-4">
         <SectionHeader title="Recent Activities" />
         <TimelineWidget title="Activity Timeline" items={dashboard.timeline} />
       </section>
+    ),
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={openLayoutEditor}
+        title="Customize dashboard"
+        aria-label="Customize dashboard"
+        className="fixed right-4 top-20 z-30 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg transition hover:bg-slate-50 hover:text-brand-700"
+      >
+        <Settings2 size={18} />
+      </button>
+
+      <div className="space-y-7">
+        {layout
+          .filter((item) => item.visible)
+          .map((item) => (
+            <div key={item.key}>{dashboardSections[item.key]}</div>
+          ))}
+      </div>
+
+      {layoutEditorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <section className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="font-bold text-slate-950">
+                  Customize Dashboard
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Current layout: {layoutSource.toLowerCase()}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setLayoutEditorOpen(false)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto p-5">
+              {draftLayout.map((item, index) => (
+                <div
+                  key={item.key}
+                  draggable
+                  onDragStart={() => setDraggedSectionIndex(index)}
+                  onDragEnd={() => setDraggedSectionIndex(null)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => dropSection(index)}
+                  className={`flex items-center gap-3 rounded-xl border p-3 ${
+                    draggedSectionIndex === index
+                      ? "border-brand-300 bg-brand-50 opacity-70"
+                      : "border-slate-200"
+                  }`}
+                >
+                  <GripVertical
+                    size={17}
+                    className="cursor-grab text-slate-400"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={item.visible}
+                    onChange={() => toggleSection(item.key)}
+                    aria-label={`Show ${dashboardSectionLabels[item.key]}`}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                  />
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
+                    {dashboardSectionLabels[item.key]}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveSection(index, -1)}
+                    aria-label={`Move ${dashboardSectionLabels[item.key]} up`}
+                    className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-30"
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === draftLayout.length - 1}
+                    onClick={() => moveSection(index, 1)}
+                    aria-label={`Move ${dashboardSectionLabels[item.key]} down`}
+                    className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-30"
+                  >
+                    <ArrowDown size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {layoutError && (
+              <p className="mx-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+                {layoutError}
+              </p>
+            )}
+
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={layoutSaving}
+                  onClick={() => resetLayout("personal")}
+                  className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                >
+                  <RotateCcw size={14} />
+                  Use Tenant Default
+                </button>
+                {canManageTenantLayout && (
+                  <button
+                    type="button"
+                    disabled={layoutSaving}
+                    onClick={() => resetLayout("tenant")}
+                    className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    Reset Tenant Default
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {canManageTenantLayout && (
+                  <button
+                    type="button"
+                    disabled={layoutSaving}
+                    onClick={() => saveLayout("tenant")}
+                    className="rounded-lg border border-brand-200 px-3 py-2 text-sm font-semibold text-brand-700 disabled:opacity-50"
+                  >
+                    Save for Tenant
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={layoutSaving}
+                  onClick={() => saveLayout("personal")}
+                  className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {layoutSaving ? "Saving…" : "Save My Layout"}
+                </button>
+              </div>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

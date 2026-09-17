@@ -21,6 +21,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { APP_NAME } from "../config/app";
 import {
   Link,
   NavLink,
@@ -793,7 +794,7 @@ function AppBrand({ collapsed = false }) {
       </div>
       <div className={collapsed ? "hidden" : "min-w-0"}>
         <p className="text-xs font-semibold uppercase text-brand-600">
-          Ops Hub
+          {APP_NAME}
         </p>
         <h1 className="text-base font-semibold text-slate-950">
           Booking Admin

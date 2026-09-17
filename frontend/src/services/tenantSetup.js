@@ -109,6 +109,11 @@ async function storageRequest(options) {
 
 export const getCompanyProfile = () => get("/company-profile");
 export const updateCompanyProfile = (body) => patch("/company-profile", body);
+export const getDashboardLayout = () => get("/dashboard-layout");
+export const updatePersonalDashboardLayout = (layout) =>
+  patch("/dashboard-layout/personal", { layout });
+export const updateTenantDashboardLayout = (layout) =>
+  patch("/dashboard-layout/tenant", { layout });
 export const getTaxSettings = () => get("/tax-settings");
 export const updateTaxSettings = (body) => patch("/tax-settings", body);
 export const getInvoiceSettings = () => get("/invoice-settings");

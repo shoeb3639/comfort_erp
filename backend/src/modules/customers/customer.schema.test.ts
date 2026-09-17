@@ -1,4 +1,9 @@
-import { createCustomerSchema, updateCustomerSchema } from './customer.schema'
+import {
+  createCustomerSchema,
+  customerBookingOptionsQuerySchema,
+  travellerBookingOptionsQuerySchema,
+  updateCustomerSchema,
+} from './customer.schema'
 
 describe('customer schemas', () => {
   it('allows email, city, and billing address to be omitted', () => {
@@ -34,5 +39,18 @@ describe('customer schemas', () => {
     })
 
     expect(result.error).toBeUndefined()
+  })
+
+  it('defaults booking option searches to a small page and caps the limit', () => {
+    expect(customerBookingOptionsQuerySchema.validate({}).value).toMatchObject({
+      page: 1,
+      limit: 20,
+    })
+    expect(
+      customerBookingOptionsQuerySchema.validate({ limit: 51 }).error,
+    ).toBeDefined()
+    expect(
+      travellerBookingOptionsQuerySchema.validate({ q: '98', limit: 50 }).error,
+    ).toBeUndefined()
   })
 })
