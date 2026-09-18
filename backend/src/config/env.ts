@@ -194,7 +194,7 @@ interface Environment {
 export const env: Environment = Object.freeze({
   nodeEnv: validatedEnvironment.NODE_ENV,
   port: validatedEnvironment.PORT,
-  corsOrigin: validatedEnvironment.CORS_ORIGIN,
+  corsOrigin: validatedEnvironment.CORS_ORIGIN.replace(/\/+$/, ''),
   logLevel: validatedEnvironment.LOG_LEVEL,
   trustProxyHops: validatedEnvironment.TRUST_PROXY_HOPS,
   databaseUrl: validatedEnvironment.DATABASE_URL,
