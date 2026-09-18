@@ -13,6 +13,10 @@ import { apiRouter } from './routes'
 
 export const app = express()
 
+// Vercel detects Express applications from this conventional entry point.
+// Keep the named export for the local server and tests.
+export default app
+
 app.disable('x-powered-by')
 app.set('trust proxy', env.trustProxyHops)
 app.use(helmet())
