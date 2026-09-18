@@ -101,7 +101,9 @@ platformRouter.patch(
   authenticateUser,
   checkPlatformUser,
   authorizePermission('tenant.update'),
-  validateParams(tenantParamsSchema),
+  validateParams(
+    tenantParamsSchema.keys({ ownerId: Joi.string().uuid().required() }),
+  ),
   validateBody(resetOwnerPasswordSchema),
   platformController.resetOwnerPassword,
 )
