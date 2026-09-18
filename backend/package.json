@@ -24,7 +24,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "node scripts/seed-database.mjs",
     "db:seed:cities": "tsx prisma/seed-indian-cities.ts",
     "customers:migrate:old": "node --import tsx prisma/import-old-customers.ts",
     "vendors:migrate:old": "node --import tsx prisma/import-old-vendors.ts",

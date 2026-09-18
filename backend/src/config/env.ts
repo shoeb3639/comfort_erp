@@ -1,14 +1,7 @@
 import 'dotenv/config'
 import Joi from 'joi'
 import { isAbsolute, relative, resolve } from 'node:path'
-// @ts-expect-error This Node maintenance helper is intentionally JavaScript.
-import { loadDatabaseOperationsEnvironment } from '../../scripts/database-operations-environment.mjs'
 import { RATE_LIMIT_DEFAULTS } from '../shared/security/rate-limit.constants'
-
-// Explicit database-operation commands (for example, production seeding) must
-// use their protected operations file instead of values from the local .env.
-if (process.env.DATABASE_OPERATIONS_ENV)
-  loadDatabaseOperationsEnvironment({ override: true })
 
 interface EnvironmentVariables {
   NODE_ENV: 'development' | 'test' | 'production'
