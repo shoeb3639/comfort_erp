@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { CarFront, Eye, EyeOff } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { getAuthErrorMessage } from "../../services/auth";
@@ -54,25 +54,31 @@ function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div>
-          <p className="text-sm font-semibold uppercase text-brand-600">
-            {APP_NAME}
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-950">
+    <main className="flex min-h-[100dvh] w-full items-center justify-center overflow-x-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 px-4 py-4 sm:p-8">
+      <section className="w-full max-w-md rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-8">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-md shadow-brand-200">
+            <CarFront size={22} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-600">
+              {APP_NAME}
+            </p>
+            <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-slate-950">
             Sign in to {APP_NAME}
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Manage all your Bookings, Billings, Reports & many more.
-          </p>
+            </h1>
+          </div>
         </div>
+
+        <p className="mt-4 text-sm leading-5 text-slate-500">
+          Manage bookings, billing, reports, and more from one place.
+        </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Email</span>
             <input
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              className="mt-1.5 h-12 w-full rounded-xl border border-slate-200 px-3 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:text-sm"
               type="email"
               autoComplete="email"
               required
@@ -85,7 +91,7 @@ function LoginPage() {
             <span className="text-sm font-medium text-slate-700">Password</span>
             <span className="relative mt-1 block">
               <input
-                className="w-full rounded-lg border border-slate-200 py-2 pl-3 pr-11 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="h-12 w-full rounded-xl border border-slate-200 py-2 pl-3 pr-11 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:text-sm"
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
@@ -95,7 +101,7 @@ function LoginPage() {
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 onClick={() => setShowPassword((visible) => !visible)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
@@ -110,7 +116,7 @@ function LoginPage() {
           </label>
           {error && (
             <p
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+              className="rounded-xl bg-red-50 px-3 py-2.5 text-sm text-red-700"
               role="alert"
             >
               {error}
@@ -118,7 +124,7 @@ function LoginPage() {
           )}
           <button
             disabled={isSubmitting}
-            className="w-full rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-12 w-full rounded-xl bg-brand-500 px-4 text-base font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
           >
             {isSubmitting ? "Signing in…" : "Sign In"}
           </button>
