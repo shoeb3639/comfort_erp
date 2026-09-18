@@ -19,7 +19,7 @@ export function databaseOperationsEnvironmentPath() {
     : resolve(backendRoot, configuredPath)
 }
 
-export function loadDatabaseOperationsEnvironment() {
+export function loadDatabaseOperationsEnvironment({ override = false } = {}) {
   const environmentPath = databaseOperationsEnvironmentPath()
   let file
   try {
@@ -42,7 +42,7 @@ export function loadDatabaseOperationsEnvironment() {
       `Database operations environment must have 0600 permissions: ${environmentPath}`,
     )
 
-  const result = config({ path: environmentPath, quiet: true })
+  const result = config({ path: environmentPath, quiet: true, override })
   if (result.error) throw result.error
   return environmentPath
 }
