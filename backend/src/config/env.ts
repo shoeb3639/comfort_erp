@@ -93,7 +93,17 @@ const envSchema = Joi.object<EnvironmentVariables>({
   .unknown(true)
   .required()
 
-const validationResult = envSchema.validate(process.env, {
+// Deployment dashboards commonly retain optional variables with blank values.
+// Treat those as unset so Joi can apply the schema defaults. Required values
+// such as the database URL and JWT secrets still fail validation when absent.
+const environmentInput = Object.fromEntries(
+  Object.entries(process.env).map(([name, value]) => [
+    name,
+    value?.trim() === '' ? undefined : value,
+  ]),
+)
+
+const validationResult = envSchema.validate(environmentInput, {
   abortEarly: false,
   convert: true,
 })
