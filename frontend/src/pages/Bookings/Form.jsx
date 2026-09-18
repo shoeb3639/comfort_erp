@@ -19,7 +19,7 @@ import {
 } from "../../services/customers";
 
 const fieldClass =
-  "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  "mt-1 w-full min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-base text-slate-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 sm:text-sm";
 
 const requestedVehicleTypeOptions = [
   "Dzire",
@@ -99,7 +99,7 @@ function FieldError({ message }) {
 
 function MobileInlineField({ label, error, children }) {
   return (
-    <label className="flex items-center gap-3 md:block">
+    <label className="flex min-w-0 items-center gap-3 md:block">
       <span className="w-24 shrink-0 text-sm font-medium text-slate-700 md:w-auto">
         {label}
       </span>
@@ -911,7 +911,7 @@ function BookingFormPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
       {loadError && (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
           {loadError}
@@ -931,10 +931,10 @@ function BookingFormPage() {
       ) : (
         <>
           <form
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
             onSubmit={handleSubmit(onSubmit)}
           >
-            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
               <div className="flex min-w-0 items-center gap-3">
                 <p className="shrink-0 text-sm font-semibold text-slate-900">
                   Billing and traveller
@@ -945,7 +945,7 @@ function BookingFormPage() {
               </div>
               <button
                 type="button"
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 onClick={() => setIsCustomerModalOpen(true)}
               >
                 <Plus size={16} />
@@ -1142,7 +1142,7 @@ function BookingFormPage() {
                       required: "Assignment source is required",
                     })}
                   />
-                  <div className="mt-1 grid h-[38px] grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                  <div className="mt-1 grid h-11 grid-cols-2 rounded-xl border border-slate-200 bg-slate-50 p-0.5">
                     {[
                       { value: "own_vehicle", label: "Own" },
                       { value: "vendor_vehicle", label: "Vendor" },
@@ -1227,7 +1227,7 @@ function BookingFormPage() {
                     return (
                       <label
                         key={option.value}
-                        className={`flex h-[38px] cursor-pointer items-center justify-center rounded-lg border px-1.5 text-center text-xs font-semibold transition ${isSelected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-brand-300"}`}
+                        className={`flex h-11 cursor-pointer items-center justify-center rounded-xl border px-1.5 text-center text-xs font-semibold transition ${isSelected ? "border-brand-600 bg-brand-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-brand-300"}`}
                       >
                         <input
                           type="radio"

@@ -19,6 +19,7 @@ import {
   tenantParamsSchema,
   tenantStatusSchema,
   updateOwnerSchema,
+  resetOwnerPasswordSchema,
   updatePlanSchema,
   updateSubscriptionSchema,
   updateTenantSchema,
@@ -94,6 +95,15 @@ platformRouter.patch(
   ),
   validateBody(updateOwnerSchema),
   platformController.updateOwner,
+)
+platformRouter.patch(
+  '/tenants/:tenantId/owners/:ownerId/password',
+  authenticateUser,
+  checkPlatformUser,
+  authorizePermission('tenant.update'),
+  validateParams(tenantParamsSchema),
+  validateBody(resetOwnerPasswordSchema),
+  platformController.resetOwnerPassword,
 )
 platformRouter.get(
   '/audit-logs',

@@ -1060,7 +1060,7 @@ function MainLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-slate-100 text-slate-800">
       <aside
         className={`fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-slate-200 bg-white shadow-sm transition-[width] duration-200 print:hidden lg:flex ${
           isSidebarCollapsed ? "w-20" : "w-72"
@@ -1262,7 +1262,7 @@ function MainLayout() {
           </div>
         </header>
 
-        <main className="px-4 pb-24 pt-5 print:p-0 sm:px-6 lg:px-8 lg:pb-8">
+        <main className="min-w-0 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 print:p-0 sm:px-6 sm:pt-5 lg:px-8 lg:pb-8">
           <Outlet context={{ setTopbarAction: setPageTopbarAction }} />
         </main>
       </div>

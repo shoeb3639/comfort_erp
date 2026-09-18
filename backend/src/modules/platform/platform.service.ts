@@ -465,6 +465,23 @@ export async function updateOwner(
   }
 }
 
+export async function resetOwnerPassword(
+  tenantId: string,
+  ownerId: string,
+  input: { password: string },
+  metadata: Metadata,
+) {
+  const owner = await repository.resetOwnerPassword(
+    tenantId,
+    ownerId,
+    await hashPassword(input.password),
+    metadata.actorUserId,
+    metadata.ipAddress,
+  )
+  if (!owner) throw new AppError('Tenant owner was not found', 'NOT_FOUND', 404)
+  return owner
+}
+
 export async function updateTenantStatus(
   tenantId: string,
   status: 'ACTIVE' | 'SUSPENDED',

@@ -135,6 +135,18 @@ export const updateOwner: RequestHandler = async (request, response) =>
     'Tenant owner updated',
   )
 
+export const resetOwnerPassword: RequestHandler = async (request, response) =>
+  success(
+    response,
+    await service.resetOwnerPassword(
+      param(request.params.tenantId),
+      param(request.params.ownerId),
+      request.body as { password: string },
+      metadata(request),
+    ),
+    'Tenant owner password reset',
+  )
+
 export const listAuditLogs: RequestHandler = async (request, response) =>
   success(
     response,

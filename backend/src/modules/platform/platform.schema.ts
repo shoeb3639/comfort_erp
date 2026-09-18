@@ -177,6 +177,10 @@ export const updateOwnerSchema = Joi.object({
   ),
 }).min(1)
 
+export const resetOwnerPasswordSchema = Joi.object({
+  password: Joi.string().min(12).max(128).required(),
+})
+
 export const tenantStatusSchema = Joi.object({
   status: Joi.string().valid('ACTIVE', 'SUSPENDED').required(),
   reason: Joi.string().trim().min(3).max(1000).required(),

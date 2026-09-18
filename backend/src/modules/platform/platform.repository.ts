@@ -281,6 +281,45 @@ export function updateOwner(
   })
 }
 
+export function resetOwnerPassword(
+  tenantId: string,
+  ownerId: string,
+  passwordHash: string,
+  actorUserId: string,
+  ipAddress: string | null,
+) {
+  return prisma.$transaction(async (transaction) => {
+    const owner = await transaction.tenantUser.findFirst({
+      where: { id: ownerId, tenantId, isPrimaryOwner: true, deletedAt: null },
+      select: { id: true },
+    })
+    if (!owner) return null
+    await transaction.tenantUser.update({
+      where: { id: ownerId },
+      data: {
+        passwordHash,
+        passwordChangedAt: new Date(),
+        updatedById: actorUserId,
+      },
+    })
+    await transaction.tenantRefreshToken.deleteMany({
+      where: { tenantId, userId: ownerId },
+    })
+    await transaction.platformAuditLog.create({
+      data: {
+        actorUserId,
+        action: 'UPDATE',
+        module: 'TENANT_OWNER_PASSWORD',
+        referenceId: ownerId,
+        newValues: { tenantId, passwordReset: true },
+        remarks: 'Tenant owner password reset by platform administrator',
+        ipAddress,
+      },
+    })
+    return { id: ownerId }
+  })
+}
+
 export async function tenantActivationReadiness(tenantId: string) {
   const [ownerCount, subscriptionCount] = await Promise.all([
     prisma.tenantUser.count({

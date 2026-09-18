@@ -95,6 +95,15 @@ export async function updateTenantOwner(tenantId, ownerId, payload) {
   return response.data.data;
 }
 
+export async function resetTenantOwnerPassword(tenantId, ownerId, password) {
+  const response = await api.patch(
+    `/platform/tenants/${tenantId}/owners/${ownerId}/password`,
+    { password },
+    { headers: authorizationHeaders() },
+  );
+  return response.data.data;
+}
+
 export async function getTenantSubscriptions(tenantId, params = {}) {
   const response = await api.get("/platform/tenant-subscriptions", {
     headers: authorizationHeaders(),
