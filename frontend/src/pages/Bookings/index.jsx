@@ -6,6 +6,8 @@ import {
   ArrowDown,
   Car,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleCheck,
   Copy,
   Edit,
@@ -1772,7 +1774,53 @@ function BookingsPage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5 text-sm sm:hidden">
+          <label className="flex h-10 items-center gap-1 rounded-lg bg-white px-2 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">
+            <select
+              aria-label="Records per page"
+              className="bg-transparent font-bold text-slate-900 outline-none"
+              value={pageSize}
+              onChange={(event) => handlePageSizeChange(event.target.value)}
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+            <span>/ page</span>
+          </label>
+          <button
+            type="button"
+            aria-label="Previous page"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 disabled:opacity-35"
+            disabled={currentPage === 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            <ChevronLeft size={19} />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <p className="text-xs font-bold text-slate-900">
+              {currentPage} / {totalPages}
+            </p>
+            <p className="truncate text-[10px] text-slate-500">
+              {pagination?.total || 0} jobs
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Next page"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 disabled:opacity-35"
+            disabled={currentPage === totalPages}
+            onClick={() =>
+              setPage((current) => Math.min(totalPages, current + 1))
+            }
+          >
+            <ChevronRight size={19} />
+          </button>
+        </div>
+
+        <div className="mt-4 hidden gap-3 text-sm text-slate-600 sm:flex sm:items-center sm:justify-between">
           <p>
             Showing {paginatedBookings.length} of {pagination?.total || 0}{" "}
             bookings
