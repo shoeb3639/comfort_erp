@@ -124,6 +124,13 @@ platformRouter.get(
   platformController.listPlatformUsers,
 )
 platformRouter.get(
+  '/permissions',
+  authenticateUser,
+  checkPlatformUser,
+  authorizePermission('platform.dashboard.view'),
+  platformController.listPermissions,
+)
+platformRouter.get(
   '/subscription-payments',
   authenticateUser,
   checkPlatformUser,

@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const AUTH_STORAGE_KEY = 'cablix_auth_session'
+const refreshRequests = new Map()
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
   headers: { 'Content-Type': 'application/json' },
@@ -29,8 +30,15 @@ export async function login(credentials) {
 }
 
 export async function refreshSession(refreshToken) {
-  const response = await api.post('/auth/refresh-token', { refreshToken })
-  return response.data.data
+  const existing = refreshRequests.get(refreshToken)
+  if (existing) return existing
+
+  const request = api
+    .post('/auth/refresh-token', { refreshToken })
+    .then((response) => response.data.data)
+    .finally(() => refreshRequests.delete(refreshToken))
+  refreshRequests.set(refreshToken, request)
+  return request
 }
 
 export async function validateSession(session) {

@@ -111,10 +111,13 @@ export interface CloseBookingInput {
   paymentHolder?: 'COMPANY' | 'DRIVER'
   fuelAmount?: number
   fuelReceiptId?: string | null
+  vehicleExpenseAmount?: number
+  vehicleExpenseReason?: string | null
   paymentMode?: CollectionPaymentMode
   paymentDate?: Date
   paymentReference?: string | null
   collectedBy?: string
+  cashCustodianId?: string | null
   remarks?: string | null
   attachmentName?: string | null
 }

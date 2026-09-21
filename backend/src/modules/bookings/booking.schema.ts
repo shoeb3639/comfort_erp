@@ -129,6 +129,11 @@ export const closeBookingSchema = Joi.object({
   paymentHolder: Joi.string().valid('COMPANY', 'DRIVER').default('COMPANY'),
   fuelAmount: money.default(0),
   fuelReceiptId: Joi.string().uuid().allow(null),
+  vehicleExpenseAmount: money.default(0),
+  vehicleExpenseReason: optionalText(1000).when('vehicleExpenseAmount', {
+    is: Joi.number().greater(0),
+    then: Joi.string().trim().min(3).max(1000).required(),
+  }),
   paymentMode: Joi.string()
     .valid('CASH', 'UPI', 'BANK_TRANSFER', 'CARD', 'CHEQUE')
     .when('paymentAmount', {
@@ -155,6 +160,7 @@ export const closeBookingSchema = Joi.object({
       is: Joi.number().greater(0),
       then: Joi.required(),
     }),
+  cashCustodianId: Joi.string().uuid().allow(null),
   remarks: optionalText(5000),
   attachmentName: optionalText(255),
 })

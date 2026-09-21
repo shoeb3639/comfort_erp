@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
-import { IndianRupee, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Clock3,
+  Fuel,
+  IndianRupee,
+  Trash2,
+  UserRound,
+  Wallet,
+  Wrench,
+} from "lucide-react";
 import DriverSettlement from "../../components/DriverSettlement";
 import {
   addBookingCollection,
@@ -66,11 +77,13 @@ function SummaryCard({ label, value, tone = "default" }) {
         : "text-slate-950";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <div className="min-w-[140px] flex-1 rounded-lg bg-slate-50 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <p className={`mt-2 text-xl font-bold ${toneClass}`}>₹ {money(value)}</p>
+      <p className={`mt-1 text-base font-bold ${toneClass}`}>
+        ₹ {money(value)}
+      </p>
     </div>
   );
 }
@@ -86,12 +99,136 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, successMessage = "" }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h4 className="text-base font-semibold text-slate-900">{title}</h4>
-      <div className="mt-4">{children}</div>
+    <section
+      className={`rounded-xl border p-4 shadow-sm sm:rounded-2xl sm:p-5 ${
+        successMessage
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {successMessage && (
+          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <CheckCircle2 size={19} />
+          </div>
+        )}
+        <div>
+          <h4
+            className={`text-base font-semibold ${successMessage ? "text-emerald-950" : "text-slate-900"}`}
+          >
+            {title}
+          </h4>
+          {successMessage && (
+            <p className="text-xs font-medium text-emerald-700">
+              {successMessage}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 sm:mt-4">{children}</div>
     </section>
+  );
+}
+
+function FlowNode({ icon: Icon, label, value, tone = "slate" }) {
+  const tones = {
+    slate: "border-slate-200 bg-white text-slate-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-800",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    sky: "border-sky-200 bg-sky-50 text-sky-800",
+  };
+  return (
+    <div className={`min-w-[150px] rounded-xl border p-3 ${tones[tone]}`}>
+      <div className="flex items-center gap-2 text-xs font-semibold">
+        <Icon size={15} /> {label}
+      </div>
+      <p className="mt-1 text-base font-bold">₹ {money(value)}</p>
+    </div>
+  );
+}
+
+function PaymentFlow({ collection }) {
+  const withDriver = collection.paymentHolder === "DRIVER";
+  const currentLabel = withDriver
+    ? collection.driverBalance > 0
+      ? `With ${collection.collectedBy}`
+      : collection.returnedToName
+        ? `With ${collection.returnedToName}`
+        : "Handed to company"
+    : collection.paymentMode === "Cash"
+      ? collection.receiverName
+        ? `With ${collection.receiverName}`
+        : collection.depositStatus
+      : "Company account";
+  const currentAmount = withDriver
+    ? collection.driverBalance > 0
+      ? collection.driverBalance
+      : collection.returnedAmount
+    : collection.amount;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-900">
+          {collection.collectionDate} · {collection.paymentMode}
+        </p>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+          {collection.depositStatus}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <FlowNode
+          icon={Wallet}
+          label="Customer paid"
+          value={collection.amount}
+        />
+        <ArrowRight className="flex-none text-slate-400" size={18} />
+        <FlowNode
+          icon={withDriver ? UserRound : Building2}
+          label={withDriver ? collection.collectedBy : "Company / Office"}
+          value={collection.amount}
+          tone={withDriver ? "amber" : "sky"}
+        />
+        {collection.fuelAmount > 0 && (
+          <>
+            <ArrowRight className="flex-none text-slate-400" size={18} />
+            <FlowNode
+              icon={Fuel}
+              label="Fuel used"
+              value={collection.fuelAmount}
+              tone="amber"
+            />
+          </>
+        )}
+        {collection.vehicleExpenseAmount > 0 && (
+          <>
+            <ArrowRight className="flex-none text-slate-400" size={18} />
+            <div title={collection.vehicleExpenseReason}>
+              <FlowNode
+                icon={Wrench}
+                label="Vehicle expense"
+                value={collection.vehicleExpenseAmount}
+                tone="amber"
+              />
+            </div>
+          </>
+        )}
+        <ArrowRight className="flex-none text-slate-400" size={18} />
+        <FlowNode
+          icon={currentLabel.startsWith("With ") ? UserRound : Building2}
+          label={currentLabel}
+          value={currentAmount}
+          tone={currentLabel.startsWith("With ") ? "amber" : "emerald"}
+        />
+      </div>
+      {collection.vehicleExpenseReason && (
+        <p className="mt-2 text-xs text-slate-600">
+          Vehicle expense: {collection.vehicleExpenseReason}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -153,6 +290,12 @@ function BookingCollectionPage() {
     depositedAmount,
     verifiedAmount,
   );
+  const lifecyclePaymentStatus =
+    totalCollected <= 0
+      ? "Payment Pending"
+      : totalCollected < totalBillAmount
+        ? "Partially Paid"
+        : "Fully Paid";
 
   const {
     control,
@@ -270,13 +413,20 @@ function BookingCollectionPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       {notice && (
         <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm font-medium text-brand-700">
           {notice}
         </div>
       )}
-      <Section title="Booking Summary">
+      <Section
+        title="Booking Details"
+        successMessage={
+          balanceAmount === 0
+            ? "Payment completed · The full booking amount has been collected."
+            : ""
+        }
+      >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReadOnlyField label="Booking ID" value={booking.id} />
           <ReadOnlyField
@@ -311,7 +461,77 @@ function BookingCollectionPage() {
         </div>
       </Section>
 
-      <div className="grid gap-5 xl:grid-cols-[1.25fr_0.9fr]">
+      <Section title="Booking Payment Flow">
+        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="min-w-[150px] rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <CheckCircle2 size={15} /> Duty Completed
+            </div>
+            <p className="mt-1 text-sm font-bold">
+              {booking.endDate || booking.startDate}
+            </p>
+          </div>
+          <ArrowRight className="flex-none text-slate-400" size={18} />
+          <div
+            className={`min-w-[170px] rounded-xl border p-3 ${totalCollected > 0 ? "border-sky-200 bg-sky-50 text-sky-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}
+          >
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              {totalCollected > 0 ? (
+                <IndianRupee size={15} />
+              ) : (
+                <Clock3 size={15} />
+              )}
+              {lifecyclePaymentStatus}
+            </div>
+            <p className="mt-1 text-sm font-bold">
+              ₹ {money(totalCollected)} of ₹ {money(totalBillAmount)}
+            </p>
+          </div>
+        </div>
+        {collections.length > 0 ? (
+          <div className="space-y-3">
+            {collections.map((item) => (
+              <PaymentFlow key={item.id} collection={item} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            Customer payment is pending · Outstanding ₹ {money(balanceAmount)}
+          </p>
+        )}
+      </Section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h4 className="text-sm font-semibold text-slate-900">
+            Payment Summary
+          </h4>
+          <span className="text-xs font-semibold text-slate-500">
+            {paymentStatus}
+          </span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 md:overflow-visible">
+          <SummaryCard label="Bill" value={totalBillAmount} />
+          <SummaryCard
+            label="Collected"
+            value={totalCollected}
+            tone="success"
+          />
+          <SummaryCard
+            label="Pending"
+            value={balanceAmount}
+            tone={balanceAmount > 0 ? "danger" : "success"}
+          />
+          <SummaryCard
+            label="Cash to Deposit"
+            value={cashPendingDeposit}
+            tone={cashPendingDeposit > 0 ? "danger" : "default"}
+          />
+          <SummaryCard label="Verified" value={verifiedAmount} tone="success" />
+        </div>
+      </section>
+
+      {balanceAmount > 0 && (
         <form className="space-y-5" onSubmit={handleSubmit(addCollection)}>
           <Section title="Add Collection">
             <div className="grid gap-4 md:grid-cols-3">
@@ -340,9 +560,17 @@ function BookingCollectionPage() {
                   className={fieldClass}
                   type="number"
                   step="0.01"
+                  max={balanceAmount}
                   {...register("amount", {
                     required: "Amount is required",
-                    min: { value: 1, message: "Amount must be greater than 0" },
+                    min: {
+                      value: 1,
+                      message: "Amount must be greater than 0",
+                    },
+                    max: {
+                      value: balanceAmount,
+                      message: "Amount cannot exceed the pending balance",
+                    },
                   })}
                 />
                 {errors.amount && (
@@ -518,33 +746,7 @@ function BookingCollectionPage() {
             </button>
           </div>
         </form>
-
-        <Section title="Payment Summary">
-          <div className="grid gap-3">
-            <SummaryCard label="Total Bill Amount" value={totalBillAmount} />
-            <SummaryCard
-              label="Total Collected"
-              value={totalCollected}
-              tone="success"
-            />
-            <SummaryCard
-              label="Pending Balance"
-              value={balanceAmount}
-              tone={balanceAmount > 0 ? "danger" : "success"}
-            />
-            <SummaryCard
-              label="Cash Pending Deposit"
-              value={cashPendingDeposit}
-              tone={cashPendingDeposit > 0 ? "danger" : "default"}
-            />
-            <SummaryCard
-              label="Verified Amount"
-              value={verifiedAmount}
-              tone="success"
-            />
-          </div>
-        </Section>
-      </div>
+      )}
 
       <Section title="Collection History">
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -610,16 +812,18 @@ function BookingCollectionPage() {
                             Verify
                           </button>
                         )}
-                      {!item.fuelAmount && !item.returnedAmount && (
-                        <button
-                          type="button"
-                          aria-label="Delete collection"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
-                          onClick={() => deleteCollection(item.id)}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      )}
+                      {!item.fuelAmount &&
+                        !item.vehicleExpenseAmount &&
+                        !item.returnedAmount && (
+                          <button
+                            type="button"
+                            aria-label="Delete collection"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                            onClick={() => deleteCollection(item.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                     </div>
                   </td>
                 </tr>

@@ -6,6 +6,7 @@ import type {
 } from '../../generated/prisma/enums'
 
 export interface RegisterTenantInput {
+  enabledRoleCodes?: Array<'ADMIN' | 'OPERATIONS_MANAGER' | 'ACCOUNTANT'>
   tenant: {
     legalName: string
     tradeName?: string

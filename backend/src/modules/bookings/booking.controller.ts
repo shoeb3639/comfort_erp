@@ -193,3 +193,10 @@ export const filterVehicles: RequestHandler = async (request, response) =>
     await service.filterVehicles(context(request)),
     'Filter vehicles retrieved',
   )
+
+export const paymentCustodians: RequestHandler = async (request, response) =>
+  send(
+    response,
+    await service.paymentCustodians(context(request)),
+    'Payment custodians retrieved',
+  )

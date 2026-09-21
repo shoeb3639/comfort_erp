@@ -43,4 +43,22 @@ describe('customer payments used by drivers', () => {
       validateDriverFunds({ ...payment, paymentMode: 'CARD' }, false),
     ).toThrow('cash, UPI or bank transfer')
   })
+  it('deducts a reasoned vehicle expense from the amount still held by the driver', () => {
+    const withExpense = {
+      ...payment,
+      fuelAmount: 2000,
+      dieselCost: 2000,
+      vehicleExpenseAmount: 400,
+      vehicleExpenseReason: 'Puncture repair during trip',
+      directVehicleExpense: 400,
+    }
+    expect(() => validateDriverFunds(withExpense, false)).not.toThrow()
+    expect(driverBalance(3000, 2000, 100, 400)).toBe(500)
+    expect(() =>
+      validateDriverFunds({ ...withExpense, vehicleExpenseReason: '' }, false),
+    ).toThrow('reason')
+    expect(() =>
+      validateDriverFunds({ ...withExpense, directVehicleExpense: 200 }, false),
+    ).toThrow('Direct vehicle expense')
+  })
 })

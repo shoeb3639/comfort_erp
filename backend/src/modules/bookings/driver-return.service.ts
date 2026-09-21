@@ -33,6 +33,10 @@ export async function receiveDriverReturn(
       'INVALID_RETURN_DATE',
       400,
     )
+  const receiver = await prisma.tenantUser.findUniqueOrThrow({
+    where: { tenantId_id: { tenantId, id: userId } },
+    select: { name: true },
+  })
   try {
     return await prisma.$transaction(async (tx) => {
       const locked = await tx.bookingCollection.updateMany({
@@ -57,6 +61,7 @@ export async function receiveDriverReturn(
         Number(collection.amount),
         Number(collection.fuelAmount),
         Number(collection.returnedAmount),
+        Number(collection.vehicleExpenseAmount),
       )
       if (input.amount > balance)
         throw new AppError(
@@ -85,7 +90,12 @@ export async function receiveDriverReturn(
       })
       await tx.bookingCollection.update({
         where: { tenantId_id: { tenantId, id: collectionId } },
-        data: { returnedAmount: { increment: input.amount } },
+        data: {
+          returnedAmount: { increment: input.amount },
+          returnedToName: receiver.name,
+          returnedAt: new Date(),
+          returnPaymentMode: input.paymentMode,
+        },
       })
       await tx.tenantAuditLog.create({
         data: {
@@ -103,6 +113,7 @@ export async function receiveDriverReturn(
             paymentMode: input.paymentMode,
             returnDate: input.returnDate.toISOString().slice(0, 10),
             referenceNumber: input.referenceNumber.trim(),
+            receivedBy: receiver.name,
             returnedAmount: Number(collection.returnedAmount) + input.amount,
             driverBalance: driverBalance(balance, 0, input.amount),
           },

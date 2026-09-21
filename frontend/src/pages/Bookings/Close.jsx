@@ -11,6 +11,7 @@ import {
   closeBooking as closeBookingApi,
   getBooking,
   getBookingErrorMessage,
+  getBookingPaymentCustodians,
 } from "../../services/bookings";
 
 const fieldClass =
@@ -156,6 +157,7 @@ function CloseBookingPage() {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [paymentCustodians, setPaymentCustodians] = useState([]);
   const [fuelReceipt, setFuelReceipt] = useState(null);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const customer = booking
@@ -230,10 +232,13 @@ function CloseBookingPage() {
       paymentAmount: 0,
       paymentHolder: "COMPANY",
       fuelAmount: 0,
+      vehicleExpenseAmount: 0,
+      vehicleExpenseReason: "",
       paymentMode: "",
       paymentDate: today(),
       paymentReference: "",
       collectedBy: "",
+      cashCustodianId: "",
       remarks: "",
     },
   });
@@ -313,7 +318,9 @@ function CloseBookingPage() {
   const vendorBookingProfit = isVendorVehicle
     ? vendorBookingRevenue -
       finalVendorPayable -
-      (values.paymentHolder === "DRIVER" ? toNumber(values.fuelAmount) : 0)
+      (values.paymentHolder === "DRIVER"
+        ? toNumber(values.fuelAmount) + toNumber(values.vehicleExpenseAmount)
+        : 0)
     : 0;
   const fixedBillingLabel =
     booking?.booking_type === "local"
@@ -327,8 +334,11 @@ function CloseBookingPage() {
             : "Fixed Amount";
 
   useEffect(() => {
-    getBooking(bookingId)
-      .then(setBooking)
+    Promise.all([getBooking(bookingId), getBookingPaymentCustodians()])
+      .then(([bookingRecord, custodians]) => {
+        setBooking(bookingRecord);
+        setPaymentCustodians(custodians);
+      })
       .catch((error) => setLoadError(getBookingErrorMessage(error)))
       .finally(() => setLoading(false));
   }, [bookingId]);
@@ -363,12 +373,15 @@ function CloseBookingPage() {
       paymentAmount: dutyDetails.paymentAmount || 0,
       paymentHolder: "COMPANY",
       fuelAmount: 0,
+      vehicleExpenseAmount: 0,
+      vehicleExpenseReason: "",
       paymentMode: dutyDetails.paymentMode || "",
       paymentDate: dutyDetails.paymentDate
         ? String(dutyDetails.paymentDate).slice(0, 10)
         : today(),
       paymentReference: dutyDetails.paymentReference || "",
       collectedBy: dutyDetails.collectedBy || "",
+      cashCustodianId: "",
       remarks: "",
     });
   }, [
@@ -1165,6 +1178,8 @@ function CloseBookingPage() {
                       booking.driver !== "Unassigned"
                     )
                       setValue("collectedBy", booking.driver || "");
+                    if (event.target.value === "DRIVER")
+                      setValue("cashCustodianId", "");
                   }}
                 >
                   <option value="COMPANY">Company / Office</option>
@@ -1214,6 +1229,10 @@ function CloseBookingPage() {
                     required: hasAmount(receivedAmount)
                       ? "Payment mode is required"
                       : false,
+                    onChange: (event) => {
+                      if (event.target.value !== "CASH")
+                        setValue("cashCustodianId", "");
+                    },
                   })}
                 >
                   <option value="">Select payment mode</option>
@@ -1233,6 +1252,40 @@ function CloseBookingPage() {
                   </p>
                 )}
               </label>
+              {values.paymentHolder !== "DRIVER" &&
+                values.paymentMode === "CASH" &&
+                hasAmount(receivedAmount) && (
+                  <label>
+                    <span className="text-sm font-medium text-slate-700">
+                      Cash held by
+                    </span>
+                    <select
+                      className={fieldClass}
+                      {...register("cashCustodianId", {
+                        required:
+                          "Select the manager or accountant holding the cash",
+                        onChange: (event) => {
+                          const custodian = paymentCustodians.find(
+                            (item) => item.id === event.target.value,
+                          );
+                          setValue("collectedBy", custodian?.name || "");
+                        },
+                      })}
+                    >
+                      <option value="">Select manager or accountant</option>
+                      {paymentCustodians.map((custodian) => (
+                        <option key={custodian.id} value={custodian.id}>
+                          {custodian.name} · {custodian.role.name}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.cashCustodianId && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">
+                        {errors.cashCustodianId.message}
+                      </p>
+                    )}
+                  </label>
+                )}
               <label>
                 <span className="text-sm font-medium text-slate-700">
                   Payment Date
@@ -1264,27 +1317,32 @@ function CloseBookingPage() {
                   {...register("paymentReference")}
                 />
               </label>
-              <label className="md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">
-                  Collected By
-                </span>
-                <input
-                  className={fieldClass}
-                  disabled={!hasAmount(receivedAmount)}
-                  placeholder="Name of the person who received payment"
-                  readOnly={values.paymentHolder === "DRIVER"}
-                  {...register("collectedBy", {
-                    required: hasAmount(receivedAmount)
-                      ? "Collector name is required"
-                      : false,
-                  })}
-                />
-                {errors.collectedBy && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">
-                    {errors.collectedBy.message}
-                  </p>
-                )}
-              </label>
+              {!(
+                values.paymentHolder !== "DRIVER" &&
+                values.paymentMode === "CASH"
+              ) && (
+                <label className="md:col-span-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    Collected By
+                  </span>
+                  <input
+                    className={fieldClass}
+                    disabled={!hasAmount(receivedAmount)}
+                    placeholder="Name of the person who received payment"
+                    readOnly={values.paymentHolder === "DRIVER"}
+                    {...register("collectedBy", {
+                      required: hasAmount(receivedAmount)
+                        ? "Collector name is required"
+                        : false,
+                    })}
+                  />
+                  {errors.collectedBy && (
+                    <p className="mt-1 text-xs font-medium text-rose-600">
+                      {errors.collectedBy.message}
+                    </p>
+                  )}
+                </label>
+              )}
             </div>
             {values.paymentHolder === "DRIVER" && hasAmount(receivedAmount) && (
               <div className="mt-4 space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -1320,8 +1378,11 @@ function CloseBookingPage() {
                         const costField = isVendorVehicle
                           ? "vendorDeduction"
                           : "dieselCost";
-                        if (amount > Number(values[costField] || 0))
-                          setValue(costField, amount);
+                        const requiredCost = isVendorVehicle
+                          ? amount + Number(values.vehicleExpenseAmount || 0)
+                          : amount;
+                        if (requiredCost > Number(values[costField] || 0))
+                          setValue(costField, requiredCost);
                       },
                     })}
                   />
@@ -1336,6 +1397,76 @@ function CloseBookingPage() {
                     ? "This fuel amount is included in Vendor Deduction."
                     : "This fuel amount is included in Total Diesel Cost; it is not an additional expense."}
                 </p>
+                <label className="block">
+                  <span className="text-sm font-medium">
+                    Other vehicle expense paid from this payment
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="number"
+                    min="0"
+                    max={Math.max(
+                      0,
+                      receivedAmount - Number(values.fuelAmount || 0),
+                    )}
+                    step="0.01"
+                    {...register("vehicleExpenseAmount", {
+                      min: {
+                        value: 0,
+                        message: "Vehicle expense cannot be negative",
+                      },
+                      max: {
+                        value: Math.max(
+                          0,
+                          receivedAmount - Number(values.fuelAmount || 0),
+                        ),
+                        message:
+                          "Fuel and vehicle expenses cannot exceed the payment",
+                      },
+                      onChange: (event) => {
+                        const amount = Number(event.target.value || 0);
+                        const fuel = Number(values.fuelAmount || 0);
+                        const costField = isVendorVehicle
+                          ? "vendorDeduction"
+                          : "directVehicleExpense";
+                        const requiredCost = isVendorVehicle
+                          ? fuel + amount
+                          : amount;
+                        if (requiredCost > Number(values[costField] || 0))
+                          setValue(costField, requiredCost);
+                      },
+                    })}
+                  />
+                  {errors.vehicleExpenseAmount && (
+                    <p className="text-sm text-rose-700">
+                      {errors.vehicleExpenseAmount.message}
+                    </p>
+                  )}
+                </label>
+                {Number(values.vehicleExpenseAmount) > 0 && (
+                  <label className="block">
+                    <span className="text-sm font-medium">
+                      Vehicle expense reason
+                    </span>
+                    <textarea
+                      className={fieldClass}
+                      rows={2}
+                      placeholder="Example: puncture repair paid during trip"
+                      {...register("vehicleExpenseReason", {
+                        required: "Expense reason is required",
+                        minLength: {
+                          value: 3,
+                          message: "Enter a clear expense reason",
+                        },
+                      })}
+                    />
+                    {errors.vehicleExpenseReason && (
+                      <p className="text-sm text-rose-700">
+                        {errors.vehicleExpenseReason.message}
+                      </p>
+                    )}
+                  </label>
+                )}
                 {Number(values.fuelAmount) > 0 && (
                   <label className="block">
                     <span className="text-sm font-medium">
@@ -1388,8 +1519,16 @@ function CloseBookingPage() {
                   value={Number(values.fuelAmount || 0)}
                 />
                 <SummaryItem
+                  label="Other vehicle expense"
+                  value={Number(values.vehicleExpenseAmount || 0)}
+                />
+                <SummaryItem
                   label="Balance held by driver"
-                  value={receivedAmount - Number(values.fuelAmount || 0)}
+                  value={
+                    receivedAmount -
+                    Number(values.fuelAmount || 0) -
+                    Number(values.vehicleExpenseAmount || 0)
+                  }
                   strong
                 />
               </div>
@@ -1476,6 +1615,13 @@ function CloseBookingPage() {
                     <SummaryItem
                       label="Fuel paid from customer payment"
                       value={Number(values.fuelAmount)}
+                    />
+                  )}
+                {values.paymentHolder === "DRIVER" &&
+                  Number(values.vehicleExpenseAmount) > 0 && (
+                    <SummaryItem
+                      label="Vehicle expense paid from customer payment"
+                      value={Number(values.vehicleExpenseAmount)}
                     />
                   )}
                 <SummaryItem

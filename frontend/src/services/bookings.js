@@ -65,6 +65,11 @@ export async function getBooking(id) {
   return (await api.get(`/tenant/bookings/${id}`, config())).data.data;
 }
 
+export async function getBookingPaymentCustodians() {
+  return (await api.get("/tenant/bookings/payment-custodians", config())).data
+    .data;
+}
+
 export async function createBooking(values) {
   return (await api.post("/tenant/bookings", bookingPayload(values), config()))
     .data.data;
@@ -193,10 +198,26 @@ export async function closeBooking(id, values) {
       Number(values.fuelAmount) > 0
         ? values.fuelReceiptId || null
         : null,
+    vehicleExpenseAmount:
+      paymentAmount > 0 && values.paymentHolder === "DRIVER"
+        ? Number(values.vehicleExpenseAmount || 0)
+        : 0,
+    vehicleExpenseReason:
+      paymentAmount > 0 &&
+      values.paymentHolder === "DRIVER" &&
+      Number(values.vehicleExpenseAmount) > 0
+        ? values.vehicleExpenseReason || null
+        : null,
     paymentMode: paymentAmount > 0 ? values.paymentMode : undefined,
     paymentDate: paymentAmount > 0 ? values.paymentDate : undefined,
     paymentReference: values.paymentReference || null,
     collectedBy: paymentAmount > 0 ? values.collectedBy : undefined,
+    cashCustodianId:
+      paymentAmount > 0 &&
+      values.paymentHolder !== "DRIVER" &&
+      values.paymentMode === "CASH"
+        ? values.cashCustodianId || null
+        : null,
     remarks: values.remarks || null,
     attachmentName: values.attachmentName || null,
   };

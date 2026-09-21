@@ -17,7 +17,12 @@ export async function getDriverLedger(tenantId: string, driverId: string) {
   ])
   const collections = records.map(mapCollection)
   const sumCollections = (
-    field: 'amount' | 'fuelAmount' | 'returnedAmount' | 'driverBalance',
+    field:
+      | 'amount'
+      | 'fuelAmount'
+      | 'vehicleExpenseAmount'
+      | 'returnedAmount'
+      | 'driverBalance',
   ) =>
     Math.round(collections.reduce((sum, row) => sum + row[field], 0) * 100) /
     100
@@ -32,6 +37,7 @@ export async function getDriverLedger(tenantId: string, driverId: string) {
     summary: {
       customerPayments: sumCollections('amount'),
       fuelSpent: sumCollections('fuelAmount'),
+      vehicleExpenses: sumCollections('vehicleExpenseAmount'),
       returnedToCompany: sumCollections('returnedAmount'),
       heldByDriver: sumCollections('driverBalance'),
       advances,

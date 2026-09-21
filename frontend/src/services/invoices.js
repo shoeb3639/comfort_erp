@@ -41,3 +41,11 @@ export const cancelInvoice = async (invoiceId, reason) =>
       config(),
     )
   ).data.data;
+
+export const getGstSalesReport = async (month) =>
+  (
+    await api.get("/tenant/invoices/gst-sales-report", {
+      ...config(),
+      params: { month },
+    })
+  ).data.data;

@@ -25,6 +25,7 @@ const navItems = [
   { to: "/platform/subscriptions", label: "Subscriptions", icon: CreditCard },
   { to: "/platform/payments", label: "Payments", icon: BarChart3 },
   { to: "/platform/users", label: "Users", icon: Users },
+  { to: "/platform/permissions", label: "Permissions", icon: ShieldCheck },
   { to: "/platform/audit-logs", label: "Audit Logs", icon: ShieldCheck },
 ];
 
@@ -62,6 +63,11 @@ const pageMeta = {
     title: "Platform Users",
     description:
       "Manage Cablix platform administrators separately from tenant users.",
+  },
+  "/platform/permissions": {
+    eyebrow: "Platform access",
+    title: "Permissions",
+    description: "Review the permission catalog used by tenant roles.",
   },
   "/platform/audit-logs": {
     eyebrow: "Audit",

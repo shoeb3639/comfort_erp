@@ -121,11 +121,16 @@ export async function listCollections(
             sum +
             Number(row.amount) -
             Number(row.fuelAmount) -
+            Number(row.vehicleExpenseAmount) -
             Number(row.returnedAmount),
           0,
         ),
       fuelFromCollections: booking.collections.reduce(
         (sum, row) => sum + Number(row.fuelAmount),
+        0,
+      ),
+      vehicleExpensesFromCollections: booking.collections.reduce(
+        (sum, row) => sum + Number(row.vehicleExpenseAmount),
         0,
       ),
       driverReturns: booking.collections.reduce(
@@ -151,6 +156,7 @@ export async function listCollections(
       name: string
       collected: number
       fuel: number
+      vehicleExpense: number
       returned: number
       balance: number
     }
@@ -164,15 +170,22 @@ export async function listCollections(
         name: row.collectedByName,
         collected: 0,
         fuel: 0,
+        vehicleExpense: 0,
         returned: 0,
         balance: 0,
       }
       driver.collected += Number(row.amount)
       driver.fuel += Number(row.fuelAmount)
+      driver.vehicleExpense += Number(row.vehicleExpenseAmount)
       driver.returned += Number(row.returnedAmount)
       driver.balance =
-        Math.round((driver.collected - driver.fuel - driver.returned) * 100) /
-        100
+        Math.round(
+          (driver.collected -
+            driver.fuel -
+            driver.vehicleExpense -
+            driver.returned) *
+            100,
+        ) / 100
       drivers.set(key, driver)
     }
   return {
@@ -189,6 +202,10 @@ export async function listCollections(
       ),
       fuelFromCollections: bookingSummaries.reduce(
         (sum, row) => sum + row.fuelFromCollections,
+        0,
+      ),
+      vehicleExpensesFromCollections: bookingSummaries.reduce(
+        (sum, row) => sum + row.vehicleExpensesFromCollections,
         0,
       ),
       driverReturns: bookingSummaries.reduce(

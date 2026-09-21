@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express'
 import { AppError } from '../../shared/errors/app-error'
 import { pageRequest } from '../../shared/pagination'
 import * as service from './platform.service'
+import * as companySetupService from '../company-setup/company-setup.service'
 import type {
   CreatePlanInput,
   CreateSubscriptionInput,
@@ -32,6 +33,13 @@ function param(value: string | string[] | undefined): string {
     throw new AppError('Invalid route parameter', 'VALIDATION_ERROR', 400)
   return value
 }
+
+export const listPermissions: RequestHandler = async (_request, response) =>
+  success(
+    response,
+    await companySetupService.listPermissions(),
+    'Permission catalog retrieved',
+  )
 
 export const listPlans: RequestHandler = async (_request, response) =>
   success(response, await service.listPlans(), 'Subscription plans retrieved')

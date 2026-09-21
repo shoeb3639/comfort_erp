@@ -50,6 +50,11 @@ bookingRouter.get(
   controller.filterVehicles,
 )
 bookingRouter.get(
+  '/payment-custodians',
+  authorizePermission('booking.close'),
+  controller.paymentCustodians,
+)
+bookingRouter.get(
   '/:bookingId',
   authorizePermission('booking.view'),
   validateParams(bookingParamsSchema),

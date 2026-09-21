@@ -111,8 +111,8 @@ export default function DriverLedgerPage() {
               Booking collections and driver balances
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              Customer payments held by this driver, less fuel spent and money
-              returned to the company.
+              Customer payments held by this driver, less fuel, vehicle
+              expenses, and money returned to the company.
             </p>
             <table className="mt-4 w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50">
@@ -122,6 +122,7 @@ export default function DriverLedgerPage() {
                     "Booking",
                     "Payment",
                     "Fuel",
+                    "Vehicle Expense",
                     "Returned",
                     "With driver",
                     "Status",
@@ -150,6 +151,14 @@ export default function DriverLedgerPage() {
                       </span>
                     </td>
                     <td className="p-3">{money(row.fuelAmount)}</td>
+                    <td className="p-3">
+                      {money(row.vehicleExpenseAmount)}
+                      {row.vehicleExpenseReason && (
+                        <span className="block max-w-40 truncate text-xs text-slate-500">
+                          {row.vehicleExpenseReason}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-3">{money(row.returnedAmount)}</td>
                     <td className="p-3 font-semibold text-amber-700">
                       {money(row.driverBalance)}
@@ -168,7 +177,7 @@ export default function DriverLedgerPage() {
                 ))}
                 {!data.collections.length && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-slate-500">
+                    <td colSpan={9} className="p-6 text-center text-slate-500">
                       No customer payments are linked to this driver.
                     </td>
                   </tr>

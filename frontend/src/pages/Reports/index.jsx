@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   FileBarChart,
@@ -7,7 +7,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   generateReport,
   getReportCatalog,
@@ -188,13 +188,17 @@ function exportCsv(report, reportColumns) {
 }
 
 export default function ReportsPage() {
+  const filterDialogRef = useRef(null);
+  const [searchParams] = useSearchParams();
   const [catalog, setCatalog] = useState([]);
   const [options, setOptions] = useState({
     customers: [],
     vendors: [],
     vehicles: [],
   });
-  const [reportKey, setReportKey] = useState("business-summary");
+  const [reportKey, setReportKey] = useState(
+    searchParams.get("report") || "business-summary",
+  );
   const [filters, setFilters] = useState(initialFilters);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -224,7 +228,10 @@ export default function ReportsPage() {
         if (!active) return;
         setCatalog(reportCatalog);
         setOptions(reportOptions);
-        return loadReport("business-summary", initialFilters);
+        return loadReport(
+          searchParams.get("report") || "business-summary",
+          initialFilters,
+        );
       })
       .catch((requestError) => {
         if (!active) return;
@@ -238,6 +245,16 @@ export default function ReportsPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (catalog.length === 0) return;
+    const selected = searchParams.get("report") || "business-summary";
+    if (!catalog.some((item) => item.key === selected) || selected === reportKey)
+      return;
+    setReportKey(selected);
+    setFilters(initialFilters);
+    loadReport(selected, initialFilters);
+  }, [catalog, reportKey, searchParams]);
 
   const reportColumns = useMemo(() => columns[reportKey] || [], [reportKey]);
   const selectedDefinition = catalog.find((item) => item.key === reportKey);
@@ -261,66 +278,14 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-5 print:space-y-3">
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm print:hidden">
-          <div className="flex items-center gap-2 px-3 py-2">
-            <FileBarChart className="text-brand-600" size={20} />
-            <h2 className="font-semibold text-slate-950">Report Catalog</h2>
-          </div>
-          <nav className="mt-2 space-y-1">
-            {catalog.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => selectReport(item.key)}
-                className={`w-full rounded-xl px-3 py-3 text-left transition ${
-                  reportKey === item.key
-                    ? "bg-brand-50 text-brand-800"
-                    : "text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <span className="block text-sm font-semibold">{item.name}</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  {item.description}
-                </span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <main className="min-w-0 space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">
-                  {selectedDefinition?.name || "Reports"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedDefinition?.description}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {reportKey !== "business-summary" && (
-                  <button
-                    type="button"
-                    disabled={!report?.rows?.length}
-                    onClick={() => exportCsv(report, reportColumns)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"
-                  >
-                    <Download size={16} /> Export CSV
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
-                >
-                  <Printer size={16} /> Print
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <main className="min-w-0 space-y-5">
+          <dialog ref={filterDialogRef} onClick={(event) => { if (event.target === event.currentTarget) filterDialogRef.current?.close(); }} className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-sm border-0 bg-white p-0 shadow-2xl backdrop:bg-slate-950/40 print:hidden">
+              <div className="min-h-full overflow-y-auto p-5">
+                <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h3 className="font-semibold text-slate-900">Report filters</h3>
+                  <button type="button" onClick={() => filterDialogRef.current?.close()} className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">Close</button>
+                </div>
+            <div className="mt-4 grid grid-cols-1 gap-4">
               <label>
                 <span className="text-xs font-semibold text-slate-600">
                   From
@@ -440,7 +405,7 @@ export default function ReportsPage() {
                   </select>
                 </label>
               )}
-              <label className="md:col-span-2">
+              <label>
                 <span className="text-xs font-semibold text-slate-600">
                   Search
                 </span>
@@ -479,7 +444,8 @@ export default function ReportsPage() {
                 <Filter size={16} /> Generate Report
               </button>
             </div>
-          </section>
+              </div>
+          </dialog>
 
           {error && (
             <div
@@ -502,9 +468,10 @@ export default function ReportsPage() {
                     : "Generating report…"}
                 </p>
               </div>
-              <p className="text-xs text-slate-500">
-                Tenant-scoped authoritative records
-              </p>
+              <div className="flex items-center gap-3 print:hidden">
+                <p className="text-xs text-slate-500">Tenant-scoped authoritative records</p>
+                <button type="button" onClick={() => filterDialogRef.current?.showModal()} aria-label="Open report filters" title="Filters" className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"><Filter size={18} /></button>
+              </div>
             </div>
 
             {loading ? (
@@ -532,7 +499,15 @@ export default function ReportsPage() {
                 </div>
 
                 {reportColumns.length > 0 && (
-                  <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+                  <div className="mt-5 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 print:hidden">
+                      <p className="text-sm font-semibold text-slate-800">Report data</p>
+                      <div className="flex gap-2">
+                        <button type="button" disabled={!report?.rows?.length} onClick={() => exportCsv(report, reportColumns)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"><Download size={16} /> Export</button>
+                        <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"><Printer size={16} /> Print</button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
                       <thead className="bg-slate-50">
                         <tr>
@@ -588,6 +563,7 @@ export default function ReportsPage() {
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
 
@@ -622,8 +598,7 @@ export default function ReportsPage() {
               </>
             )}
           </section>
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

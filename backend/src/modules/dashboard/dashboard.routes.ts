@@ -9,6 +9,7 @@ import { checkTenantStatus } from '../../middlewares/check-tenant-status.middlew
 import { resolveTenant } from '../../middlewares/resolve-tenant.middleware'
 import { AppError } from '../../shared/errors/app-error'
 import { cardMetric, metricKeys, type MetricKey } from './card-metrics'
+import { dashboardOverview } from './dashboard-overview'
 
 const schema = Joi.object({
   metric: Joi.string()
@@ -25,6 +26,15 @@ dashboardRouter.use(
   checkSubscription({ allowRestrictedRead: true }),
   authorizePermission('reports.view'),
 )
+dashboardRouter.get('/overview', async (req, res) => {
+  res.json({
+    success: true,
+    data: await dashboardOverview({
+      tenantId: req.auth!.tenantId!,
+      userId: req.auth!.userId,
+    }),
+  })
+})
 dashboardRouter.get('/card', async (req, res) => {
   const result = schema.validate(req.query)
   if (result.error)

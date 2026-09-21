@@ -788,36 +788,41 @@ model BookingClosure {
 }
 
 model BookingCollection {
-  paymentHolder          String                @default("COMPANY") @map("payment_holder") @db.VarChar(20)
-  custodianDriverId      String?               @map("custodian_driver_id") @db.Uuid
-  fuelAmount             Decimal               @default(0) @map("fuel_amount") @db.Decimal(12, 2)
-  fuelReceiptId          String?               @map("fuel_receipt_id") @db.Uuid
-  returnedAmount         Decimal               @default(0) @map("returned_amount") @db.Decimal(12, 2)
-  fuelReceipt            StoredFile?           @relation(fields: [tenantId, fuelReceiptId], references: [tenantId, id], onDelete: Restrict)
-  id                     String                @id @default(uuid()) @db.Uuid
-  tenantId               String                @map("tenant_id") @db.Uuid
-  bookingId              String                @map("booking_id") @db.Uuid
-  invoiceId              String?               @map("invoice_id") @db.Uuid
-  collectionDate         DateTime              @map("collection_date") @db.Date
-  amount                 Decimal               @db.Decimal(12, 2)
-  paymentMode            CollectionPaymentMode @map("payment_mode")
-  collectedByName        String                @map("collected_by_name") @db.VarChar(150)
-  receiverName           String?               @map("receiver_name") @db.VarChar(150)
-  referenceNumber        String?               @map("reference_number") @db.VarChar(150)
-  remarks                String?               @db.Text
-  depositDate            DateTime?             @map("deposit_date") @db.Date
-  depositMode            String?               @map("deposit_mode") @db.VarChar(50)
-  depositReferenceNumber String?               @map("deposit_reference_number") @db.VarChar(150)
-  depositedByName        String?               @map("deposited_by_name") @db.VarChar(150)
-  verifiedByName         String?               @map("verified_by_name") @db.VarChar(150)
-  status                 CollectionStatus      @default(PENDING)
-  recordedById           String                @map("recorded_by") @db.Uuid
-  verifiedById           String?               @map("verified_by") @db.Uuid
-  verifiedAt             DateTime?             @map("verified_at") @db.Timestamptz(6)
-  voidedAt               DateTime?             @map("voided_at") @db.Timestamptz(6)
-  voidedById             String?               @map("voided_by") @db.Uuid
-  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  paymentHolder          String                 @default("COMPANY") @map("payment_holder") @db.VarChar(20)
+  custodianDriverId      String?                @map("custodian_driver_id") @db.Uuid
+  fuelAmount             Decimal                @default(0) @map("fuel_amount") @db.Decimal(12, 2)
+  fuelReceiptId          String?                @map("fuel_receipt_id") @db.Uuid
+  vehicleExpenseAmount   Decimal                @default(0) @map("vehicle_expense_amount") @db.Decimal(12, 2)
+  vehicleExpenseReason   String?                @map("vehicle_expense_reason") @db.Text
+  returnedAmount         Decimal                @default(0) @map("returned_amount") @db.Decimal(12, 2)
+  returnedToName         String?                @map("returned_to_name") @db.VarChar(150)
+  returnedAt             DateTime?              @map("returned_at") @db.Timestamptz(6)
+  returnPaymentMode      CollectionPaymentMode? @map("return_payment_mode")
+  fuelReceipt            StoredFile?            @relation(fields: [tenantId, fuelReceiptId], references: [tenantId, id], onDelete: Restrict)
+  id                     String                 @id @default(uuid()) @db.Uuid
+  tenantId               String                 @map("tenant_id") @db.Uuid
+  bookingId              String                 @map("booking_id") @db.Uuid
+  invoiceId              String?                @map("invoice_id") @db.Uuid
+  collectionDate         DateTime               @map("collection_date") @db.Date
+  amount                 Decimal                @db.Decimal(12, 2)
+  paymentMode            CollectionPaymentMode  @map("payment_mode")
+  collectedByName        String                 @map("collected_by_name") @db.VarChar(150)
+  receiverName           String?                @map("receiver_name") @db.VarChar(150)
+  referenceNumber        String?                @map("reference_number") @db.VarChar(150)
+  remarks                String?                @db.Text
+  depositDate            DateTime?              @map("deposit_date") @db.Date
+  depositMode            String?                @map("deposit_mode") @db.VarChar(50)
+  depositReferenceNumber String?                @map("deposit_reference_number") @db.VarChar(150)
+  depositedByName        String?                @map("deposited_by_name") @db.VarChar(150)
+  verifiedByName         String?                @map("verified_by_name") @db.VarChar(150)
+  status                 CollectionStatus       @default(PENDING)
+  recordedById           String                 @map("recorded_by") @db.Uuid
+  verifiedById           String?                @map("verified_by") @db.Uuid
+  verifiedAt             DateTime?              @map("verified_at") @db.Timestamptz(6)
+  voidedAt               DateTime?              @map("voided_at") @db.Timestamptz(6)
+  voidedById             String?                @map("voided_by") @db.Uuid
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   booking     Booking             @relation(fields: [tenantId, bookingId], references: [tenantId, id], onDelete: Restrict)

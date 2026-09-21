@@ -57,6 +57,7 @@ function initialValues() {
     ownerMobile: "",
     ownerDesignation: "Owner",
     ownerPassword: "",
+    enabledRoleCodes: ["ADMIN", "OPERATIONS_MANAGER", "ACCOUNTANT"],
     timeZone: "Asia/Kolkata",
     defaultCurrency: "INR",
     financialYearStartMonth: 4,
@@ -105,6 +106,7 @@ function TenantModal({ plans, onClose, onSave }) {
     setIsSubmitting(true);
     try {
       await onSave({
+        enabledRoleCodes: values.enabledRoleCodes,
         tenant: {
           legalName: values.legalName,
           tradeName: values.tradeName,
@@ -293,6 +295,36 @@ function TenantModal({ plans, onClose, onSave }) {
                 onChange={(value) => updateField("stateCode", value)}
               />
             </div>
+            <fieldset className="mt-4">
+              <legend className="text-sm font-medium text-slate-700">
+                Roles available to this tenant
+              </legend>
+              <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-700">
+                {[
+                  ["ADMIN", "Admin"],
+                  ["OPERATIONS_MANAGER", "Manager"],
+                  ["ACCOUNTANT", "Accountant"],
+                ].map(([code, label]) => (
+                  <label key={code} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={values.enabledRoleCodes.includes(code)}
+                      onChange={(event) =>
+                        updateField(
+                          "enabledRoleCodes",
+                          event.target.checked
+                            ? [...values.enabledRoleCodes, code]
+                            : values.enabledRoleCodes.filter(
+                                (value) => value !== code,
+                              ),
+                        )
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </section>
 
           <section>

@@ -98,6 +98,33 @@ export function find(tenantId: string, invoiceId: string) {
   })
 }
 
+export function gstSalesReport(tenantId: string, start: Date, end: Date) {
+  return prisma.invoice.findMany({
+    where: {
+      tenantId,
+      status: 'GENERATED',
+      invoiceDate: { gte: start, lt: end },
+    },
+    select: {
+      invoiceDate: true,
+      invoiceNumber: true,
+      bookingId: true,
+      billingName: true,
+      customerGstin: true,
+      placeOfSupply: true,
+      gstType: true,
+      taxableAmount: true,
+      cgstAmount: true,
+      sgstAmount: true,
+      igstAmount: true,
+      totalGst: true,
+      netPayable: true,
+      status: true,
+    },
+    orderBy: [{ invoiceDate: 'asc' }, { invoiceNumber: 'asc' }],
+  })
+}
+
 export function findCustomer(tenantId: string, customerId: string) {
   return prisma.customer.findFirst({
     where: { tenantId, id: customerId, deletedAt: null },

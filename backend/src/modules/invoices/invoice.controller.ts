@@ -38,6 +38,16 @@ export const get: RequestHandler = async (request, response) =>
     message: 'Invoice retrieved',
   })
 
+export const gstSalesReport: RequestHandler = async (request, response) =>
+  response.json({
+    success: true,
+    data: await service.gstSalesReport(
+      context(request),
+      String(request.query.month),
+    ),
+    message: 'GST sales report retrieved',
+  })
+
 export const generate: RequestHandler = async (request, response) =>
   response.json({
     success: true,

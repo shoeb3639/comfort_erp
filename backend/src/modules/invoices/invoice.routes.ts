@@ -15,6 +15,7 @@ import {
   invoiceBodySchema,
   invoiceParamsSchema,
   invoiceQuerySchema,
+  gstSalesReportQuerySchema,
 } from './invoice.schema'
 
 export const invoiceRouter = Router()
@@ -40,6 +41,12 @@ invoiceRouter.post(
   authorizePermission('invoice.create'),
   validateBody(invoiceBodySchema),
   controller.create,
+)
+invoiceRouter.get(
+  '/gst-sales-report',
+  authorizePermission('invoice.view'),
+  validateQuery(gstSalesReportQuerySchema),
+  controller.gstSalesReport,
 )
 invoiceRouter.get(
   '/:invoiceId',

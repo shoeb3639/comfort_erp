@@ -59,17 +59,22 @@ const vendorColumns = [
   })),
   ownColumns[ownColumns.length - 1],
 ];
-export default function VehiclePerformanceTable({ today }) {
+export default function VehiclePerformanceTable({ today, initialData }) {
   const monthStart = `${today.slice(0, 7)}-01`;
   const [range, setRange] = useState({ start: monthStart, end: today });
   const [draft, setDraft] = useState(range);
   const [dateError, setDateError] = useState("");
   const dialog = useRef(null);
   const [ownership, setOwnership] = useState("OWN");
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(initialData || null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const initialLoad = useRef(Boolean(initialData));
   useEffect(() => {
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      return;
+    }
     const controller = new AbortController();
     setError("");
     setData(null);

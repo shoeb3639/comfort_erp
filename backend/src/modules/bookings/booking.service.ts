@@ -619,6 +619,28 @@ export async function close(
     )
   const paymentReference =
     paymentAmount > 0 ? input.paymentReference?.trim() || null : null
+  const companyCashCustodian =
+    paymentAmount > 0 &&
+    input.paymentHolder !== 'DRIVER' &&
+    input.paymentMode === 'CASH'
+      ? input.cashCustodianId
+        ? await repository.findPaymentCustodian(
+            context.tenantId,
+            input.cashCustodianId,
+          )
+        : null
+      : null
+  if (
+    paymentAmount > 0 &&
+    input.paymentHolder !== 'DRIVER' &&
+    input.paymentMode === 'CASH' &&
+    !companyCashCustodian
+  )
+    throw new AppError(
+      'Select the manager or accountant currently holding the company cash',
+      'CASH_CUSTODIAN_REQUIRED',
+      400,
+    )
   if (paymentReference) {
     const validation = await validateReference(
       context.tenantId,
@@ -639,6 +661,7 @@ export async function close(
       400,
     )
   validateDriverFunds(input, isVendor)
+  const driverVehicleExpense = nonNegative(input.vehicleExpenseAmount)
   const dieselCost = isVendor
     ? nonNegative(input.fuelAmount)
     : nonNegative(input.dieselCost)
@@ -678,7 +701,8 @@ export async function close(
       })
     : { recoverableCharges: 0, revenue: 0, finalPayable: 0, profit: 0 }
   const finalVendorPayable = vendorCost.finalPayable
-  const vendorBookingProfit = vendorCost.profit - (isVendor ? dieselCost : 0)
+  const vendorBookingProfit =
+    vendorCost.profit - (isVendor ? dieselCost + driverVehicleExpense : 0)
 
   const charges = [
     ['Toll Tax', tollTax],
@@ -815,20 +839,28 @@ export async function close(
               collectedByName:
                 input.paymentHolder === 'DRIVER'
                   ? booking.driver!.name
-                  : toTitleCase(input.collectedBy!),
+                  : (companyCashCustodian?.name ??
+                    toTitleCase(input.collectedBy!)),
+              cashCustodianId: companyCashCustodian?.id ?? null,
+              cashCustodianName: companyCashCustodian?.name ?? null,
               referenceNumber: paymentReference,
               normalizedReferenceNumber: paymentReference
                 ? normalizeReferenceNumber(paymentReference)
                 : null,
               status:
-                input.paymentHolder === 'DRIVER' || input.paymentMode === 'CASH'
+                input.paymentHolder === 'DRIVER'
                   ? 'PENDING'
-                  : 'DIRECTLY_RECEIVED',
+                  : companyCashCustodian
+                    ? 'WITH_MANAGER'
+                    : 'DIRECTLY_RECEIVED',
               paymentHolder: input.paymentHolder ?? 'COMPANY',
               custodianDriverId:
                 input.paymentHolder === 'DRIVER' ? booking.driverId : null,
               fuelAmount: input.fuelAmount ?? 0,
               fuelReceiptId: input.fuelReceiptId ?? null,
+              vehicleExpenseAmount: input.vehicleExpenseAmount ?? 0,
+              vehicleExpenseReason:
+                titleCaseOptional(input.vehicleExpenseReason) ?? null,
             }
           : null,
     },
@@ -1050,4 +1082,8 @@ export async function remove(context: Context, idOrNumber: string) {
 
 export function filterVehicles(context: Context) {
   return repository.filterVehicles(context.tenantId)
+}
+
+export function paymentCustodians(context: Context) {
+  return repository.listPaymentCustodians(context.tenantId)
 }

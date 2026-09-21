@@ -11,9 +11,9 @@ import {
   Edit,
   Eye,
   FileCheck,
+  Funnel,
   Mail,
   MessageCircle,
-  SlidersHorizontal,
   MessageSquare,
   MoreVertical,
   Play,
@@ -43,8 +43,8 @@ import {
 const pageSizeOptions = [10, 20, 40, 50];
 
 const listViewOptions = [
-  { value: "active", label: "Current / Ongoing" },
-  { value: "closed", label: "Closed Bookings" },
+  { value: "active", label: "Ongoing" },
+  { value: "closed", label: "Closed" },
 ];
 
 const statusStyles = {
@@ -55,7 +55,7 @@ const statusStyles = {
   "In Transit": "bg-brand-50 text-brand-700 ring-brand-600/20",
   Completed: "bg-slate-100 text-slate-700 ring-slate-500/20",
   Cancelled: "bg-rose-50 text-rose-700 ring-rose-600/20",
-  Closed: "bg-slate-900 text-white ring-slate-900",
+  Closed: "bg-emerald-600 text-white ring-emerald-600",
 };
 
 function toNumber(value) {
@@ -79,7 +79,7 @@ function isBookingClosed(booking) {
 function StatusBadge({ status }) {
   return (
     <span
-      className={`status-badge inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
+      className={`${status === "Closed" ? "" : "status-badge"} inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-2 ring-inset ${
         statusStyles[status] || "bg-slate-100 text-slate-700 ring-slate-500/20"
       }`}
     >
@@ -1035,17 +1035,27 @@ function BookingsPage() {
               />
             </label>
 
-            <select
-              value={listView}
-              onChange={(event) => handleListViewChange(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            <div
+              className="grid h-10 grid-cols-2 rounded-lg border border-slate-200 bg-slate-100 p-1"
+              role="group"
+              aria-label="Booking list view"
             >
               {listViewOptions.map((option) => (
-                <option key={option.value} value={option.value}>
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={listView === option.value}
+                  onClick={() => handleListViewChange(option.value)}
+                  className={`rounded-md px-3 text-sm font-semibold transition ${
+                    listView === option.value
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
                   {option.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
             <button
               type="button"
               onClick={() => filterDialogRef.current?.showModal()}
@@ -1054,7 +1064,7 @@ function BookingsPage() {
               title="Filters"
               className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
             >
-              <SlidersHorizontal size={18} />
+              <Funnel size={18} />
               {Object.values(filters).filter((value) => value.trim()).length +
                 (statusFilter !== "All" ? 1 : 0) >
                 0 && (
@@ -1324,6 +1334,11 @@ function BookingsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {paginatedBookings.map((booking) => {
+                const displayStatus =
+                  booking.status ||
+                  (listView === "closed" || booking.closeDetails
+                    ? "Closed"
+                    : "Unknown");
                 const customer = customerById.get(booking.billing_customer_id);
                 const traveller = travellerById.get(booking.traveller_id);
                 const customerName =
@@ -1462,7 +1477,7 @@ function BookingsPage() {
                       </span>
                     </td>
                     <td className="w-[110px] whitespace-nowrap px-4 py-3">
-                      <StatusBadge status={booking.status} />
+                      <StatusBadge status={displayStatus} />
                     </td>
                     <td
                       className="w-[70px] px-4 py-3 text-right"
@@ -1534,7 +1549,8 @@ function BookingsPage() {
                                 Edit
                               </Link>
                             )}
-                            {booking.vehicleId &&
+                            {!isBookingClosed(booking) &&
+                              booking.vehicleId &&
                               booking.driverId &&
                               ["Assigned", "In Transit"].includes(
                                 booking.status,

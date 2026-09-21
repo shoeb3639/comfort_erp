@@ -1,20 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Funnel, RefreshCw, X } from "lucide-react";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import Pagination from "../../components/Pagination";
 import { getVehicleLedger } from "../../services/vehicles";
 
 const fieldClass =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
+function localDateValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const today = new Date();
 const initialFilters = {
-  dateFrom: "",
-  dateTo: "",
+  dateFrom: localDateValue(new Date(today.getFullYear(), today.getMonth(), 1)),
+  dateTo: localDateValue(today),
   groupBy: "MONTH",
   profitDataStatus: "",
   page: 1,
   limit: 25,
 };
+
+function shortDate(value) {
+  if (!value) return "All dates";
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  });
+}
 
 function money(value) {
   return Number(value || 0).toLocaleString("en-IN", {
@@ -62,6 +80,7 @@ function csvCell(value) {
 }
 
 function downloadCsv(vehicle, entries, filters) {
+  const isOwnVehicle = vehicle.ownershipType === "OWN";
   const columns = [
     ["date", "Date"],
     ["entryType", "Entry Type"],
@@ -73,13 +92,14 @@ function downloadCsv(vehicle, entries, filters) {
     ["openingKm", "Opening KM"],
     ["closingKm", "Closing KM"],
     ["runningKm", "Running KM"],
-    ["billedAmount", "Bill Amount"],
     ["recoverableCharges", "Recoverable Charges"],
-    ["revenue", "Profit Revenue"],
-    ["bookingCost", "Booking Cost"],
-    ["expenseAmount", "Expense"],
-    ["netProfit", "Net Profit"],
-    ["commissionProfit", "Commission Profit"],
+    ...(isOwnVehicle
+      ? [
+          ["revenue", "Profit Revenue"],
+          ["expenseAmount", "Vehicle Expense"],
+          ["netProfit", "Net Profit"],
+        ]
+      : [["commissionProfit", "Commission Profit"]]),
     ["profitDataStatus", "Profit Data Status"],
     ["profitTreatment", "P&L Treatment"],
     ["referenceNumber", "Reference"],
@@ -120,9 +140,15 @@ function ProfitValue({ value }) {
   );
 }
 
-function SummaryCard({ label, value, moneyValue = false, profit = false }) {
+function SummaryCard({
+  label,
+  value,
+  moneyValue = false,
+  profit = false,
+  detail,
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="w-[58vw] min-w-[180px] max-w-[210px] flex-none snap-start rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:w-auto sm:min-w-0 sm:max-w-none">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
@@ -135,11 +161,16 @@ function SummaryCard({ label, value, moneyValue = false, profit = false }) {
           value
         )}
       </div>
+      {detail && (
+        <p className="mt-1 text-xs font-semibold text-amber-700">{detail}</p>
+      )}
     </div>
   );
 }
 
 export default function VehicleLedgerPage() {
+  const filterDialogRef = useRef(null);
+  const { setTopbarAction } = useOutletContext();
   const { vehicleId } = useParams();
   const [draftFilters, setDraftFilters] = useState(initialFilters);
   const [filters, setFilters] = useState(initialFilters);
@@ -147,6 +178,7 @@ export default function VehicleLedgerPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const isOwnVehicle = ledger?.vehicle?.ownershipType === "OWN";
 
   const requestFilters = useMemo(
     () =>
@@ -178,6 +210,22 @@ export default function VehicleLedgerPage() {
       active = false;
     };
   }, [vehicleId, requestFilters]);
+
+  useEffect(() => {
+    if (!ledger?.vehicle?.registrationNumber) return;
+    window.dispatchEvent(
+      new CustomEvent("cablix:page-title", {
+        detail: {
+          title: `Vehicle Register - ${ledger.vehicle.registrationNumber}`,
+          description: `${shortDate(filters.dateFrom)} to ${shortDate(filters.dateTo)}`,
+        },
+      }),
+    );
+    return () =>
+      window.dispatchEvent(
+        new CustomEvent("cablix:page-title", { detail: {} }),
+      );
+  }, [filters.dateFrom, filters.dateTo, ledger?.vehicle?.registrationNumber]);
 
   function applyFilters(event) {
     event.preventDefault();
@@ -212,6 +260,32 @@ export default function VehicleLedgerPage() {
     }
   }
 
+  useEffect(() => {
+    if (!ledger) return undefined;
+    setTopbarAction([
+      {
+        label: "Refresh vehicle ledger",
+        icon: RefreshCw,
+        iconOnly: true,
+        onClick: () => setFilters((current) => ({ ...current })),
+      },
+      {
+        label: exporting ? "Exporting vehicle ledger" : "Export vehicle ledger",
+        icon: Download,
+        iconOnly: true,
+        disabled: exporting,
+        onClick: exportAll,
+      },
+      {
+        label: "Filter vehicle ledger",
+        icon: Funnel,
+        iconOnly: true,
+        onClick: () => filterDialogRef.current?.showModal(),
+      },
+    ]);
+    return () => setTopbarAction(null);
+  }, [exporting, ledger, setTopbarAction]);
+
   if (loading && !ledger)
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
@@ -229,48 +303,31 @@ export default function VehicleLedgerPage() {
 
       {ledger && (
         <>
-          <section className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-bold text-slate-950">
-                  {ledger.vehicle.registrationNumber}
-                </h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                  {title(ledger.vehicle.ownershipType)}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-slate-500">
-                {[ledger.vehicle.make, ledger.vehicle.model]
-                  .filter(Boolean)
-                  .join(" ") || ledger.vehicle.vehicleType?.name}
-                {ledger.vehicle.vendor?.name
-                  ? ` • ${ledger.vehicle.vendor.name}`
-                  : ""}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setFilters((current) => ({ ...current }))}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
-              >
-                <RefreshCw size={16} /> Refresh
-              </button>
-              <button
-                type="button"
-                disabled={exporting}
-                onClick={exportAll}
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                <Download size={16} /> {exporting ? "Exporting…" : "Export CSV"}
-              </button>
-            </div>
-          </section>
-
-          <form
-            onSubmit={applyFilters}
-            className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] lg:items-end"
+          <dialog
+            ref={filterDialogRef}
+            onClick={(event) => {
+              if (event.target === event.currentTarget)
+                filterDialogRef.current?.close();
+            }}
+            className="fixed inset-y-0 left-auto right-0 m-0 h-dvh max-h-dvh w-full max-w-sm border-0 bg-white p-0 shadow-2xl backdrop:bg-slate-950/40"
           >
+            <form
+              onSubmit={applyFilters}
+              className="grid min-h-full grid-cols-1 content-start gap-4 p-5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                <h3 className="font-semibold text-slate-900">
+                  Vehicle ledger filters
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Close filters"
+                  onClick={() => filterDialogRef.current?.close()}
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             <label className="text-sm font-medium text-slate-700">
               From Date
               <input
@@ -336,51 +393,53 @@ export default function VehicleLedgerPage() {
                 <option value="REGISTER_ONLY">Register only</option>
               </select>
             </label>
-            <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-              Apply Filters
-            </button>
-          </form>
+              <button
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              >
+                Apply Filters
+              </button>
+            </form>
+          </dialog>
 
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard label="Bookings" value={ledger.summary.bookings} />
+          <section className="flex snap-x gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-4">
             <SummaryCard
-              label="Closed Bookings"
-              value={ledger.summary.closedBookings}
+              label="Bookings"
+              value={ledger.summary.bookings}
+              detail={
+                ledger.summary.bookings - ledger.summary.closedBookings > 0
+                  ? `${ledger.summary.bookings - ledger.summary.closedBookings} not closed`
+                  : undefined
+              }
             />
             <SummaryCard
               label="Running KM"
               value={number(ledger.summary.runningKm)}
             />
-            <SummaryCard
-              label="Billed Amount"
-              value={ledger.summary.billedAmount}
-              moneyValue
-            />
-            <SummaryCard
-              label="Profit Revenue"
-              value={ledger.summary.revenue}
-              moneyValue
-            />
-            <SummaryCard
-              label="Booking Costs"
-              value={ledger.summary.bookingCosts}
-              moneyValue
-            />
-            <SummaryCard
-              label="Additional Vehicle Expenses"
-              value={ledger.summary.additionalVehicleExpenses}
-              moneyValue
-            />
-            <SummaryCard
-              label="Net Vehicle Profit"
-              value={ledger.summary.netProfit}
-              profit
-            />
-            <SummaryCard
-              label="Commission Profit"
-              value={ledger.summary.commissionProfit}
-              moneyValue
-            />
+            {isOwnVehicle ? (
+              <>
+                <SummaryCard
+                  label="Profit Revenue"
+                  value={ledger.summary.revenue}
+                  moneyValue
+                />
+                <SummaryCard
+                  label="Additional Vehicle Expenses"
+                  value={ledger.summary.additionalVehicleExpenses}
+                  moneyValue
+                />
+                <SummaryCard
+                  label="Net Vehicle Profit"
+                  value={ledger.summary.netProfit}
+                  profit
+                />
+              </>
+            ) : (
+              <SummaryCard
+                label="Commission Profit"
+                value={ledger.summary.commissionProfit}
+                moneyValue
+              />
+            )}
           </section>
 
           {ledger.summary.linkedExpensesForReview > 0 && (
@@ -406,10 +465,9 @@ export default function VehicleLedgerPage() {
                       "Period",
                       "Bookings",
                       "Running KM",
-                      "Revenue",
-                      "Booking Costs",
-                      "Vehicle Expenses",
-                      "Net Profit",
+                      ...(isOwnVehicle
+                        ? ["Revenue", "Vehicle Expenses", "Net Profit"]
+                        : ["Commission Profit"]),
                     ].map((label) => (
                       <th key={label} className="px-4 py-3">
                         {label}
@@ -428,22 +486,29 @@ export default function VehicleLedgerPage() {
                       </td>
                       <td className="px-4 py-3">{period.bookings}</td>
                       <td className="px-4 py-3">{number(period.runningKm)}</td>
-                      <td className="px-4 py-3">{money(period.revenue)}</td>
-                      <td className="px-4 py-3">
-                        {money(period.bookingCosts)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {money(period.additionalVehicleExpenses)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <ProfitValue value={period.netProfit} />
-                      </td>
+                      {isOwnVehicle ? (
+                        <>
+                          <td className="px-4 py-3">
+                            {money(period.revenue)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {money(period.additionalVehicleExpenses)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <ProfitValue value={period.netProfit} />
+                          </td>
+                        </>
+                      ) : (
+                        <td className="px-4 py-3">
+                          {money(period.commissionProfit)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {!ledger.periods.length && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={isOwnVehicle ? 6 : 4}
                         className="px-4 py-8 text-center text-slate-500"
                       >
                         No P&amp;L records for this period.
@@ -462,7 +527,9 @@ export default function VehicleLedgerPage() {
               </h3>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-[1500px] w-full text-left text-sm">
+              <table
+                className={`${isOwnVehicle ? "min-w-[1150px]" : "min-w-[900px]"} w-full text-left text-sm`}
+              >
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     {[
@@ -472,11 +539,9 @@ export default function VehicleLedgerPage() {
                       "Customer / Description",
                       "Status",
                       "KM",
-                      "Bill",
-                      "Revenue",
-                      "Cost / Expense",
-                      "Net Profit",
-                      "Commission",
+                      ...(isOwnVehicle
+                        ? ["Revenue", "Vehicle Expense", "Net Profit"]
+                        : ["Commission Profit"]),
                       "P&L Treatment",
                     ].map((label) => (
                       <th key={label} className="px-4 py-3">
@@ -534,21 +599,25 @@ export default function VehicleLedgerPage() {
                           ? number(entry.runningKm)
                           : "-"}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {entry.billedAmount ? money(entry.billedAmount) : "-"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {entry.revenue ? money(entry.revenue) : "-"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {money(entry.bookingCost || entry.expenseAmount)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        <ProfitValue value={entry.netProfit} />
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3">
-                        {money(entry.commissionProfit)}
-                      </td>
+                      {isOwnVehicle ? (
+                        <>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            {entry.revenue ? money(entry.revenue) : "-"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            {entry.expenseAmount
+                              ? money(entry.expenseAmount)
+                              : "-"}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <ProfitValue value={entry.netProfit} />
+                          </td>
+                        </>
+                      ) : (
+                        <td className="whitespace-nowrap px-4 py-3">
+                          {money(entry.commissionProfit)}
+                        </td>
+                      )}
                       <td className="max-w-xs px-4 py-3 text-xs text-slate-500">
                         {entry.profitTreatment}
                       </td>
@@ -557,7 +626,7 @@ export default function VehicleLedgerPage() {
                   {!ledger.entries.length && (
                     <tr>
                       <td
-                        colSpan={12}
+                        colSpan={isOwnVehicle ? 10 : 8}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No vehicle ledger records found.

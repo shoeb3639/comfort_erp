@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  CheckCircle2,
   ImageIcon,
   MapPin,
   ReceiptText,
-  ShieldCheck,
   Users,
   WalletCards,
   X,
@@ -39,8 +37,6 @@ const setupLinks = [
     icon: ReceiptText,
   },
   { title: "Tenant Users", to: "/settings/users", icon: Users },
-  { title: "Roles", to: "/settings/roles", icon: ShieldCheck },
-  { title: "Permissions", to: "/settings/permissions", icon: CheckCircle2 },
 ];
 
 function TextField({ label, onChange, ...props }) {

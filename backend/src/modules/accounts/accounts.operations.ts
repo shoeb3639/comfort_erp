@@ -554,6 +554,7 @@ export async function getAudit(tenantId: string) {
       Math.round(
         (Number(collection.amount) -
           Number(collection.fuelAmount) -
+          Number(collection.vehicleExpenseAmount) -
           Number(collection.returnedAmount)) *
           100,
       ) / 100

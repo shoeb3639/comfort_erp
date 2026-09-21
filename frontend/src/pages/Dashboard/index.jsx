@@ -13,21 +13,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import {
-  getAccountsAudit,
-  listAccountTransactions,
-  listCashDeposits,
-  listManagerLedgers,
-} from "../../services/accounts";
-import { listBookings } from "../../services/bookings";
-import { getCustomers } from "../../services/customers";
-import { listDrivers } from "../../services/drivers";
-import { listInvoices } from "../../services/invoices";
-import {
-  getCompanyProfile,
-  getDashboardLayout,
   updatePersonalDashboardLayout,
   updateTenantDashboardLayout,
 } from "../../services/tenantSetup";
+import { getDashboardOverview } from "../../services/dashboard";
 import {
   Badge,
   BarChart,
@@ -708,78 +697,66 @@ function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      listBookings({ limit: 100 }),
-      getCustomers({ limit: 100 }),
-      listInvoices({ limit: 100 }),
-      listAccountTransactions(),
-      listCashDeposits(),
-      listManagerLedgers(),
-      getAccountsAudit(),
-      listDrivers({ limit: 100 }),
-      getCompanyProfile(),
-      getDashboardLayout(),
-    ])
-      .then(
-        ([
-          bookings,
-          customers,
-          invoices,
-          transactionData,
-          depositData,
-          ledgerData,
-          auditData,
-          drivers,
-          companyProfile,
-          dashboardLayout,
-        ]) => {
-          if (!active) return;
-          const transactions = transactionData.transactions || [];
-          const expenses = transactions
-            .filter(
-              (transaction) =>
-                transaction.transactionType === "EXPENSE" &&
-                transaction.direction === "DEBIT",
-            )
-            .map((transaction) => ({
-              ...transaction,
-              date: transaction.transactionDate,
-            }));
-          const normalizedInvoices = invoices.items.map((invoice) => ({
-            ...invoice,
-            dueDate: invoice.invoiceDate,
-            total: invoice.totals?.netPayable || 0,
-            status: invoice.invoiceStatus || invoice.status,
+    getDashboardOverview()
+      .then((overview) => {
+        if (!active) return;
+        const transactions = overview.transactions.transactions || [];
+        const expenses = transactions
+          .filter(
+            (transaction) =>
+              transaction.transactionType === "EXPENSE" &&
+              transaction.direction === "DEBIT",
+          )
+          .map((transaction) => ({
+            ...transaction,
+            date: transaction.transactionDate,
           }));
-          const managerLedgerEntries = (ledgerData.ledgers || []).map(
-            (ledger) => ({
-              manager: ledger.manager?.name,
-              date: ledger.updatedAt?.slice(0, 10),
-              credit: ledger.currentBalance >= 0 ? ledger.currentBalance : 0,
-              debit: ledger.currentBalance < 0 ? -ledger.currentBalance : 0,
-            }),
-          );
-          setState({
-            loading: false,
-            error: "",
-            data: buildDashboardData({
-              bookings: bookings.items,
-              customers: customers.items,
+        const normalizedInvoices = overview.invoices.items.map((invoice) => ({
+          ...invoice,
+          dueDate: invoice.invoiceDate,
+          total: invoice.totals?.netPayable || 0,
+          status: invoice.invoiceStatus || invoice.status,
+        }));
+        const managerLedgerEntries = (
+          overview.managerLedgers.ledgers || []
+        ).map((ledger) => ({
+          manager: ledger.manager?.name,
+          date: ledger.updatedAt?.slice(0, 10),
+          credit: ledger.currentBalance >= 0 ? ledger.currentBalance : 0,
+          debit: ledger.currentBalance < 0 ? -ledger.currentBalance : 0,
+        }));
+        setState({
+          loading: false,
+          error: "",
+          data: {
+            ...buildDashboardData({
+              bookings: overview.bookings.items,
+              customers: overview.customers.items,
               invoices: normalizedInvoices,
               expenses,
-              deposits: depositData.deposits || depositData.cashDeposits || [],
+              deposits:
+                overview.cashDeposits.deposits ||
+                overview.cashDeposits.cashDeposits ||
+                [],
               transactions,
               managerLedgerEntries,
               auditExceptions:
-                auditData.exceptions || auditData.auditExceptions || [],
-              drivers: drivers.items,
-              businessDate: tenantBusinessDate(companyProfile.timeZone),
+                overview.audit.exceptions ||
+                overview.audit.auditExceptions ||
+                [],
+              drivers: overview.drivers.items,
+              businessDate: overview.businessDate,
             }),
-          });
-          setLayout(dashboardLayout.layout);
-          setLayoutSource(dashboardLayout.source);
-        },
-      )
+            initial: {
+              cardMetrics: overview.cardMetrics,
+              outstanding: overview.outstanding,
+              vehiclePerformance: overview.vehiclePerformance,
+            },
+          },
+        });
+        setLayout(overview.layout.layout);
+        setLayoutSource(overview.layout.source);
+      })
       .catch((error) => {
         if (!active) return;
         setState({
@@ -912,6 +889,9 @@ function DashboardPage() {
               card={card}
               metric={summaryMetrics[index]}
               today={dashboard.businessDate}
+              initialResult={
+                dashboard.initial.cardMetrics[summaryMetrics[index].key]
+              }
             />
           ))}
         </div>
@@ -920,13 +900,16 @@ function DashboardPage() {
     outstanding: (
       <section className="space-y-4">
         <SectionHeader title="Current Outstanding Balances" />
-        <OutstandingCards />
+        <OutstandingCards initialData={dashboard.initial.outstanding} />
       </section>
     ),
     vehicle_performance: (
       <section className="space-y-4">
         <SectionHeader title="Vehicle Performance" />
-        <VehiclePerformanceTable today={dashboard.businessDate} />
+        <VehiclePerformanceTable
+          today={dashboard.businessDate}
+          initialData={dashboard.initial.vehiclePerformance}
+        />
       </section>
     ),
     manager_ledger: (

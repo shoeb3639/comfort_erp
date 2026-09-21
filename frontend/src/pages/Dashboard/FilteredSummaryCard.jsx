@@ -58,14 +58,19 @@ const dateLabel = (date) =>
 const shift = (date, days) =>
   new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10);
 
-export default function FilteredSummaryCard({ card, metric, today }) {
+export default function FilteredSummaryCard({
+  card,
+  metric,
+  today,
+  initialResult,
+}) {
   const monthStart = `${today.slice(0, 7)}-01`;
   const [range, setRange] = useState({ start: monthStart, end: today });
   const [draft, setDraft] = useState(range);
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState(initialResult || null);
+  const [loading, setLoading] = useState(!initialResult);
   const [error, setError] = useState("");
   const [validation, setValidation] = useState("");
   const [retry, setRetry] = useState(0);
@@ -73,6 +78,7 @@ export default function FilteredSummaryCard({ card, metric, today }) {
     () => window.matchMedia("(max-width: 767px)").matches,
   );
   const popup = useRef(null);
+  const initialLoad = useRef(Boolean(initialResult));
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
     const update = () => setMobile(media.matches);
@@ -89,6 +95,10 @@ export default function FilteredSummaryCard({ card, metric, today }) {
     trigger.current?.focus();
   };
   useEffect(() => {
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError("");

@@ -214,7 +214,17 @@ export async function createTenantRegistration(
     )
 
     let ownerRoleId: string | null = null
-    for (const roleDefinition of TENANT_SYSTEM_ROLES) {
+    const enabledRoleCodes = new Set([
+      'SUPER_ADMIN',
+      ...(input.enabledRoleCodes ?? [
+        'ADMIN',
+        'OPERATIONS_MANAGER',
+        'ACCOUNTANT',
+      ]),
+    ])
+    for (const roleDefinition of TENANT_SYSTEM_ROLES.filter((role) =>
+      enabledRoleCodes.has(role.code),
+    )) {
       const role = await transaction.tenantRole.create({
         data: {
           tenantId: tenant.id,

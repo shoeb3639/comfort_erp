@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { getOutstandingCustomers } from "../../services/dashboard";
 import { formatCurrency } from "./widgets";
@@ -78,12 +78,17 @@ function OutstandingCard({ category, group, loading }) {
     </section>
   );
 }
-export default function OutstandingCards() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function OutstandingCards({ initialData }) {
+  const [data, setData] = useState(initialData || null);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const initialLoad = useRef(Boolean(initialData));
   useEffect(() => {
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError("");

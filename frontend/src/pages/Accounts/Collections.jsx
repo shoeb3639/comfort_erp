@@ -298,10 +298,14 @@ export default function AccountsCollectionsPage() {
         <SummaryCard label="Unpaid" value={data?.summary.unpaidBookings || 0} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label="Fuel from customer payments"
           value={`₹ ${money(data?.summary.fuelFromCollections)}`}
+        />
+        <SummaryCard
+          label="Vehicle expenses from customer payments"
+          value={`₹ ${money(data?.summary.vehicleExpensesFromCollections)}`}
         />
         <SummaryCard
           label="Returned by drivers"
@@ -731,8 +735,8 @@ export default function AccountsCollectionsPage() {
         <section className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="font-bold text-slate-950">Driver balances</h2>
           <p className="mb-3 text-sm text-slate-500">
-            Customer payments, fuel spending and returns across the selected
-            bookings.
+            Customer payments, fuel and vehicle expenses, and returns across the
+            selected bookings.
           </p>
           <table className="w-full min-w-[650px] text-left text-sm">
             <thead className="text-slate-500">
@@ -741,6 +745,7 @@ export default function AccountsCollectionsPage() {
                   "Driver",
                   "Customer payments",
                   "Fuel spent",
+                  "Vehicle expenses",
                   "Returned to company",
                   "Still with driver",
                 ].map((label) => (
@@ -757,6 +762,7 @@ export default function AccountsCollectionsPage() {
                   {[
                     driver.collected,
                     driver.fuel,
+                    driver.vehicleExpense,
                     driver.returned,
                     driver.balance,
                   ].map((amount, index) => (
@@ -958,6 +964,7 @@ export default function AccountsCollectionsPage() {
                   {canCreate &&
                     detail.status !== "VOID" &&
                     !detail.fuelAmount &&
+                    !detail.vehicleExpenseAmount &&
                     !detail.returnedAmount && (
                       <button
                         className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white"
@@ -980,6 +987,14 @@ export default function AccountsCollectionsPage() {
                   ["Status", detail.statusLabel],
                   ["Payment Reference", detail.referenceNumber || "—"],
                   ["Collected By", detail.collectedBy],
+                  ["Fuel Used", `₹ ${money(detail.fuelAmount)}`],
+                  [
+                    "Vehicle Expense",
+                    `₹ ${money(detail.vehicleExpenseAmount)}`,
+                  ],
+                  ["Expense Reason", detail.vehicleExpenseReason || "—"],
+                  ["Still With Driver", `₹ ${money(detail.driverBalance)}`],
+                  ["Returned To", detail.returnedToName || "—"],
                   ["Receiver", detail.receiverName || "—"],
                   ["Deposit Date", detail.depositDate || "—"],
                   ["Deposit Reference", detail.depositReferenceNumber || "—"],

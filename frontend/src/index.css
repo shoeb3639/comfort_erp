@@ -9,6 +9,26 @@
   font-weight: 700;
 }
 
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    border-color: rgb(148 163 184);
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus {
+    border-color: rgb(14 165 233);
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    border-color: rgb(203 213 225);
+  }
+}
+
 @keyframes toast-slide-in {
   0% {
     opacity: 0;

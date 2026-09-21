@@ -11,6 +11,10 @@ const invoicePrefix = Joi.string()
   .optional()
 
 export const registerTenantSchema = Joi.object({
+  enabledRoleCodes: Joi.array()
+    .items(Joi.string().valid('ADMIN', 'OPERATIONS_MANAGER', 'ACCOUNTANT'))
+    .unique()
+    .default(['ADMIN', 'OPERATIONS_MANAGER', 'ACCOUNTANT']),
   tenant: Joi.object({
     legalName: Joi.string().trim().min(2).max(200).required(),
     tradeName: optionalText(200),

@@ -38,10 +38,23 @@ function ReadOnlyField({ label, value }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, status = "" }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-base font-semibold text-slate-900">{title}</h4>
+        {status && (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              status === "Closed"
+                ? "bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-600/20"
+                : "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/20"
+            }`}
+          >
+            {status}
+          </span>
+        )}
+      </div>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -96,23 +109,28 @@ function BookingViewPage() {
     booking.assignment_type ||
     "own_vehicle";
   const isVendorVehicle = assignmentType === "vendor_vehicle";
+  const bookingStatus =
+    booking.status || (booking.closeDetails ? "Closed" : "-");
 
   return (
     <div className="space-y-5">
-      {booking.vehicleId && booking.driverId && (
-        <div className="flex justify-end">
-          <Link
-            to={`/bookings/${booking.id}/duty-slip`}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            Generate Duty Slip
-          </Link>
-        </div>
-      )}
-      <Section title="Booking Summary">
+      {booking.vehicleId &&
+        booking.driverId &&
+        bookingStatus !== "Closed" &&
+        !booking.closeDetails && (
+          <div className="flex justify-end">
+            <Link
+              to={`/bookings/${booking.id}/duty-slip`}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Generate Duty Slip
+            </Link>
+          </div>
+        )}
+      <Section title="Booking Details" status={bookingStatus}>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReadOnlyField label="Booking ID" value={booking.id} />
-          <ReadOnlyField label="Status" value={booking.status} />
+          <ReadOnlyField label="Status" value={bookingStatus} />
           <ReadOnlyField label="Customer" value={booking.customer} />
           <ReadOnlyField
             label="Traveller"

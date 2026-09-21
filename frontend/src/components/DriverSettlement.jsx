@@ -57,6 +57,7 @@ export default function DriverSettlement({ collection, onUpdated }) {
         {[
           ["Customer paid", collection.amount],
           ["Fuel spent", collection.fuelAmount],
+          ["Vehicle expense", collection.vehicleExpenseAmount],
           ["Returned to company", collection.returnedAmount],
           ["Still with driver", collection.driverBalance],
         ].map(([label, value]) => (
@@ -66,6 +67,22 @@ export default function DriverSettlement({ collection, onUpdated }) {
           </div>
         ))}
       </div>
+      {collection.vehicleExpenseAmount > 0 && (
+        <p className="rounded-lg bg-white/70 px-3 py-2 text-sm text-slate-700">
+          <strong>Vehicle expense reason:</strong>{" "}
+          {collection.vehicleExpenseReason}
+        </p>
+      )}
+      {collection.returnedAmount > 0 && collection.returnedToName && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          ₹ {money(collection.returnedAmount)} received by{" "}
+          <strong>{collection.returnedToName}</strong>
+          {collection.returnPaymentMode
+            ? ` into ${collection.returnPaymentMode}`
+            : ""}
+          .
+        </p>
+      )}
       {collection.fuelReceipt &&
         (canDownload ? (
           <button

@@ -33,13 +33,19 @@ export function mapCollection(
     paymentHolder: record.paymentHolder,
     custodianDriverId: record.custodianDriverId,
     fuelAmount: Number(record.fuelAmount),
+    vehicleExpenseAmount: Number(record.vehicleExpenseAmount),
+    vehicleExpenseReason: record.vehicleExpenseReason,
     returnedAmount: Number(record.returnedAmount),
+    returnedToName: record.returnedToName,
+    returnedAt: record.returnedAt?.toISOString() ?? null,
+    returnPaymentMode: record.returnPaymentMode,
     driverBalance:
       record.paymentHolder === 'DRIVER' && record.status !== 'VOID'
         ? driverBalance(
             Number(record.amount),
             Number(record.fuelAmount),
             Number(record.returnedAmount),
+            Number(record.vehicleExpenseAmount),
           )
         : 0,
     fuelReceipt: record.fuelReceipt

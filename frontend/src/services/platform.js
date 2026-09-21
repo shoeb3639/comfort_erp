@@ -19,6 +19,13 @@ export async function getTenants(params = {}) {
   return response.data.data;
 }
 
+export async function getPlatformPermissions() {
+  const response = await api.get("/platform/permissions", {
+    headers: authorizationHeaders(),
+  });
+  return response.data.data;
+}
+
 export async function getTenant(tenantId) {
   const response = await api.get(`/platform/tenants/${tenantId}`, {
     headers: authorizationHeaders(),

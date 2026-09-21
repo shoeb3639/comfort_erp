@@ -508,13 +508,17 @@ export interface CloseBookingData {
     custodianDriverId?: string | null
     fuelAmount?: number
     fuelReceiptId?: string | null
+    vehicleExpenseAmount?: number
+    vehicleExpenseReason?: string | null
     collectionDate: Date
     amount: number
     paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD' | 'CHEQUE'
     collectedByName: string
+    cashCustodianId?: string | null
+    cashCustodianName?: string | null
     referenceNumber: string | null
     normalizedReferenceNumber: string | null
-    status: 'PENDING' | 'DIRECTLY_RECEIVED'
+    status: 'PENDING' | 'WITH_MANAGER' | 'DIRECTLY_RECEIVED'
   } | null
 }
 
@@ -584,10 +588,15 @@ export function closeBooking(
           custodianDriverId: data.initialCollection.custodianDriverId ?? null,
           fuelAmount: data.initialCollection.fuelAmount ?? 0,
           fuelReceiptId: data.initialCollection.fuelReceiptId ?? null,
+          vehicleExpenseAmount:
+            data.initialCollection.vehicleExpenseAmount ?? 0,
+          vehicleExpenseReason:
+            data.initialCollection.vehicleExpenseReason ?? null,
           collectionDate: data.initialCollection.collectionDate,
           amount: data.initialCollection.amount,
           paymentMode: data.initialCollection.paymentMode,
           collectedByName: data.initialCollection.collectedByName,
+          receiverName: data.initialCollection.cashCustodianName ?? null,
           referenceNumber: data.initialCollection.referenceNumber,
           status: data.initialCollection.status,
           tenantId,
@@ -605,8 +614,16 @@ export function closeBooking(
             tenantId,
             collectionId: collection.id,
             amountCollected: collection.amount,
-            receiverManagerName: collection.collectedByName,
-            status: 'COLLECTED',
+            receiverManagerId: data.initialCollection.cashCustodianId ?? null,
+            receiverManagerName:
+              data.initialCollection.cashCustodianName ??
+              collection.collectedByName,
+            receivedAt: data.initialCollection.cashCustodianId
+              ? new Date()
+              : null,
+            status: data.initialCollection.cashCustodianId
+              ? 'WITH_MANAGER'
+              : 'COLLECTED',
             createdById: userId,
             updatedById: userId,
           },
@@ -637,9 +654,13 @@ export function closeBooking(
             amount: Number(collection.amount),
             paymentHolder: collection.paymentHolder,
             fuelAmount: Number(collection.fuelAmount),
+            vehicleExpenseAmount: Number(collection.vehicleExpenseAmount),
+            vehicleExpenseReason: collection.vehicleExpenseReason,
             fuelReceiptId: collection.fuelReceiptId,
             paymentMode: collection.paymentMode,
             referenceNumber: collection.referenceNumber,
+            cashCustodianId: data.initialCollection.cashCustodianId ?? null,
+            cashCustodianName: data.initialCollection.cashCustodianName ?? null,
           },
         },
       })
@@ -768,6 +789,7 @@ export function verifyCollection(
         amount: true,
         paymentHolder: true,
         fuelAmount: true,
+        vehicleExpenseAmount: true,
         returnedAmount: true,
       },
     })
@@ -777,6 +799,7 @@ export function verifyCollection(
         Number(current.amount),
         Number(current.fuelAmount),
         Number(current.returnedAmount),
+        Number(current.vehicleExpenseAmount),
       ) !== 0
     )
       throw new AppError(
@@ -845,11 +868,18 @@ export function voidCollection(
     })
     const current = await transaction.bookingCollection.findFirst({
       where: { tenantId, bookingId, id: collectionId },
-      select: { status: true, fuelAmount: true, returnedAmount: true },
+      select: {
+        status: true,
+        fuelAmount: true,
+        vehicleExpenseAmount: true,
+        returnedAmount: true,
+      },
     })
     if (
       current &&
-      (Number(current.fuelAmount) > 0 || Number(current.returnedAmount) > 0)
+      (Number(current.fuelAmount) > 0 ||
+        Number(current.vehicleExpenseAmount) > 0 ||
+        Number(current.returnedAmount) > 0)
     )
       throw new AppError(
         'A collection with recorded fuel spending or money returned cannot be voided',
@@ -908,5 +938,37 @@ export function filterVehicles(tenantId: string) {
       vendor: { select: { id: true, name: true } },
     },
     orderBy: { registrationNumber: 'asc' },
+  })
+}
+
+export function listPaymentCustodians(tenantId: string) {
+  return prisma.tenantUser.findMany({
+    where: {
+      tenantId,
+      status: 'ACTIVE',
+      deletedAt: null,
+      OR: [
+        { role: { code: { in: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'] } } },
+        { role: { code: { contains: 'MANAGER', mode: 'insensitive' } } },
+      ],
+    },
+    select: { id: true, name: true, role: { select: { name: true } } },
+    orderBy: { name: 'asc' },
+  })
+}
+
+export function findPaymentCustodian(tenantId: string, userId: string) {
+  return prisma.tenantUser.findFirst({
+    where: {
+      tenantId,
+      id: userId,
+      status: 'ACTIVE',
+      deletedAt: null,
+      OR: [
+        { role: { code: { in: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'] } } },
+        { role: { code: { contains: 'MANAGER', mode: 'insensitive' } } },
+      ],
+    },
+    select: { id: true, name: true, role: { select: { name: true } } },
   })
 }

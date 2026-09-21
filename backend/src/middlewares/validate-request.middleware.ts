@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express'
 import type Joi from 'joi'
 import { AppError } from '../shared/errors/app-error'
+import { normalizeValidatedInput } from '../shared/text/normalize-input'
 
 export function validateBody(schema: Joi.ObjectSchema): RequestHandler {
   return (request, _response, next) => {
@@ -22,7 +23,7 @@ export function validateBody(schema: Joi.ObjectSchema): RequestHandler {
       return
     }
 
-    const validatedBody: unknown = result.value
+    const validatedBody: unknown = normalizeValidatedInput(result.value)
     request.body = validatedBody
     next()
   }
@@ -49,7 +50,9 @@ export function validateParams(schema: Joi.ObjectSchema): RequestHandler {
       )
       return
     }
-    request.params = result.value as typeof request.params
+    request.params = normalizeValidatedInput(
+      result.value,
+    ) as typeof request.params
     next()
   }
 }
@@ -75,6 +78,7 @@ export function validateQuery(schema: Joi.ObjectSchema): RequestHandler {
       )
       return
     }
+    Object.assign(request.query, normalizeValidatedInput(result.value))
     next()
   }
 }

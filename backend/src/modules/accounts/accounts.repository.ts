@@ -203,6 +203,8 @@ export function listBookingBalances(
           paymentMode: true,
           paymentHolder: true,
           fuelAmount: true,
+          vehicleExpenseAmount: true,
+          vehicleExpenseReason: true,
           returnedAmount: true,
           custodianDriverId: true,
           collectedByName: true,

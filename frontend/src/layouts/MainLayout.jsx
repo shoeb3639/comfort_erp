@@ -128,11 +128,19 @@ const navItems = [
   },
   {
     id: "reports",
-    to: "/reports",
     label: "Reports",
     shortLabel: "Reports",
     icon: BarChart3,
     permissions: ["reports.view"],
+    children: [
+      { to: "/reports?report=business-summary", label: "Booking Summary" },
+      { to: "/reports?report=booking-register", label: "Booking Register" },
+      { to: "/reports?report=invoice-register", label: "Invoice Register" },
+      { to: "/reports?report=outstanding-invoices", label: "Outstanding Invoices" },
+      { to: "/reports?report=expense-register", label: "Expense Register" },
+      { to: "/reports?report=vehicle-utilization", label: "Vehicle Utilization" },
+      { to: "/reports?report=vendor-duty", label: "Vendor Duty Register" },
+    ],
   },
   {
     id: "settings",
@@ -143,8 +151,6 @@ const navItems = [
       { to: "/settings", label: "Company Setup", exact: true },
       { to: "/settings/gst-registrations", label: "GST Registrations" },
       { to: "/settings/users", label: "Users" },
-      { to: "/settings/roles", label: "Roles" },
-      { to: "/settings/permissions", label: "Permissions" },
     ],
   },
 ];
@@ -247,7 +253,7 @@ function getPageMeta(pathname) {
       eyebrow: "Fleet profitability",
       title: "Vehicle Register",
       description:
-        "Booking-wise vehicle ledger with daily and monthly profit and loss.",
+        "Vehicle ledger with daily and monthly profit and loss.",
     };
   }
 
@@ -467,23 +473,6 @@ function getPageMeta(pathname) {
       eyebrow: "GST settings",
       title: "GST Registration Detail",
       description: "Review registration details and assigned branches.",
-    };
-  }
-
-  if (pathname === "/settings/roles") {
-    return {
-      eyebrow: "Access control",
-      title: "Roles",
-      description: "Manage role collections and review permission assignments.",
-    };
-  }
-
-  if (pathname === "/settings/permissions") {
-    return {
-      eyebrow: "Access control",
-      title: "Permissions",
-      description:
-        "Review the permission-key catalog used for future route and action guards.",
     };
   }
 
@@ -817,34 +806,44 @@ function MenuButton({ onClick }) {
   );
 }
 
-function isRouteActive(item, pathname) {
+function isRouteActive(item, pathname, search = "") {
   if (item.match?.test(pathname)) return true;
   if (item.aliases?.includes(pathname)) return true;
   if (!item.to) return false;
-  if (pathname === item.to) return true;
+  const [itemPathname, itemSearch = ""] = item.to.split("?");
+  if (pathname === itemPathname) {
+    if (!itemSearch) return true;
+    const currentParams = new URLSearchParams(search);
+    const itemParams = new URLSearchParams(itemSearch);
+    return Array.from(itemParams.entries()).every(
+      ([key, value]) => currentParams.get(key) === value,
+    );
+  }
   if (item.exact) return false;
 
   return (
-    item.to !== "/dashboard" &&
-    item.to !== "/settings" &&
-    pathname.startsWith(`${item.to}/`)
+    itemPathname !== "/dashboard" &&
+    itemPathname !== "/settings" &&
+    pathname.startsWith(`${itemPathname}/`)
   );
 }
 
-function isGroupActive(item, pathname) {
+function isGroupActive(item, pathname, search = "") {
   return Boolean(
-    item.children?.some((child) => isRouteActive(child, pathname)),
+    item.children?.some((child) => isRouteActive(child, pathname, search)),
   );
 }
 
-function findActiveGroupId(pathname) {
+function findActiveGroupId(pathname, search = "") {
   const explicitMatchGroup = navItems.find((item) =>
     item.children?.some((child) => child.match?.test(pathname)),
   );
   if (explicitMatchGroup) return explicitMatchGroup.id;
 
   return (
-    navItems.find((item) => item.children && isGroupActive(item, pathname))
+    navItems.find(
+      (item) => item.children && isGroupActive(item, pathname, search),
+    )
       ?.id || ""
   );
 }
@@ -886,13 +885,16 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
   const { user } = useAuth();
   const permittedNavItems = visibleNavigation(navItems, user?.permissions);
   const [openGroupId, setOpenGroupId] = useState(() =>
-    findActiveGroupId(location.pathname),
+    findActiveGroupId(location.pathname, location.search),
   );
 
   useEffect(() => {
-    const activeGroupId = findActiveGroupId(location.pathname);
+    const activeGroupId = findActiveGroupId(
+      location.pathname,
+      location.search,
+    );
     setOpenGroupId(activeGroupId);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   function toggleGroup(groupId) {
     setOpenGroupId((currentGroupId) =>
@@ -906,8 +908,8 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
         const Icon = item.icon;
         const hasChildren = Boolean(item.children?.length);
         const isActive = hasChildren
-          ? isGroupActive(item, location.pathname)
-          : isRouteActive(item, location.pathname);
+          ? isGroupActive(item, location.pathname, location.search)
+          : isRouteActive(item, location.pathname, location.search);
         const isOpen = openGroupId === item.id;
 
         if (hasChildren) {
@@ -948,7 +950,11 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
               {!collapsed && isOpen && (
                 <div className="ml-10 mt-1 space-y-1">
                   {item.children.map((child) => {
-                    const childActive = isRouteActive(child, location.pathname);
+                    const childActive = isRouteActive(
+                      child,
+                      location.pathname,
+                      location.search,
+                    );
 
                     if (child.disabled) {
                       return (
@@ -974,7 +980,9 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
                         onClick={onNavigate}
                         className={({ isActive: navLinkActive }) =>
                           `block rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                            navLinkActive || childActive
+                            (child.to.includes("?")
+                              ? childActive
+                              : navLinkActive || childActive)
                               ? "bg-brand-50 text-brand-700"
                               : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                           }`
@@ -999,7 +1007,8 @@ function SidebarNav({ collapsed = false, className = "", onNavigate }) {
                 `group relative flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                   collapsed ? "justify-center gap-0" : "gap-3"
                 } ${
-                  isActive || isRouteActive(item, location.pathname)
+                  isActive ||
+                  isRouteActive(item, location.pathname, location.search)
                     ? "bg-slate-900 text-white shadow-sm"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                 }`
@@ -1027,15 +1036,17 @@ function MainLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [pageTopbarAction, setPageTopbarAction] = useState(null);
+  const [pageMetaOverride, setPageMetaOverride] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
   const basePath = `/${location.pathname.split("/")[1] || "dashboard"}`;
-  const meta =
+  const resolvedMeta =
     getPageMeta(location.pathname) ||
     pageMeta[location.pathname] ||
     pageMeta[basePath] ||
     pageMeta["/dashboard"];
+  const meta = { ...resolvedMeta, ...pageMetaOverride };
   const requestedTopbarActions = pageTopbarAction
     ? Array.isArray(pageTopbarAction)
       ? pageTopbarAction
@@ -1051,7 +1062,19 @@ function MainLayout() {
     setIsMenuOpen(false);
     setIsProfileOpen(false);
     setPageTopbarAction(null);
+    setPageMetaOverride({});
   }, [location.pathname]);
+
+  useEffect(() => {
+    const updateTitle = (event) => {
+      const detail = event.detail;
+      setPageMetaOverride(
+        typeof detail === "string" ? { title: detail } : detail || {},
+      );
+    };
+    window.addEventListener("cablix:page-title", updateTitle);
+    return () => window.removeEventListener("cablix:page-title", updateTitle);
+  }, []);
 
   async function handleLogout() {
     setIsProfileOpen(false);
@@ -1155,7 +1178,8 @@ function MainLayout() {
               </p>
             </div>
 
-            {basePath !== "/bookings" && (
+            {basePath !== "/bookings" &&
+              !/^\/vehicles\/[^/]+\/ledger$/.test(location.pathname) && (
               <label className="hidden min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 xl:flex">
                 <Search
                   className="mr-2 text-slate-400"
@@ -1192,7 +1216,7 @@ function MainLayout() {
 
             {topbarActions.map((action) => {
               const Icon = action.icon;
-              const className = `inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold shadow-sm sm:px-4 ${
+              const className = `inline-flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${action.iconOnly ? "w-10 px-0" : "px-3 sm:px-4"} ${
                 action.variant === "primary"
                   ? "bg-brand-500 text-white hover:bg-brand-600"
                   : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -1204,10 +1228,11 @@ function MainLayout() {
                     key={`${action.label}-${action.to}`}
                     to={action.to}
                     aria-label={action.label}
+                    title={action.title || action.label}
                     className={className}
                   >
                     <Icon size={17} strokeWidth={2.3} />
-                    <span className="hidden sm:inline">{action.label}</span>
+                    {!action.iconOnly && <span className="hidden sm:inline">{action.label}</span>}
                   </Link>
                 );
               }
@@ -1218,11 +1243,15 @@ function MainLayout() {
                   type={action.type || "button"}
                   form={action.form}
                   aria-label={action.label}
+                  title={action.title || action.label}
+                  disabled={action.disabled}
                   className={className}
                   onClick={action.onClick}
                 >
                   <Icon size={17} strokeWidth={2.3} />
-                  <span className="hidden sm:inline">{action.label}</span>
+                  {!action.iconOnly && (
+                    <span className="hidden sm:inline">{action.label}</span>
+                  )}
                 </button>
               );
             })}

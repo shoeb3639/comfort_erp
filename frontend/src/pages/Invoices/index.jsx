@@ -4,6 +4,7 @@ import {
   Eye,
   FilePenLine,
   FileText,
+  Download,
   MoreVertical,
   Printer,
   Search,
@@ -12,6 +13,7 @@ import {
 import {
   cancelInvoice,
   generateInvoice,
+  getGstSalesReport,
   listInvoices,
 } from "../../services/invoices";
 import { formatMoney, normalizeInvoice } from "./invoiceUtils";
@@ -40,6 +42,86 @@ function InvoicesPage() {
     hasPrevious: false,
     hasNext: false,
   });
+  const [gstMonth, setGstMonth] = useState(() =>
+    new Date().toISOString().slice(0, 7),
+  );
+  const [isPreparingGstReport, setIsPreparingGstReport] = useState(false);
+
+  function csvValue(value) {
+    return `"${String(value ?? "").replaceAll('"', '""')}"`;
+  }
+
+  async function downloadGstSalesReport() {
+    setNotice("");
+    setIsPreparingGstReport(true);
+    try {
+      const report = await getGstSalesReport(gstMonth);
+      const headers = [
+        "Invoice Date",
+        "Invoice Number",
+        "Booking ID",
+        "Client / Company Name",
+        "Client GSTIN",
+        "Place of Supply",
+        "GST Type",
+        "Taxable Amount",
+        "CGST Amount",
+        "SGST Amount",
+        "IGST Amount",
+        "Total GST",
+        "Invoice Amount",
+        "Status",
+      ];
+      const lines = [
+        headers,
+        ...report.rows.map((row) => [
+          row.invoiceDate,
+          row.invoiceNumber,
+          row.bookingId,
+          row.customerName,
+          row.customerGstin,
+          row.placeOfSupply,
+          row.gstType,
+          row.taxableAmount,
+          row.cgstAmount,
+          row.sgstAmount,
+          row.igstAmount,
+          row.totalGst,
+          row.invoiceAmount,
+          row.status,
+        ]),
+      ].map((row) => row.map(csvValue).join(","));
+      const file = new File(
+        [`\uFEFF${lines.join("\n")}`],
+        `GST-Sales-${gstMonth}.csv`,
+        {
+          type: "text/csv;charset=utf-8",
+        },
+      );
+      if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+        await navigator.share({
+          title: `GST Sales Report ${gstMonth}`,
+          files: [file],
+        });
+      } else {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+      setNotice(
+        `${report.summary.invoiceCount} invoice(s) prepared for ${gstMonth}.`,
+      );
+    } catch (error) {
+      setNotice(
+        error.response?.data?.message || "Unable to prepare GST Sales Report.",
+      );
+    } finally {
+      setIsPreparingGstReport(false);
+    }
+  }
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(
@@ -110,6 +192,37 @@ function InvoicesPage() {
           {notice}
         </div>
       )}
+      <section className="rounded-2xl border border-brand-100 bg-brand-50/40 p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">
+              GST Sales Report
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Final invoices for your CA. Share the generated file through
+              WhatsApp or email.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              aria-label="GST report month"
+              type="month"
+              value={gstMonth}
+              onChange={(event) => setGstMonth(event.target.value)}
+              className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+            />
+            <button
+              type="button"
+              disabled={isPreparingGstReport}
+              onClick={downloadGstSalesReport}
+              className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg bg-brand-500 px-3 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              <Download size={16} />{" "}
+              {isPreparingGstReport ? "Preparing…" : "Download / Share"}
+            </button>
+          </div>
+        </div>
+      </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h3 className="text-base font-semibold text-slate-900">

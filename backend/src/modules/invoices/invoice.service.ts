@@ -165,6 +165,52 @@ export async function list(
   return pageResult(records.map(mapInvoice), total, filters)
 }
 
+export async function gstSalesReport(
+  context: { tenantId: string },
+  month: string,
+) {
+  const start = new Date(`${month}-01T00:00:00.000Z`)
+  const end = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
+  )
+  const invoices = await repository.gstSalesReport(context.tenantId, start, end)
+  const rows = invoices.map((invoice) => ({
+    invoiceDate: invoice.invoiceDate.toISOString().slice(0, 10),
+    invoiceNumber: invoice.invoiceNumber ?? '',
+    bookingId: invoice.bookingId ?? '',
+    customerName: invoice.billingName,
+    customerGstin: invoice.customerGstin ?? '',
+    placeOfSupply: invoice.placeOfSupply ?? '',
+    gstType: invoice.gstType,
+    taxableAmount: Number(invoice.taxableAmount),
+    cgstAmount: Number(invoice.cgstAmount),
+    sgstAmount: Number(invoice.sgstAmount),
+    igstAmount: Number(invoice.igstAmount),
+    totalGst: Number(invoice.totalGst),
+    invoiceAmount: Number(invoice.netPayable),
+    status: invoice.status,
+  }))
+  const total = (name: keyof (typeof rows)[number]) =>
+    rows.reduce(
+      (sum, row) =>
+        sum + (typeof row[name] === 'number' ? Number(row[name]) : 0),
+      0,
+    )
+  return {
+    month,
+    rows,
+    summary: {
+      invoiceCount: rows.length,
+      taxableAmount: total('taxableAmount'),
+      cgstAmount: total('cgstAmount'),
+      sgstAmount: total('sgstAmount'),
+      igstAmount: total('igstAmount'),
+      totalGst: total('totalGst'),
+      invoiceAmount: total('invoiceAmount'),
+    },
+  }
+}
+
 export async function get(context: Context, invoiceId: string) {
   const invoice = await repository.find(context.tenantId, invoiceId)
   if (!invoice) throw new AppError('Invoice was not found', 'NOT_FOUND', 404)

@@ -12,6 +12,12 @@ export const invoiceQuerySchema = Joi.object({
   source: Joi.string().valid('BOOKING', 'DIRECT'),
 })
 
+export const gstSalesReportQuerySchema = Joi.object({
+  month: Joi.string()
+    .pattern(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .required(),
+})
+
 const itemSchema = Joi.object({
   dateType: Joi.string().valid('single', 'range', 'blank').default('single'),
   serviceDate: Joi.date().iso().allow('', null),

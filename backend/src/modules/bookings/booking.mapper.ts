@@ -68,12 +68,20 @@ export function mapBooking(record: BookingRecord | null) {
     amount: Number(collection.amount),
     paymentHolder: collection.paymentHolder,
     fuelAmount: Number(collection.fuelAmount),
+    vehicleExpenseAmount: Number(collection.vehicleExpenseAmount),
+    vehicleExpenseReason: collection.vehicleExpenseReason,
     returnedAmount: Number(collection.returnedAmount),
+    returnedToName: collection.returnedToName,
+    returnedAt: collection.returnedAt?.toISOString() ?? null,
+    returnPaymentMode: collection.returnPaymentMode
+      ? collection.returnPaymentMode.split('_').map(toTitleCase).join(' ')
+      : null,
     driverBalance:
       collection.paymentHolder === 'DRIVER'
         ? Math.round(
             (Number(collection.amount) -
               Number(collection.fuelAmount) -
+              Number(collection.vehicleExpenseAmount) -
               Number(collection.returnedAmount)) *
               100,
           ) / 100

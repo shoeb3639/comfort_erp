@@ -4,8 +4,6 @@ import PermissionRoute from "../auth/PermissionRoute";
 import MainLayout from "../layouts/MainLayout";
 import PlatformLayout from "../layouts/PlatformLayout";
 import AccessDeniedPage from "../pages/Access/AccessDenied";
-import PermissionsPage from "../pages/Access/Permissions";
-import RolesPage from "../pages/Access/Roles";
 import UsersPage from "../pages/Access/Users";
 import BookingCashDepositPage from "../pages/Accounts/BookingCashDeposit";
 import DailyClosingPage from "../pages/Accounts/DailyClosing";
@@ -36,6 +34,7 @@ import InvoicePrintPage from "../pages/Invoices/Print";
 import LoginPage from "../pages/Login";
 import PlatformAuditLogsPage from "../pages/Platform/AuditLogs";
 import PlatformDashboardPage from "../pages/Platform/Dashboard";
+import PlatformPermissionsPage from "../pages/Platform/Permissions";
 import PlatformPaymentsPage from "../pages/Platform/Payments";
 import PlatformPlansPage from "../pages/Platform/Plans";
 import PlatformSubscriptionsPage from "../pages/Platform/Subscriptions";
@@ -87,6 +86,10 @@ function AppRoutes() {
             element={<Navigate to="/platform/payments" replace />}
           />
           <Route path="/platform/users" element={<PlatformUsersPage />} />
+          <Route
+            path="/platform/permissions"
+            element={<PlatformPermissionsPage />}
+          />
           <Route
             path="/platform/audit-logs"
             element={<PlatformAuditLogsPage />}
@@ -285,8 +288,6 @@ function AppRoutes() {
             element={<GSTRegistrationsPage />}
           />
           <Route path="/settings/users" element={<UsersPage />} />
-          <Route path="/settings/roles" element={<RolesPage />} />
-          <Route path="/settings/permissions" element={<PermissionsPage />} />
           <Route
             path="/settings/users-roles"
             element={<Navigate to="/settings/users" replace />}
